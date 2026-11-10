@@ -43,6 +43,9 @@ use vpn::manager::VpnManager;
 use vpn_store::VpnStore;
 
 pub fn run() {
+    // Before the windows exist: on Linux the webview keeps its data in this same folder, so it would create it first.
+    legacy::import_on_first_start();
+
     let app = tauri::Builder::default()
         // Has to be the first plugin, so a second launch exits before anything else starts.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| splash::bring_to_front(app)))
@@ -62,9 +65,6 @@ pub fn run() {
         })
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
-            if let Err(error) = legacy::import_old_data(&data_dir) {
-                eprintln!("importing Fran DB's data: {error}");
-            }
             std::fs::create_dir_all(&data_dir)?;
 
             let vault = Arc::new(Vault::new(data_dir.join("secrets.vault")));

@@ -3,6 +3,17 @@ use std::{fs, io, path::Path};
 /// The app's identifier while it was called Fran DB. Its data folder and keychain entry carry this name.
 pub const OLD_IDENTIFIER: &str = "com.frandb.app";
 
+/// Fran's identifier from tauri.conf.json, so the import runs before Tauri builds anything.
+const IDENTIFIER: &str = "com.fran.app";
+
+/// Runs first thing on start. Once Fran's data folder exists, this is one check and nothing else.
+pub fn import_on_first_start() {
+    let Some(data_dir) = dirs::data_dir().map(|dir| dir.join(IDENTIFIER)) else { return };
+    if let Err(error) = import_old_data(&data_dir) {
+        eprintln!("importing Fran DB's data: {error}");
+    }
+}
+
 /// Copies Fran DB's data folder into a new install's empty one, so connections, settings and the vault come along.
 /// The old folder is left as it was.
 pub fn import_old_data(data_dir: &Path) -> io::Result<()> {
@@ -72,6 +83,12 @@ mod tests {
         assert_eq!(fs::read(data_dir.join("secrets.vault")).unwrap(), b"FRDBVLT1 sealed");
         assert_eq!(fs::read(data_dir.join("agent_history").join("2026-10-30.log")).unwrap(), b"day");
         assert!(parent.0.join(OLD_IDENTIFIER).join("secrets.vault").is_file());
+    }
+
+    #[test]
+    fn the_identifier_matches_the_one_tauri_uses() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(config["identifier"], super::IDENTIFIER, "the import would look in the wrong data folder");
     }
 
     #[test]

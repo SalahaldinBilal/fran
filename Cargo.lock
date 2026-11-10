@@ -2158,6 +2158,7 @@ dependencies = [
  "block2",
  "bytes",
  "chacha20poly1305 0.11.0",
+ "dirs",
  "fallible-iterator 0.2.0",
  "getrandom 0.4.3",
  "gtk",
