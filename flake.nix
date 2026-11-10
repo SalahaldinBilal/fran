@@ -36,6 +36,8 @@
           libayatana-appindicator
         ];
 
+        runtimeLibraryPath = lib.makeLibraryPath [pkgs.libayatana-appindicator];
+
         frontend = pkgs.buildNpmPackage {
           pname = "fran-frontend";
           version = (lib.importJSON ./package.json).version;
@@ -88,10 +90,9 @@
               cp -r ${frontend} dist
             '';
             # webkitgtk's DMA-BUF renderer hits Wayland protocol errors on NVIDIA
-            # The tray loads libayatana-appindicator at runtime, so it has to be on the library path.
             preFixup = ''
               gappsWrapperArgs+=(--set-default WEBKIT_DISABLE_DMABUF_RENDERER 1)
-              gappsWrapperArgs+=(--prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [pkgs.libayatana-appindicator]})
+              gappsWrapperArgs+=(--prefix LD_LIBRARY_PATH : ${runtimeLibraryPath})
             '';
             postInstall = ''
               install -Dm644 src-tauri/icons/32x32.png $out/share/icons/hicolor/32x32/apps/fran.png
@@ -133,6 +134,7 @@
           ];
           GIO_MODULE_DIR = "${pkgs.glib-networking}/lib/gio/modules";
           WEBKIT_DISABLE_DMABUF_RENDERER = 1;
+          LD_LIBRARY_PATH = runtimeLibraryPath;
         };
       }
     )
