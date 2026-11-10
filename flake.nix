@@ -104,7 +104,7 @@
               install -Dm755 ${fran-vpn}/bin/fran-vpn $out/bin/fran-vpn
             '';
             meta = {
-              description = "A desktop SQL client";
+              description = "A desktop client for databases, SSH and VPNs";
               license = lib.licenses.gpl3Plus;
               mainProgram = "fran";
               platforms = lib.platforms.linux;
@@ -117,8 +117,8 @@
           desktopName = "Fran";
           exec = "fran";
           icon = "fran";
-          comment = "A desktop SQL client";
-          categories = ["Development" "Database"];
+          comment = "A desktop client for databases, SSH and VPNs";
+          categories = ["Development" "Database" "Network"];
         };
       in {
         packages.default = fran;

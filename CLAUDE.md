@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-Fran (formerly Fran DB) is a desktop SQL and SSH client built with Tauri 2 (Rust backend) and SolidJS + TypeScript (frontend). MySQL, PostgreSQL, SQLite and Cloudflare D1 are supported. Every database-specific piece sits behind a per-kind module so another database can be added without touching generic code.
+Fran (formerly Fran DB) is a desktop database, SSH and VPN client built with Tauri 2 (Rust backend) and SolidJS + TypeScript (frontend). MySQL, PostgreSQL, SQLite and Cloudflare D1 are supported, and VPNs are OpenVPN and WireGuard. Every database-specific piece sits behind a per-kind module so another database can be added without touching generic code.
 
 Details live next to the code, in CLAUDE.md files that load when you work in that folder:
 

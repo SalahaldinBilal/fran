@@ -1,6 +1,6 @@
 # Fran
 
-A desktop SQL client for MySQL, MariaDB, PostgreSQL, SQLite and Cloudflare D1, built with [Tauri 2](https://tauri.app/) and [SolidJS](https://www.solidjs.com/).
+A desktop app for databases, SSH and VPNs: MySQL, MariaDB, PostgreSQL, SQLite and Cloudflare D1, SSH terminals and file transfers, and OpenVPN and WireGuard. Built with [Tauri 2](https://tauri.app/) and [SolidJS](https://www.solidjs.com/).
 
 ## Download
 
@@ -76,6 +76,18 @@ nix.settings = {
 **Agents**
 - A built-in MCP server lets coding agents like Claude Code and Cursor use the connections you share with them, read only or asking you to approve every change. It's off by default, and no connection is shared until you choose to
 
+**SSH**
+- Saved hosts with jump hosts and a SOCKS5 or HTTP proxy, or imported from `~/.ssh/config`
+- Terminals in tabs, split into more shells on the same connection without logging in again
+- Files over SFTP, side by side with this computer, with drag and drop and a transfer queue
+- Local, remote and dynamic port forwards, and snippets for commands you run often
+- Keys generated or imported into the vault, shared logins, and every trusted host key in one place
+
+**VPN**
+- OpenVPN profiles (.ovpn) and WireGuard configs (.conf), imported or set up by hand
+- Connections and SSH hosts that use a VPN get their own tunnel inside Fran, with no admin rights, and nothing else on the computer uses it
+- A VPN can also be turned on for the whole computer through Fran's VPN service, set up once with admin rights
+
 ## Your data
 
 Everything is stored in the app data folder:
@@ -84,7 +96,7 @@ Everything is stored in the app data folder:
 - macOS: `~/Library/Application Support/com.fran.app`
 - Linux: `~/.local/share/com.fran.app`
 
-Connection profiles, saved queries, open tabs and settings are JSON files there. Passwords only go in `secrets.vault`, which can't be read without the key in the OS keychain.
+Connection profiles, SSH hosts, VPN profiles, saved queries, open tabs and settings are JSON files there. Passwords and keys only go in `secrets.vault`, which can't be read without the key in the OS keychain.
 
 Fran used to be called Fran DB, which kept its data in `com.frandb.app`. On its first start Fran copies that folder and the vault key, and leaves Fran DB's own copy alone.
 
