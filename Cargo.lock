@@ -4405,6 +4405,8 @@ dependencies = [
 [[package]]
 name = "openvpn-rust-bindings"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb437662b6e84ecb60186a853853c3897403ccb257c022630e948cea179ccd64"
 dependencies = [
  "cc",
  "lz4-sys",

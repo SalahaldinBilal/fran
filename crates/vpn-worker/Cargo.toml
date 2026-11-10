@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 vpn-proto = { path = "../vpn-proto" }
-openvpn-rust-bindings = { path = "../../../openvpn-rust-bindings" }
+openvpn-rust-bindings = "0.1.0"
 boringtun = { version = "0.7.1", default-features = false }
 base64 = "0.23.1"
 serde = { version = "1.0.229", features = ["derive"] }
