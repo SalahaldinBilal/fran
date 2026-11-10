@@ -1,6 +1,6 @@
 [package]
 name = "vpn-worker"
-version = "0.1.5"
+version = "1.0.0"
 description = "Fran's VPN worker and service, running OpenVPN 3 and WireGuard"
 license = "GPL-3.0-or-later"
 edition = "2024"
