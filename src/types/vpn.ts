@@ -149,7 +149,7 @@ export type VpnServiceStatus =
   | { state: "notSetUp", nixos: boolean }
   | { state: "notRunning", reason: string }
   | { state: "needsUpdate", reason: string }
-  // `outdated`: an older build than the app. It still works, Update brings it in line.
+  // `outdated`: not the fran-vpn version this app ships. It still works, Update installs the one that comes with the app.
   | { state: "running", build: string, access: VpnServiceAccess, allowed: boolean, refused: string | null, outdated: boolean };
 
 export type OpenVpnInstallHelp = { kind: "run", with: string } | { kind: "command", command: string } | { kind: "none" };

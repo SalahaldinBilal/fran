@@ -62,7 +62,7 @@ pub async fn status() -> ServiceStatus {
 }
 
 fn running(build: String, access: Access, allowed: bool, refused: Option<String>) -> ServiceStatus {
-    let outdated = build != env!("CARGO_PKG_VERSION");
+    let outdated = build != env!("FRAN_VPN_VERSION");
     ServiceStatus::Running { build, access, allowed, refused, outdated }
 }
 

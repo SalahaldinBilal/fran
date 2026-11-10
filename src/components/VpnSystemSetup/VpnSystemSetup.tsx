@@ -50,7 +50,7 @@ function serviceText(status: VpnServiceStatus | null, failed: string | null): { 
     case "running": {
       if (!status.allowed) return { text: status.refused ?? "Running, but it doesn't take your account.", error: true };
       const who = status.access === "everyone" ? "everyone on this computer" : "you and administrators";
-      const outdated = status.outdated ? ` It's from Fran ${status.build}, Update brings it in line with this version.` : "";
+      const outdated = status.outdated ? ` This Fran comes with a different version. Click Update to install it.` : "";
       return { text: `Running, for ${who}.${outdated}`, error: status.outdated };
     }
   }

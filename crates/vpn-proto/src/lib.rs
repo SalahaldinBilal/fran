@@ -4,8 +4,6 @@ pub mod profile;
 /// Bumped whenever a frame changes shape. Both sides send it in their first frame.
 pub const PROTOCOL_VERSION: u32 = 2;
 
-pub const BUILD: &str = env!("CARGO_PKG_VERSION");
-
 pub const WORKER_ARG: &str = "--worker";
 pub const SERVICE_ARG: &str = "--service";
 pub const INSTALL_ARG: &str = "--install";

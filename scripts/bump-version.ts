@@ -66,9 +66,6 @@ function cutChangelog() {
 
 bumpJsonVersion("../package.json");
 bumpCargoVersion("../src-tauri/Cargo.toml");
-// The service reports its build, so Fran can tell when the installed copy is older than the app.
-bumpCargoVersion("../crates/vpn-worker/Cargo.toml");
-bumpCargoVersion("../crates/vpn-proto/Cargo.toml");
 bumpJsonVersion("../src-tauri/tauri.conf.json");
 cutChangelog();
 

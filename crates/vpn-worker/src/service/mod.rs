@@ -25,7 +25,7 @@ use crate::session::{self, Out, Tun};
 /// One connection from Fran: the hello, then at most one tunnel on a real adapter. It ends when the connection does.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn handle(reader: impl Read, writer: Box<dyn Write + Send>, access: Access, caller: Result<(), String>) {
-    let info = ServiceInfo { build: vpn_proto::BUILD.to_string(), access, allowed: caller.is_ok(), refused: caller.err() };
+    let info = ServiceInfo { build: env!("CARGO_PKG_VERSION").to_string(), access, allowed: caller.is_ok(), refused: caller.err() };
     let out = Out::new(writer);
     let tun_out = out.clone();
     session::run(
