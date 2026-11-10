@@ -60,6 +60,9 @@ async function main() {
     const arm = build("aarch64-apple-darwin");
     const intel = build("x86_64-apple-darwin");
     execFileSync("lipo", ["-create", "-output", join(binaries, `fran-vpn-${triple}`), arm, intel], { stdio: "inherit" });
+    // Tauri builds the app once per architecture, and each build checks for its own copy.
+    copyFileSync(arm, join(binaries, "fran-vpn-aarch64-apple-darwin"));
+    copyFileSync(intel, join(binaries, "fran-vpn-x86_64-apple-darwin"));
     return;
   }
 
