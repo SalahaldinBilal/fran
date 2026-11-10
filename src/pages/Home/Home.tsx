@@ -126,7 +126,7 @@ function Home() {
   }
 
   function onKeyDown(event: KeyboardEvent) {
-    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "k") return;
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "f") return;
     if (useWorkspaceState.store.activeGlobalTabId !== HOME_TAB_ID || useModalState.anyOpen()) return;
     event.preventDefault();
     searchInput?.focus();
@@ -155,7 +155,7 @@ function Home() {
             }}
             placeholder="Search"
             before={<Search size={14} />}
-            after={<kbd class={styles.Kbd}>{IS_MAC ? "⌘K" : "Ctrl K"}</kbd>}
+            after={<kbd class={styles.Kbd}>{IS_MAC ? "⌘F" : "Ctrl F"}</kbd>}
             inputRef={element => {
               searchInput = element;
               element.addEventListener("focus", () => setResultsOpen(true));

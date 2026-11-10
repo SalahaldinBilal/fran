@@ -20,13 +20,19 @@ const GROUP_HINT = IS_MAC
   : `Adds you to a "${IS_WINDOWS ? "Fran VPN Users" : "fran-vpn"}" group. Others need an administrator to add them.`;
 
 const ACCESS_ITEMS: SelectItem<VpnServiceAccess>[] = [
-  { value: "everyone", label: "Everyone on this computer", hint: "Any account signed in here. Not service accounts or network sign-ins." },
-  { value: "group", label: "Only me and administrators", hint: GROUP_HINT },
+  { value: "everyone", label: "Everyone on this computer" },
+  { value: "group", label: "Only me and administrators" },
 ];
+
+// Shown under the setting instead of in the menu, which they'd make far too wide.
+const ACCESS_HINTS: Record<VpnServiceAccess, string> = {
+  everyone: "Any account signed in here. Not service accounts or network sign-ins.",
+  group: GROUP_HINT,
+};
 
 const BACKEND_ITEMS: SelectItem<SystemBackend>[] = [
   { value: "fran", label: "Fran's VPN service" },
-  { value: "openvpn", label: "Installed OpenVPN", hint: "Asks for the admin password each time on macOS and Linux" },
+  { value: "openvpn", label: "Installed OpenVPN" },
 ];
 
 function serviceText(status: VpnServiceStatus | null, failed: string | null): { text: string, error: boolean } {
@@ -173,7 +179,7 @@ function VpnSystemSetup() {
   const showOpenVpn = createMemo(() => settings.vpn.systemWith === "openvpn" || profilesNeedOpenVpn());
   const openVpnMissing = createMemo(() => check() !== null && check()?.program === null);
   const openVpnError = createMemo(() => openVpn().error && !installCommand());
-  const accessHint = createMemo(() => (state() === "running" ? "Changing this asks for admin rights once." : ACCESS_ITEMS.find(item => item.value === access())?.hint));
+  const accessHint = createMemo(() => (state() === "running" ? `${ACCESS_HINTS[access()]} Changing this asks for admin rights once.` : ACCESS_HINTS[access()]));
 
   return (
     <SettingGroup title="Turning VPNs on for this computer">

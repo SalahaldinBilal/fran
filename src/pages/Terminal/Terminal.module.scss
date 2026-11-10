@@ -219,13 +219,26 @@
 }
 
 .Screen {
+  display: flex;
   flex: 1;
   min-height: 0;
   padding: 6px 4px 4px 10px;
   overflow: hidden;
+}
+
+// xterm's parent. The fit addon counts a parent's padding as room for rows, so the padding stays outside it.
+.Host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 
   :global(.xterm) {
     height: 100%;
+  }
+
+  // xterm's stylesheet makes it black, and it shows under the last row, which never fills the height exactly.
+  :global(.xterm .xterm-viewport) {
+    background-color: var(--term-bg);
   }
 }
 

@@ -383,7 +383,9 @@ function TerminalPane(props: TerminalPaneProps) {
         </div>
       </Show>
 
-      <div class={styles.Screen} ref={host} onContextMenu={onContextMenu} />
+      <div class={styles.Screen} onContextMenu={onContextMenu}>
+        <div class={styles.Host} ref={host} />
+      </div>
 
       <Show when={connecting()}>
         <div class={styles.Connecting}>
