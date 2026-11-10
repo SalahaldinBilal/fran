@@ -1,6 +1,6 @@
 {
   "name": "fran",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "A desktop client for databases, SSH and VPNs",
   "license": "GPL-3.0-or-later",
   "type": "module",

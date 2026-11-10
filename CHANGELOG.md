@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
 ### Added
 
 - Saved passwords can be shown again. Every password field has a Show button, and the Keychain tab, now called Secrets, lists every secret in the vault. Unlock its passwords once to see all of them for 5 minutes, with Copy on each. Your system confirms it's you first: Touch ID or your password on macOS, Windows Hello or your Windows password on Windows, and your desktop's password prompt on Linux. A shown password hides after 30 seconds, and a copied one is cleared from the clipboard after 30 seconds. If your account has no password, Fran doesn't ask, or asks for the app lock password when the lock is on.
