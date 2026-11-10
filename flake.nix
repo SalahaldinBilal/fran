@@ -51,7 +51,6 @@
           installPhase = "cp -r dist $out";
         };
 
-        # The repo is a Cargo workspace: the app in src-tauri, the VPN worker and its frames in crates/.
         commonArgs = {
           src = ./.;
           cargoToml = ./src-tauri/Cargo.toml;
@@ -61,8 +60,6 @@
           cargoExtraArgs = "--locked -p fran --features tauri/custom-protocol";
         };
 
-        # The VPN worker and service. Only it builds OpenVPN 3, and openvpn-rust-bindings links nixpkgs' OpenSSL
-        # instead of building its own.
         vpnArgs =
           commonArgs
           // {
@@ -99,9 +96,8 @@
               install -Dm644 src-tauri/icons/128x128.png $out/share/icons/hicolor/128x128/apps/fran.png
               install -Dm644 src-tauri/icons/128x128@2x.png $out/share/icons/hicolor/256x256/apps/fran.png
               install -Dm644 ${desktopItem}/share/applications/*.desktop -t $out/share/applications
-              # Picked up by polkit when the package is in environment.systemPackages on NixOS.
+
               install -Dm644 src-tauri/linux/com.fran.app.policy $out/share/polkit-1/actions/com.fran.app.policy
-              # Fran looks for its VPN worker next to its own executable.
               install -Dm755 ${fran-vpn}/bin/fran-vpn $out/bin/fran-vpn
             '';
             meta = {
@@ -139,52 +135,63 @@
       }
     )
     // {
-      # Fran's VPN service, so VPNs turn on for the whole computer without the admin password each time. NixOS
-      # manages /etc and has no /usr/local, so it's set up here instead of from Settings > VPN.
       nixosModules.default = {
         config,
         lib,
         pkgs,
         ...
       }: let
-        cfg = config.programs.fran.vpnService;
+        cfg = config.programs.fran;
       in {
-        options.programs.fran.vpnService = {
-          enable = lib.mkEnableOption "Fran's VPN service";
-          access = lib.mkOption {
-            type = lib.types.enum ["everyone" "group"];
-            default = "everyone";
-            description = ''
-              Who may turn VPNs on with it. "everyone": any account signed in at this computer, not service
-              accounts or SSH sessions. "group": root and members of the fran-vpn, wheel or sudo groups.
-            '';
-          };
+        options.programs.fran = {
+          enable = lib.mkEnableOption "Fran";
           package = lib.mkOption {
             type = lib.types.package;
             default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
-            description = "The Fran package whose fran-vpn runs as the service.";
+            description = "The Fran package to install.";
           };
-        };
-        config = lib.mkIf cfg.enable {
-          users.groups.fran-vpn = lib.mkIf (cfg.access == "group") {};
-          systemd.services.fran-vpn = {
-            description = "Fran VPN service";
-            after = ["network-online.target" "systemd-resolved.service"];
-            wants = ["network-online.target"];
-            wantedBy = ["multi-user.target"];
-            serviceConfig = {
-              ExecStart = "${cfg.package}/bin/fran-vpn --service ${cfg.access}";
-              Restart = "on-failure";
-              RuntimeDirectory = "fran-vpn";
-              RuntimeDirectoryMode = "0755";
-              RuntimeDirectoryPreserve = "yes";
-              NoNewPrivileges = true;
-              ProtectHome = true;
-              ProtectSystem = "strict";
-              CapabilityBoundingSet = "CAP_NET_ADMIN";
+          vpnService = {
+            enable = lib.mkEnableOption "Fran's VPN service";
+            access = lib.mkOption {
+              type = lib.types.enum ["everyone" "group"];
+              default = "everyone";
+              description = ''
+                Who may turn VPNs on through the service. Root always can. Service accounts and remote sessions
+                such as SSH never can. "everyone" lets in any account signed in at this computer. "group" only
+                lets in members of the fran-vpn, wheel, sudo or admin groups.
+              '';
+            };
+            package = lib.mkOption {
+              type = lib.types.package;
+              default = cfg.package;
+              defaultText = lib.literalExpression "config.programs.fran.package";
+              description = "The Fran package whose fran-vpn runs as the service.";
             };
           };
         };
+        config = lib.mkMerge [
+          (lib.mkIf cfg.enable {environment.systemPackages = [cfg.package];})
+          (lib.mkIf cfg.vpnService.enable {
+            users.groups.fran-vpn = lib.mkIf (cfg.vpnService.access == "group") {};
+            systemd.services.fran-vpn = {
+              description = "Fran VPN service";
+              after = ["network-online.target" "systemd-resolved.service"];
+              wants = ["network-online.target"];
+              wantedBy = ["multi-user.target"];
+              serviceConfig = {
+                ExecStart = "${cfg.vpnService.package}/bin/fran-vpn --service ${cfg.vpnService.access}";
+                Restart = "on-failure";
+                RuntimeDirectory = "fran-vpn";
+                RuntimeDirectoryMode = "0755";
+                RuntimeDirectoryPreserve = "yes";
+                NoNewPrivileges = true;
+                ProtectHome = true;
+                ProtectSystem = "strict";
+                CapabilityBoundingSet = "CAP_NET_ADMIN";
+              };
+            };
+          })
+        ];
       };
     };
 }
