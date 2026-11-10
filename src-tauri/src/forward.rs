@@ -1,4 +1,9 @@
-use std::{future::Future, io, net::SocketAddr, sync::Arc};
+use std::{
+    future::Future,
+    io,
+    net::{Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
 
 use tauri::async_runtime::JoinHandle;
 use tokio::{
@@ -6,7 +11,7 @@ use tokio::{
     net::TcpListener,
 };
 
-/// A 127.0.0.1 port that relays every accepted connection to a remote stream,
+/// A local port that relays every accepted connection to a remote stream,
 /// for transports a driver can't reach directly (SSH channels, Windows named pipes).
 pub struct LocalForward {
     pub port: u16,
@@ -26,14 +31,18 @@ impl LocalForward {
         Opening: Future<Output = io::Result<Remote>> + Send + 'static,
         Remote: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
-        let listener = TcpListener::bind(("127.0.0.1", port))
-            .await
-            .map_err(|error| {
-                io::Error::new(
-                    error.kind(),
-                    format!("Couldn't listen on 127.0.0.1:{port}: {error}"),
-                )
-            })?;
+        Self::start_on(SocketAddr::from((Ipv4Addr::LOCALHOST, port)), open_remote).await
+    }
+
+    pub async fn start_on<Open, Opening, Remote>(listen: SocketAddr, open_remote: Open) -> io::Result<Self>
+    where
+        Open: Fn(SocketAddr) -> Opening + Send + Sync + 'static,
+        Opening: Future<Output = io::Result<Remote>> + Send + 'static,
+        Remote: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
+        let listener = TcpListener::bind(listen).await.map_err(|error| {
+            io::Error::new(error.kind(), format!("Couldn't listen on {listen}: {error}"))
+        })?;
         let port = listener.local_addr()?.port();
         let open_remote = Arc::new(open_remote);
 

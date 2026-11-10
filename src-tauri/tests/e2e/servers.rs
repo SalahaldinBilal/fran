@@ -4,14 +4,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-use fran_db_lib::connections::SecretBag;
-use fran_db_lib::db::{DriverOptions, mysql::MysqlOptions, postgres::PostgresOptions, session::DatabaseSession};
-use fran_db_lib::error::AppResult;
-use fran_db_lib::ssh::known_hosts::KnownHosts;
+use fran_lib::connections::SecretBag;
+use fran_lib::db::{DriverOptions, mysql::MysqlOptions, postgres::PostgresOptions, session::DatabaseSession};
+use fran_lib::error::AppResult;
+use fran_lib::ssh::{SshAccess, known_hosts::KnownHosts};
 use testcontainers::{Container, GenericImage, ImageExt, core::IntoContainerPort, runners::SyncRunner};
 
 const PASSWORD: &str = "fran-e2e";
-const LABEL: &str = "fran-db-e2e";
+const LABEL: &str = "fran-e2e";
 const READY_TIMEOUT: Duration = Duration::from_secs(180);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +26,8 @@ pub struct Spec {
     pub image: &'static str,
     pub tag: &'static str,
     pub product: &'static str,
+    /// Replaces the image's command when not empty.
+    pub command: &'static [&'static str],
 }
 
 pub const SPECS: &[Spec] = &[
@@ -35,6 +37,7 @@ pub const SPECS: &[Spec] = &[
         image: "mysql",
         tag: "8.4",
         product: "MySQL",
+        command: &[],
     },
     Spec {
         id: "postgres_17",
@@ -42,6 +45,7 @@ pub const SPECS: &[Spec] = &[
         image: "postgres",
         tag: "17",
         product: "PostgreSQL",
+        command: &["postgres", "-c", "shared_preload_libraries=pg_stat_statements"],
     },
 ];
 
@@ -67,7 +71,7 @@ pub struct Server {
 impl Server {
     pub async fn connect(&self) -> AppResult<Box<dyn DatabaseSession>> {
         let secrets = SecretBag::new(HashMap::from([("password".to_string(), self.password.clone())]));
-        self.options.connect(&secrets, &self.known_hosts).await
+        self.options.connect(&secrets, &SshAccess::direct(&self.known_hosts)).await
     }
 }
 
@@ -89,7 +93,7 @@ fn driver_options(flavor: Flavor, host: String, port: u16, user: String) -> Driv
 }
 
 fn known_hosts(spec: &Spec) -> KnownHosts {
-    let path = env::temp_dir().join("fran-db-e2e").join(format!("{}-known_hosts.json", spec.id));
+    let path = env::temp_dir().join("fran-e2e").join(format!("{}-known_hosts.json", spec.id));
     KnownHosts::load(path)
 }
 
@@ -118,12 +122,12 @@ fn container(spec: &'static Spec) -> Result<Server, String> {
     };
     let failed = |error: testcontainers::TestcontainersError| format!("{} didn't start: {error}", spec.id);
 
-    let container = GenericImage::new(spec.image, spec.tag)
+    let request = GenericImage::new(spec.image, spec.tag)
         .with_exposed_port(port.tcp())
         .with_label(LABEL, spec.id)
-        .with_env_var(password_variable, PASSWORD)
-        .start()
-        .map_err(failed)?;
+        .with_env_var(password_variable, PASSWORD);
+    let request = if spec.command.is_empty() { request } else { request.with_cmd(spec.command.iter().copied()) };
+    let container = request.start().map_err(failed)?;
 
     let host = match container.get_host().map_err(failed)?.to_string() {
         host if host == "localhost" => "127.0.0.1".to_string(),

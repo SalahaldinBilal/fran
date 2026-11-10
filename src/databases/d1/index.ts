@@ -19,6 +19,7 @@ const d1Module: DatabaseModule<"d1"> = {
   suggestName: options => options.database.trim() || "Cloudflare D1",
   methodLabel: () => "HTTP API",
   sshTarget: () => null,
+  vpnLeg: () => null,
   defaultDatabase: () => "main",
 };
 

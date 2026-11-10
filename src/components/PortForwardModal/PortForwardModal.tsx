@@ -8,11 +8,13 @@ import Modal from "../Modal/Modal";
 import Button from "../Button/Button";
 import Field from "../Field/Field";
 import Input from "../Input/Input";
+import Switch from "../Switch/Switch";
 
 function PortForwardModal() {
   const forwards = usePortForwardState;
   const { pushError } = useToastState;
   const [port, setPort] = createSignal("");
+  const [allNetworks, setAllNetworks] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
 
   const profile = createMemo(() => forwards.dialogProfile());
@@ -25,10 +27,14 @@ function PortForwardModal() {
     return current ? withDatabaseModule(current, (module, options) => module.sshTarget(options)) : null;
   });
   const localPort = createMemo(() => toPort(port()));
+  const listenHost = createMemo(() => ((running()?.allNetworks ?? allNetworks()) ? "0.0.0.0" : "local"));
 
   createEffect(() => {
     const current = profile();
-    if (current) setPort(String(forwards.active(current.id)?.localPort ?? current.forwardPort ?? target()?.port ?? ""));
+    if (!current) return;
+    const active = forwards.active(current.id);
+    setPort(String(active?.localPort ?? current.forwardPort ?? target()?.port ?? ""));
+    setAllNetworks(active?.allNetworks ?? current.forwardAllNetworks);
   });
 
   async function start() {
@@ -36,7 +42,7 @@ function PortForwardModal() {
     if (!current || localPort() === 0) return;
     setBusy(true);
     try {
-      await forwards.start(current, localPort());
+      await forwards.start(current, localPort(), allNetworks());
     } catch (error) {
       pushError(error);
     } finally {
@@ -88,13 +94,24 @@ function PortForwardModal() {
         }}
       >
         <p class={styles.Message}>
-          <Show when={running()} fallback={<><code>local:{localPort() || "?"}</code> → {profile()?.name} → {target()?.host}:{target()?.port}</>}>
-            {info => <>Listening on <code>local:{info().localPort}</code> → {profile()?.name} → {info().host}:{info().port}</>}
+          <Show when={running()} fallback={<><code>{listenHost()}:{localPort() || "?"}</code> → {profile()?.name} → {target()?.host}:{target()?.port}</>}>
+            {info => <>Listening on <code>{listenHost()}:{info().localPort}</code> → {profile()?.name} → {info().host}:{info().port}</>}
           </Show>
         </p>
         <Field label="Local port" width={160}>
           <Input type="number" min={1} max={65535} value={port()} onValue={setPort} readOnly={running() !== undefined} autofocus />
         </Field>
+        <Switch
+          checked={allNetworks()}
+          onChange={setAllNetworks}
+          disabled={running() !== undefined}
+          label="Listen on all networks (0.0.0.0)"
+        />
+        <Show when={allNetworks()}>
+          <p class={styles.Warning}>
+            WSL, containers and other machines can use the forward, and the database's own login is the only thing stopping them.
+          </p>
+        </Show>
         <button type="submit" hidden />
       </form>
     </Modal>

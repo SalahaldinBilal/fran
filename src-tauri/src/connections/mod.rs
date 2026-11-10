@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod prepare;
 
 use std::collections::HashMap;
 
@@ -24,7 +25,12 @@ pub struct ConnectionProfile {
     #[serde(default)]
     pub forward_port: Option<u16>,
     #[serde(default)]
+    pub forward_all_networks: bool,
+    #[serde(default)]
     pub agent_access: AgentAccess,
+    /// Reaches the database server, or the SSH server with inline SSH. Saved hosts bring their own.
+    #[serde(default)]
+    pub vpn_id: Option<String>,
     #[serde(flatten)]
     pub driver: DriverOptions,
 }
@@ -51,12 +57,74 @@ impl ConnectionStore {
     }
 }
 
-/// A credential a driver needs, like a password. `id` is stable per driver, `label` is shown in prompts.
+/// Whose secret a vault entry is. Vault ids are `<kind>:<id>:<slot>`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(tag = "kind", content = "id", rename_all = "camelCase")]
+pub enum SecretOwner {
+    Connection(String),
+    Identity(String),
+    Key(String),
+    Proxy(String),
+    Vpn(String),
+}
+
+impl SecretOwner {
+    pub fn prefix(&self) -> String {
+        let (kind, id) = match self {
+            Self::Connection(id) => ("connection", id),
+            Self::Identity(id) => ("identity", id),
+            Self::Key(id) => ("key", id),
+            Self::Proxy(id) => ("proxy", id),
+            Self::Vpn(id) => ("vpn", id),
+        };
+        format!("{kind}:{id}:")
+    }
+
+    pub fn secret_id(&self, slot: &str) -> String {
+        format!("{}{slot}", self.prefix())
+    }
+
+    /// Slots the UI may write. A vault key's private half is only ever written by generate and import.
+    pub fn accepts(&self, slot: &str) -> bool {
+        match self {
+            Self::Connection(_) => !slot.is_empty() && slot.chars().all(|character| character.is_ascii_alphanumeric()),
+            Self::Identity(_) | Self::Proxy(_) | Self::Vpn(_) => slot == PASSWORD_SLOT,
+            Self::Key(_) => slot == PASSPHRASE_SLOT,
+        }
+    }
+
+    /// Secrets that can be shown after the OS confirms the user. Private keys and TLS keys are exported instead.
+    pub fn revealable(&self, slot: &str) -> bool {
+        self.accepts(slot)
+    }
+}
+
+pub const PASSWORD_SLOT: &str = "password";
+pub const PASSPHRASE_SLOT: &str = "passphrase";
+pub const PRIVATE_KEY_SLOT: &str = "private";
+pub const TLS_KEY_SLOT: &str = "tlsKey";
+pub const PRESHARED_KEY_SLOT: &str = "presharedKey";
+
+/// Where a prompted secret is saved when it doesn't belong to the connection being opened.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretRef {
+    pub owner: SecretOwner,
+    pub slot: String,
+}
+
+/// A credential a connect needs, like a password. `id` is the key in the typed-in values and `label` is shown in prompts.
+/// Without `store` the slot belongs to the connection being opened and `id` is the driver's slot name.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SecretSlot {
     pub id: String,
     pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub store: Option<SecretRef>,
+    /// A one-time code. Never offered for saving and never read from the vault.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub one_time: bool,
 }
 
 impl SecretSlot {
@@ -64,12 +132,30 @@ impl SecretSlot {
         Self {
             id: id.to_string(),
             label: label.to_string(),
+            store: None,
+            one_time: false,
         }
+    }
+
+    pub fn owned(owner: SecretOwner, slot: &str, label: String) -> Self {
+        Self {
+            id: owner.secret_id(slot),
+            label,
+            store: Some(SecretRef {
+                owner,
+                slot: slot.to_string(),
+            }),
+            one_time: false,
+        }
+    }
+
+    pub fn one_time(id: String, label: String) -> Self {
+        Self { id, label, store: None, one_time: true }
     }
 }
 
 pub fn secret_prefix(connection_id: &str) -> String {
-    format!("connection:{connection_id}:")
+    SecretOwner::Connection(connection_id.to_string()).prefix()
 }
 
 pub fn secret_id(connection_id: &str, slot: &str) -> String {
@@ -118,7 +204,14 @@ pub fn resolve_secrets(
         .chain(optional.iter().map(|slot| (slot, false)))
     {
         let value = provided.remove(&slot.id).or_else(|| {
-            connection_id.and_then(|id| vault.get(&secret_id(id, &slot.id)).ok().flatten())
+            if slot.one_time {
+                return None;
+            }
+            let stored_id = match &slot.store {
+                Some(target) => Some(target.owner.secret_id(&target.slot)),
+                None => connection_id.map(|id| secret_id(id, &slot.id)),
+            };
+            stored_id.and_then(|id| vault.get(&id).ok().flatten())
         });
 
         match value {

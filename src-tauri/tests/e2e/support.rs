@@ -5,8 +5,8 @@ use std::{
     pin::Pin,
 };
 
-use fran_db_lib::db::session::{ContextAccess, ContextId, DatabaseSession};
-use fran_db_lib::db::types::{ResultSet, StatementOutcome};
+use fran_lib::db::session::{ContextAccess, ContextId, DatabaseSession};
+use fran_lib::db::types::{ResultSet, StatementOutcome};
 use libtest_mimic::Failed;
 
 use crate::servers::{Flavor, Server, Spec};

@@ -1,7 +1,7 @@
 import styles from "./ConnectionEditor.module.scss";
-import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
+import { Match, Show, Switch, createEffect, createMemo, createSignal, on } from "solid-js";
 import { createStore, produce, reconcile, unwrap } from "solid-js/store";
-import { CircleAlert, CircleCheck, Pipette, Plug, Wand2 } from "lucide-solid";
+import { CircleAlert, CircleCheck, Plug, Wand2 } from "lucide-solid";
 import { ConnectionProfile, DatabaseKind, DriverOptions } from "@core/types";
 import { databaseModule, databaseModules, defaultDriver, parseConnectionString, ParsedDriver, withDatabaseModule } from "@core/databases";
 import { PendingSecret, SecretEditor } from "@core/databases/types";
@@ -16,13 +16,14 @@ import Modal from "@core/components/Modal/Modal";
 import Button from "@core/components/Button/Button";
 import Field, { FieldRow } from "@core/components/Field/Field";
 import Input from "@core/components/Input/Input";
-import Select from "@core/components/Select/Select";
+import Select, { SelectItem } from "@core/components/Select/Select";
+import useSshState from "@core/states/sshState";
+import useVpnState from "@core/states/vpnState";
+import useVpnEditorState from "@core/states/vpnEditorState";
 import SuggestInput from "@core/components/SuggestInput/SuggestInput";
 import Spinner from "@core/components/Spinner/Spinner";
-import ColorPicker from "@core/components/ColorPicker/ColorPicker";
+import ColorSwatches from "@core/components/ColorSwatches/ColorSwatches";
 import { tooltip } from "@core/components/Tooltip/Tooltip";
-
-const COLORS = ["#4a88c7", "#4fa37a", "#c9a34a", "#d07a3c", "#c75450", "#9a6fc4", "#7d8590"];
 
 export type ConnectionEditorProps = {
   show: boolean,
@@ -32,6 +33,8 @@ export type ConnectionEditorProps = {
 
 type TestResult = { ok: boolean, message: string };
 type ParseNote = { ok: boolean, message: string };
+
+const IMPORT_VPN = "import:vpn";
 
 // What a paste into the Host field has to look like before it's read as a connection string.
 const CONNECTION_STRING_SHAPE = /^\s*([a-z][\w+.-]*:\/\/|jdbc:|\w+\s*=)/i;
@@ -44,7 +47,7 @@ function parsedSummary(parsed: ParsedDriver): string {
 }
 
 function blankProfile(kind: DatabaseKind): ConnectionProfile {
-  return { id: "", name: "", color: null, group: null, forwardPort: null, agentAccess: { mode: "off", databases: [] }, ...defaultDriver(kind) };
+  return { id: "", name: "", color: null, group: null, forwardPort: null, forwardAllNetworks: false, agentAccess: { mode: "off", databases: [] }, vpnId: null, ...defaultDriver(kind) };
 }
 
 function ConnectionEditor(props: ConnectionEditorProps) {
@@ -57,8 +60,6 @@ function ConnectionEditor(props: ConnectionEditorProps) {
   const [draft, setDraft] = createStore<ConnectionProfile>(blankProfile("mysql"));
   const [pending, setPending] = createStore<Record<string, PendingSecret>>({});
   const [storedSlots, setStoredSlots] = createSignal<string[]>([]);
-  const [pickerAnchor, setPickerAnchor] = createSignal<HTMLElement | null>(null);
-  const customColor = createMemo(() => draft.color !== null && !COLORS.includes(draft.color) ? draft.color : null);
   const [saving, setSaving] = createSignal(false);
   const [testing, setTesting] = createSignal(false);
   const [testResult, setTestResult] = createSignal<TestResult | null>(null);
@@ -66,6 +67,35 @@ function ConnectionEditor(props: ConnectionEditorProps) {
   const isNew = createMemo(() => !draft.id);
   const target = createMemo(() => withDatabaseModule(draft, (module, options) => module.describeTarget(options)));
   const suggestedName = createMemo(() => withDatabaseModule(draft, (module, options) => module.suggestName(options)));
+  const vpnLeg = createMemo(() => withDatabaseModule(draft, (module, options) => module.vpnLeg(options)));
+  const vpnItems = createMemo<SelectItem<string | null>[]>(() => [
+    { value: null, label: "None, connect directly" },
+    ...useVpnState.file.profiles.map(profile => ({ value: profile.id, label: profile.label })),
+    { value: IMPORT_VPN, label: "Import a VPN…" },
+  ]);
+  const vpnHint = createMemo(() => {
+    if (!draft.vpnId) return undefined;
+    return vpnLeg()?.kind === "ssh"
+      ? "Fran opens its own tunnel to reach the SSH server. Nothing else on this computer uses it."
+      : "Fran opens its own tunnel to reach the database. Nothing else on this computer uses it.";
+  });
+  const hostVpnText = createMemo(() => {
+    const leg = vpnLeg();
+    if (leg?.kind !== "savedHost") return "";
+    const host = useSshState.host(leg.hostId);
+    const profile = useVpnState.profile(leg.hostId ? useSshState.routeVpnId(leg.hostId) : null);
+    if (!host) return "Comes from the saved SSH host.";
+    return profile ? `${profile.label}, set on ${host.label}.` : `None. ${host.label} connects directly.`;
+  });
+
+  function pickVpn(id: string | null) {
+    if (id !== IMPORT_VPN) {
+      setDraft("vpnId", id);
+      return;
+    }
+    void useVpnEditorState.importFile(profile => setDraft("vpnId", profile.id));
+  }
+
   const groups = createMemo(() => {
     const names = new Set(connections.groupOrder().filter(name => name !== ""));
     for (const profile of connections.connections) {
@@ -96,11 +126,15 @@ function ConnectionEditor(props: ConnectionEditorProps) {
     isStored: slot => storedSlots().includes(slot),
     pending: slot => pending[slot],
     setPending: (slot, value) => setPending(slot, value),
+    owner: () => (draft.id ? { kind: "connection", id: draft.id } : null),
   };
 
   function snapshot(): ConnectionProfile {
     const copy: ConnectionProfile = JSON.parse(JSON.stringify(unwrap(draft)));
     copy.name = copy.name.trim() || suggestedName();
+    // A saved host brings its own VPN, and files and sockets can't use one.
+    const leg = vpnLeg();
+    if (!leg || leg.kind === "savedHost") copy.vpnId = null;
     return copy;
   }
 
@@ -165,7 +199,7 @@ function ConnectionEditor(props: ConnectionEditorProps) {
 
   function fillFromConnectionString() {
     if (!takeConnectionString(connectionString())) {
-      setParseNote({ ok: false, message: "That isn't a connection string Fran DB can read." });
+      setParseNote({ ok: false, message: "That isn't a connection string Fran can read." });
     }
   }
 
@@ -278,48 +312,7 @@ function ConnectionEditor(props: ConnectionEditorProps) {
             />
           </Field>
           <Field label="Color">
-            <div class={styles.Colors}>
-              <button
-                class={styles.Swatch}
-                classList={{ [styles.Selected]: draft.color === null }}
-                aria-label="Default color"
-                onClick={() => setDraft("color", null)}
-              />
-              <For each={COLORS}>
-                {color => (
-                  <button
-                    class={styles.Swatch}
-                    classList={{ [styles.Selected]: draft.color === color }}
-                    style={{ "--swatch": color }}
-                    aria-label={color}
-                    onClick={() => setDraft("color", color)}
-                  />
-                )}
-              </For>
-              <button
-                ref={element => tooltip(element, () => "Custom color")}
-                class={`${styles.Swatch} ${styles.Custom}`}
-                classList={{ [styles.Selected]: customColor() !== null }}
-                style={{ "--swatch": customColor() ?? undefined }}
-                aria-label="Custom color"
-                aria-expanded={pickerAnchor() !== null}
-                onClick={event => setPickerAnchor(pickerAnchor() ? null : event.currentTarget)}
-              >
-                <Show when={customColor() === null}>
-                  <Pipette size={11} />
-                </Show>
-              </button>
-              <Show when={pickerAnchor()}>
-                {anchor => (
-                  <ColorPicker
-                    anchor={anchor()}
-                    value={customColor() ?? draft.color ?? COLORS[0]}
-                    onChange={hex => setDraft("color", hex)}
-                    onClose={() => setPickerAnchor(null)}
-                  />
-                )}
-              </Show>
-            </div>
+            <ColorSwatches value={draft.color} onChange={color => setDraft("color", color)} />
           </Field>
         </FieldRow>
 
@@ -364,6 +357,19 @@ function ConnectionEditor(props: ConnectionEditorProps) {
         {withDatabaseModule(draft, (module, options) => (
           <module.ConnectionForm options={options} update={updateOptions} secrets={secretEditor} onConnectionString={pastedIntoHost} />
         ))}
+
+        <Switch>
+          <Match when={vpnLeg()?.kind === "savedHost"}>
+            <Field label="Through VPN">
+              <span class={styles.ParseHint}>{hostVpnText()}</span>
+            </Field>
+          </Match>
+          <Match when={vpnLeg()}>
+            <Field label="Through VPN" hint={vpnHint()}>
+              <Select value={draft.vpnId} items={vpnItems()} onChange={pickVpn} />
+            </Field>
+          </Match>
+        </Switch>
       </div>
     </Modal>
   );

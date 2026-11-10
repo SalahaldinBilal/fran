@@ -1,4 +1,4 @@
-use fran_db_lib::db::types::{ColumnChoices, ObjectKind, ValueCategory};
+use fran_lib::db::types::{ColumnChoices, ObjectKind, ValueCategory};
 
 use crate::servers::Flavor;
 use crate::support::{Case, Ctx, TestResult, cases};
@@ -105,7 +105,7 @@ CALL two_sets();",
     );
     let create = ctx
         .session
-        .object_sql(&ctx.ns, "two_sets", ObjectKind::Procedure, None, fran_db_lib::db::types::SqlTemplate::Create)
+        .object_sql(&ctx.ns, "two_sets", ObjectKind::Procedure, None, fran_lib::db::types::SqlTemplate::Create)
         .await?;
     assert!(create.contains("SELECT 2 AS second_set"));
     Ok(())

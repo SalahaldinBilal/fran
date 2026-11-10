@@ -3,7 +3,7 @@ use std::fmt::Display;
 use serde::Serialize;
 
 use crate::connections::SecretSlot;
-use crate::ssh::HostKeyInfo;
+use crate::ssh::{HopPosition, HostKeyInfo};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +18,15 @@ pub enum ErrorDetail {
     General,
     NotFound,
     Vault,
+    /// The app lock is on and the vault hasn't been unlocked with the password yet.
+    AppLocked,
+    /// The user closed the OS prompt that confirms it's them.
+    OsAuthCancelled,
+    /// The OS has nothing to check against, so the app lock password is asked for instead.
+    LockPasswordRequired,
+    /// Linux: polkit doesn't know Fran's action yet. `canInstall` says whether pkexec can add it.
+    #[serde(rename_all = "camelCase")]
+    OsAuthSetup { can_install: bool },
     Ssh,
     #[serde(rename_all = "camelCase")]
     Database {
@@ -27,13 +36,20 @@ pub enum ErrorDetail {
     SecretsRequired {
         slots: Vec<SecretSlot>,
     },
+    #[serde(rename_all = "camelCase")]
     UnknownHostKey {
         key: HostKeyInfo,
+        hop: Option<HopPosition>,
+        /// OpenSSH's own known_hosts already has this key.
+        openssh_trusted: bool,
     },
     #[serde(rename_all = "camelCase")]
     HostKeyChanged {
         key: HostKeyInfo,
         known_fingerprint: String,
+        known_algorithm: String,
+        known_added: Option<i64>,
+        hop: Option<HopPosition>,
     },
 }
 
@@ -55,6 +71,10 @@ impl AppError {
 
     pub fn vault(message: impl Into<String>) -> Self {
         Self::new(message, ErrorDetail::Vault)
+    }
+
+    pub fn app_locked() -> Self {
+        Self::new("Fran is locked. Unlock it to use saved passwords and keys.", ErrorDetail::AppLocked)
     }
 
     pub fn ssh(message: impl Into<String>) -> Self {

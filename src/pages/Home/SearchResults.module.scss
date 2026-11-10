@@ -1,0 +1,92 @@
+.Results {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: var(--z-menu);
+  width: 360px;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+
+.Result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+
+  &.Active {
+    background-color: var(--surface-active);
+
+    .Action {
+      opacity: 1;
+    }
+  }
+}
+
+.Icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background-color: rgb(from var(--result-color) r g b / 14%);
+  color: var(--result-color);
+}
+
+.Text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.Label,
+.Sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.Label {
+  color: var(--text-strong);
+  font-weight: 500;
+}
+
+.Sub {
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+}
+
+.Action {
+  flex-shrink: 0;
+  color: var(--accent-strong);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.Empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  color: var(--text-faint);
+  font-size: var(--font-sm);
+}
+
+.Hint {
+  padding: 6px 8px 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+}

@@ -1,7 +1,8 @@
 use rmcp::schemars::{self, JsonSchema};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use crate::db::activity::HistoryOrder;
 use crate::db::types::{FilterOp, ObjectKind};
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -261,6 +262,39 @@ pub struct AlterTableArgs {
         description = "The design from get_table_design, edited. Keep originalName on existing columns, indexes and keys so renames aren't read as drop and add"
     )]
     pub design: Value,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum SlowQueryOrderArg {
+    Mean,
+    Total,
+    Max,
+    Calls,
+    Rows,
+}
+
+impl From<SlowQueryOrderArg> for HistoryOrder {
+    fn from(order: SlowQueryOrderArg) -> Self {
+        match order {
+            SlowQueryOrderArg::Mean => HistoryOrder::MeanMs,
+            SlowQueryOrderArg::Total => HistoryOrder::TotalMs,
+            SlowQueryOrderArg::Max => HistoryOrder::MaxMs,
+            SlowQueryOrderArg::Calls => HistoryOrder::Calls,
+            SlowQueryOrderArg::Rows => HistoryOrder::Rows,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SlowQueriesArgs {
+    pub session: String,
+    #[schemars(
+        description = "What picks and orders the statements, highest first: mean time per run (the default), total time, max time of one run, calls or rows. D1 keeps no max, so max falls back to mean there"
+    )]
+    pub order_by: Option<SlowQueryOrderArg>,
+    #[schemars(description = "Statements to return, 50 by default, at most 200")]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

@@ -4,6 +4,7 @@ import { PostgresOptions } from "@core/types";
 import { DefaultKind } from "@core/helpers/defaultValues";
 import { DatabaseModule } from "../types";
 import { sqlFormatter } from "../shared/format";
+import { sshName, sshVia, tcpOrSshLeg } from "../shared/ssh";
 import PostgresConnectionForm from "./PostgresConnectionForm";
 import { parsePostgresConnectionString } from "./connectionString";
 
@@ -57,7 +58,7 @@ function describeTarget(options: PostgresOptions): string {
     case "socket":
       return `${user}@${options.socketPath || "(no socket)"}/${database}`;
     case "sshTunnel":
-      return `${user}@${options.host}:${options.port}/${database} via ${options.ssh.user}@${options.ssh.host}`;
+      return `${user}@${options.host}:${options.port}/${database} via ${sshVia(options.ssh)}`;
     case "kubernetes":
       return `${user}@${options.kube.resource || "(no pod)"}:${options.port}/${database} in ${options.kube.context || "(no context)"}`;
   }
@@ -70,7 +71,7 @@ function suggestName(options: PostgresOptions): string {
     case "socket":
       return "Local PostgreSQL";
     case "sshTunnel":
-      return options.ssh.host.trim() || options.host.trim() || "PostgreSQL";
+      return sshName(options.ssh) || options.host.trim() || "PostgreSQL";
     case "kubernetes":
       return options.kube.resource.replace(/^[^/]*\//, "").trim() || options.kube.context.trim() || "PostgreSQL";
   }
@@ -104,7 +105,7 @@ const postgresModule: DatabaseModule<"postgres"> = {
     user: "postgres",
     database: "postgres",
     defaultSchema: "public",
-    ssh: { host: "", port: 22, user: "", auth: "password", keyFile: "", agentSocket: "" },
+    ssh: { hostId: null, host: "", port: 22, user: "", auth: "password", keyFile: "", agentSocket: "" },
     kube: { context: "", namespace: "", resource: "", kubectlPath: "" },
     ssl: { mode: "prefer", caFile: "", certFile: "", keyFile: "" },
     connectTimeoutSecs: 10,
@@ -116,6 +117,7 @@ const postgresModule: DatabaseModule<"postgres"> = {
   suggestName,
   methodLabel,
   sshTarget: options => (options.method === "sshTunnel" ? { host: options.host, port: options.port } : null),
+  vpnLeg: options => tcpOrSshLeg(options.method, options.ssh),
   defaultDatabase: options => options.defaultSchema.trim() || null,
   sqlDialect: PostgreSQL,
   quoteIdentifier,

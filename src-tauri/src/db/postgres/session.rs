@@ -10,6 +10,7 @@ use std::{
 use async_trait::async_trait;
 use tokio::sync::Mutex;
 
+use super::activity;
 use super::classify;
 use super::client::{CancelKey, PgConnection, PgError, RawResult};
 use super::connect::{Connector, Transport};
@@ -21,6 +22,7 @@ use super::splitter;
 use super::sqlgen::{self, Dialect};
 use super::types::TypeCache;
 use crate::connections::SecretBag;
+use crate::db::activity::{ActivitySupport, HistoryOrder, QueryHistory, RunningQueries};
 use crate::db::classify::ClassifiedStatement;
 use crate::db::read_query;
 use crate::db::session::{ContextAccess, ContextId, DatabaseSession, OutcomeSink};
@@ -29,7 +31,7 @@ use crate::db::types::{
     ObjectStructure, ReadQuery, RowChange, ServerInfo, SqlTemplate, StatementOutcome, TableDesign, TableForeignKey,
 };
 use crate::error::{AppError, AppResult};
-use crate::ssh::known_hosts::KnownHosts;
+use crate::ssh::SshAccess;
 
 const PING_AFTER_IDLE: Duration = Duration::from_secs(60);
 
@@ -126,8 +128,8 @@ async fn run_batch(conn: &mut PgConnection, statements: &[String], transactional
 }
 
 impl PostgresSession {
-    pub async fn connect(options: &PostgresOptions, secrets: &SecretBag, known_hosts: &KnownHosts) -> AppResult<Self> {
-        let (connector, transport) = Connector::prepare(options, secrets, known_hosts).await?;
+    pub async fn connect(options: &PostgresOptions, secrets: &SecretBag, ssh: &SshAccess<'_>) -> AppResult<Self> {
+        let (connector, transport) = Connector::prepare(options, secrets, ssh).await?;
         let mut conn = connector.connect(None).await?;
 
         let version = match conn.parameter("server_version") {
@@ -587,6 +589,28 @@ impl DatabaseSession for PostgresSession {
         };
         let target = self.target();
         target.connector.cancel(key).await.map_err(Into::into)
+    }
+
+    fn activity_support(&self) -> ActivitySupport {
+        ActivitySupport {
+            history: true,
+            running: true,
+        }
+    }
+
+    async fn query_history(&self, order: HistoryOrder) -> AppResult<QueryHistory> {
+        let database = self.target().connector.database().to_string();
+        let mut slot = self.meta.lock().await;
+        let live = self.ensure_live(&mut slot, None).await?;
+        let result = activity::query_history(&mut live.conn, &database, self.major_version, order).await;
+        settle(&mut slot, result)
+    }
+
+    async fn running_queries(&self) -> AppResult<RunningQueries> {
+        let mut slot = self.meta.lock().await;
+        let live = self.ensure_live(&mut slot, None).await?;
+        let result = activity::running_queries(&mut live.conn, self.major_version).await;
+        settle(&mut slot, result)
     }
 
     async fn close(&self) {

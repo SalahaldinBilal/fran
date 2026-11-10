@@ -1,4 +1,4 @@
-use fran_db_lib::db::types::{ColumnChoices, ObjectKind, ValueCategory};
+use fran_lib::db::types::{ColumnChoices, ObjectKind, ValueCategory};
 
 use crate::servers::Flavor;
 use crate::support::{Case, Ctx, TestResult, cases, texts};

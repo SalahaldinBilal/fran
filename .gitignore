@@ -1,5 +1,7 @@
 node_modules
 dist
+/target
+/src-tauri/binaries
 /bundles
 /release-files
 /result

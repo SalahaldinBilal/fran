@@ -23,7 +23,7 @@ function useVaultStateInner() {
     }
   }
 
-  return { status, refresh, reset };
+  return { status, setStatus, refresh, reset };
 }
 
 const useVaultState = createRoot(useVaultStateInner);

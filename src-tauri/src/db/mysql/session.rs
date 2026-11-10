@@ -14,6 +14,7 @@ use mysql_async::{
 };
 use tokio::sync::Mutex;
 
+use super::activity;
 use super::classify;
 use super::design;
 use super::metadata;
@@ -22,6 +23,7 @@ use super::results::{milliseconds, run_statement};
 use super::splitter;
 use super::sqlgen::{self, Dialect};
 use crate::connections::SecretBag;
+use crate::db::activity::{ActivitySupport, HistoryOrder, QueryHistory, RunningQueries};
 use crate::db::classify::ClassifiedStatement;
 use crate::db::read_query;
 use crate::db::session::{ContextAccess, ContextId, DatabaseSession, OutcomeSink};
@@ -34,7 +36,8 @@ use crate::forward::LocalForward;
 use crate::kube::KubeForward;
 #[cfg(windows)]
 use crate::forward::open_named_pipe;
-use crate::ssh::{SshTunnel, known_hosts::KnownHosts};
+use crate::ssh::{SshAccess, SshTunnel};
+use crate::vpn::VpnRelay;
 
 const PING_AFTER_IDLE: Duration = Duration::from_secs(60);
 
@@ -50,6 +53,7 @@ enum Transport {
     Ssh(SshTunnel),
     Kube(KubeForward),
     Forward(LocalForward),
+    Vpn(VpnRelay),
 }
 
 struct LiveConn {
@@ -240,7 +244,7 @@ impl MysqlSession {
     pub async fn connect(
         options: &MysqlOptions,
         secrets: &SecretBag,
-        known_hosts: &KnownHosts,
+        ssh: &SshAccess<'_>,
     ) -> AppResult<Self> {
         let connect_timeout = Duration::from_secs(u64::from(options.connect_timeout_secs.max(1)));
         let password = secrets
@@ -248,25 +252,25 @@ impl MysqlSession {
             .ok_or_else(|| AppError::secrets_required(vec![MysqlOptions::password_slot()]))?;
 
         let (endpoint, transport) = match options.method {
-            MysqlConnectMethod::Tcp => (
-                Endpoint::Tcp {
-                    host: options.host.trim().to_string(),
-                    port: options.port,
-                },
-                None,
-            ),
+            MysqlConnectMethod::Tcp => match ssh.vpn_relay(options.host.trim(), options.port, connect_timeout).await? {
+                Some(relay) => (
+                    Endpoint::Tcp {
+                        host: "127.0.0.1".to_string(),
+                        port: relay.local_port(),
+                    },
+                    Some(Transport::Vpn(relay)),
+                ),
+                None => (
+                    Endpoint::Tcp {
+                        host: options.host.trim().to_string(),
+                        port: options.port,
+                    },
+                    None,
+                ),
+            },
             MysqlConnectMethod::Socket => local_socket_endpoint(&options.socket_path).await?,
             MysqlConnectMethod::SshTunnel => {
-                let tunnel = SshTunnel::open(
-                    &options.ssh,
-                    secrets,
-                    known_hosts,
-                    options.host.trim(),
-                    options.port,
-                    0,
-                    connect_timeout,
-                )
-                .await?;
+                let tunnel = ssh.tunnel(options.host.trim(), options.port, connect_timeout).await?;
                 (
                     Endpoint::Tcp {
                         host: "127.0.0.1".to_string(),
@@ -287,7 +291,7 @@ impl MysqlSession {
             }
         };
 
-        let tunneled = matches!(transport, Some(Transport::Ssh(_)));
+        let tunneled = matches!(transport, Some(Transport::Ssh(_) | Transport::Vpn(_)));
         let opts = build_opts(options, &endpoint, password, ssl_opts(options, tunneled)?);
 
         let (opts, mut conn) = match open_conn(opts.clone(), connect_timeout).await {
@@ -701,6 +705,27 @@ impl DatabaseSession for MysqlSession {
         let result = conn.query_drop(format!("KILL QUERY {connection_id}")).await;
         let _ = conn.disconnect().await;
         result.map_err(db_error)
+    }
+
+    fn activity_support(&self) -> ActivitySupport {
+        ActivitySupport {
+            history: true,
+            running: true,
+        }
+    }
+
+    async fn query_history(&self, order: HistoryOrder) -> AppResult<QueryHistory> {
+        let mut slot = self.meta.lock().await;
+        let live = self.ensure_live(&mut slot, None).await?;
+        let result = activity::query_history(&mut live.conn, self.dialect, self.mariadb, &self.server.version, order).await;
+        settle(&mut slot, result)
+    }
+
+    async fn running_queries(&self) -> AppResult<RunningQueries> {
+        let mut slot = self.meta.lock().await;
+        let live = self.ensure_live(&mut slot, None).await?;
+        let result = activity::running_queries(&mut live.conn, self.dialect, self.mariadb).await;
+        settle(&mut slot, result)
     }
 
     async fn close(&self) {

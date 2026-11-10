@@ -15,7 +15,7 @@ use serde_json::Value;
 use super::args::{
     AlterTableArgs, ColumnValuesArgs, CountRowsArgs, CreateTableArgs, DefinitionArgs, DeleteRowsArgs, DescribeTableArgs,
     DropObjectArgs, InsertRowsArgs, ListObjectsArgs, OpenSessionArgs, ReadRowsArgs, RelationshipsArgs, RunQueryArgs,
-    SearchSchemaArgs, SessionArgs, SqlArgs, TableArgs, UpdateRowsArgs,
+    SearchSchemaArgs, SessionArgs, SlowQueriesArgs, SqlArgs, TableArgs, UpdateRowsArgs,
 };
 use super::call::CallLog;
 use super::config::AgentConfig;
@@ -23,12 +23,12 @@ use super::history::{HistoryEntry, HistoryEvent, Outcome, now_ms};
 use super::host::AgentHost;
 use crate::error::AppResult;
 
-const INSTRUCTIONS: &str = "Fran DB gives you the database connections its user chose to share. \
+const INSTRUCTIONS: &str = "Fran gives you the database connections its user chose to share. \
 Call list_connections, then open_session on one, pass the session id to every other tool, and call \
 close_session when you're done. Learn the schema with list_databases, list_objects, describe_table, \
 search_schema and get_relationships, and read data with read_rows, count_rows and column_values before \
-reaching for raw SQL. A connection is either read only or lets you make changes, and every change waits \
-for the user to approve it in Fran DB, so say what you're about to change and why.";
+reaching for raw SQL. slow_queries shows which statements the server spends its time on. A connection is either read only or lets you make changes, and every change waits \
+for the user to approve it in Fran, so say what you're about to change and why.";
 
 const RAW_SQL_TOOLS: [&str; 3] = ["run_query", "explain_query", "execute_sql"];
 const CHANGE_TOOLS: [&str; 8] = [
@@ -248,7 +248,22 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Inserts rows into a table. Waits for the user to approve it in Fran DB",
+        description = "Lists the statements the database server has run for every client, grouped by shape, with calls, total, \
+                       mean and max time and rows. Slowest per run first unless order_by says otherwise. When the server \
+                       doesn't collect these, notice says what the user has to turn on",
+        annotations(read_only_hint = true)
+    )]
+    async fn slow_queries(
+        &self,
+        Parameters(args): Parameters<SlowQueriesArgs>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let log = call_log(&context)?;
+        reply(self.host.slow_queries(args, &log).await)
+    }
+
+    #[tool(
+        description = "Inserts rows into a table. Waits for the user to approve it in Fran",
         annotations(destructive_hint = false)
     )]
     async fn insert_rows(
@@ -261,7 +276,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Updates rows found by their full primary key. Waits for the user to approve it in Fran DB",
+        description = "Updates rows found by their full primary key. Waits for the user to approve it in Fran",
         annotations(destructive_hint = true)
     )]
     async fn update_rows(
@@ -274,7 +289,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Deletes rows found by their full primary key. Waits for the user to approve it in Fran DB",
+        description = "Deletes rows found by their full primary key. Waits for the user to approve it in Fran",
         annotations(destructive_hint = true)
     )]
     async fn delete_rows(
@@ -301,7 +316,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Creates a table from a design. Waits for the user to approve it in Fran DB",
+        description = "Creates a table from a design. Waits for the user to approve it in Fran",
         annotations(destructive_hint = false)
     )]
     async fn create_table(
@@ -314,7 +329,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Changes a table to match an edited design from get_table_design. Waits for the user to approve it in Fran DB",
+        description = "Changes a table to match an edited design from get_table_design. Waits for the user to approve it in Fran",
         annotations(destructive_hint = true)
     )]
     async fn alter_table(
@@ -327,7 +342,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Drops a table, view, routine, trigger or other object. Waits for the user to approve it in Fran DB",
+        description = "Drops a table, view, routine, trigger or other object. Waits for the user to approve it in Fran",
         annotations(destructive_hint = true)
     )]
     async fn drop_object(
@@ -340,7 +355,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Runs SQL that changes data or schema, when no other tool fits. Waits for the user to approve it in Fran DB",
+        description = "Runs SQL that changes data or schema, when no other tool fits. Waits for the user to approve it in Fran",
         annotations(destructive_hint = true)
     )]
     async fn execute_sql(
@@ -388,7 +403,7 @@ fn history_entry(log: &CallLog, tool: String, arguments: Option<Value>, at: u64,
 impl ServerHandler for AgentServer {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().enable_tool_list_changed().build())
-            .with_server_info(Implementation::new("fran-db", env!("CARGO_PKG_VERSION")))
+            .with_server_info(Implementation::new("fran", env!("CARGO_PKG_VERSION")))
             .with_instructions(INSTRUCTIONS)
     }
 
@@ -430,7 +445,7 @@ impl ServerHandler for AgentServer {
             self.tool_router.call(ToolCallContext::new(self, request, context)).await
         } else {
             log.outcome(Outcome::Refused);
-            Ok(CallToolResult::error(vec![ContentBlock::text(format!("{tool} is turned off for agents in Fran DB"))]).into())
+            Ok(CallToolResult::error(vec![ContentBlock::text(format!("{tool} is turned off for agents in Fran"))]).into())
         };
 
         self.host.record(history_entry(&log, tool, arguments, at, started, &response));

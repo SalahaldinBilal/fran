@@ -19,6 +19,7 @@ use super::results::{self, Timing, milliseconds};
 use super::source;
 use super::splitter;
 use super::sqlgen;
+use crate::db::activity::{ActivitySupport, HistoryOrder, QueryHistory};
 use crate::db::classify::ClassifiedStatement;
 use crate::db::read_query;
 use crate::db::session::{ContextAccess, ContextId, DatabaseSession, OutcomeSink};
@@ -337,6 +338,14 @@ impl DatabaseSession for SqliteSession {
         Ok(())
     }
 
+    fn activity_support(&self) -> ActivitySupport {
+        self.target().connector.activity_support()
+    }
+
+    async fn query_history(&self, order: HistoryOrder) -> AppResult<QueryHistory> {
+        self.target().connector.query_history(order).await
+    }
+
     async fn close(&self) {
         if let Ok(mut contexts) = self.contexts.lock() {
             contexts.clear();
@@ -362,7 +371,7 @@ mod tests {
     }
 
     async fn session() -> (SqliteSession, TempFile) {
-        let path = std::env::temp_dir().join(format!("fran-db-{}.sqlite", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("fran-{}.sqlite", uuid::Uuid::new_v4()));
         let options = SqliteOptions {
             path: path.to_string_lossy().into_owned(),
             create_if_missing: true,
@@ -381,7 +390,7 @@ mod tests {
     #[tokio::test]
     async fn refuses_missing_files() {
         let options = SqliteOptions {
-            path: std::env::temp_dir().join("fran-db-missing.sqlite").to_string_lossy().into_owned(),
+            path: std::env::temp_dir().join("fran-missing.sqlite").to_string_lossy().into_owned(),
             ..Default::default()
         };
         assert!(SqliteSession::connect(&options).await.is_err());
@@ -584,7 +593,7 @@ mod tests {
 
     #[tokio::test]
     async fn names_the_table_when_the_backend_cant() {
-        let path = std::env::temp_dir().join(format!("fran-db-{}.sqlite", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("fran-{}.sqlite", uuid::Uuid::new_v4()));
         let _file = TempFile(path.clone());
         let options = SqliteOptions {
             path: path.to_string_lossy().into_owned(),
@@ -616,7 +625,7 @@ mod app_function_tests {
 
     #[tokio::test]
     async fn explains_functions_only_the_creating_app_has() {
-        let path = std::env::temp_dir().join(format!("fran-db-{}.sqlite", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("fran-{}.sqlite", uuid::Uuid::new_v4()));
         {
             let conn = rusqlite::Connection::open(&path).unwrap();
             conn.create_scalar_function("app_fold", 1, FunctionFlags::SQLITE_DETERMINISTIC, |context| {

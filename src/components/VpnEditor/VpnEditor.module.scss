@@ -1,0 +1,124 @@
+.Remote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.Port {
+  width: 84px;
+  flex-shrink: 0;
+}
+
+.Proto {
+  width: 84px;
+  flex-shrink: 0;
+}
+
+.RemoteActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.Cert {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+
+  svg {
+    flex-shrink: 0;
+    color: var(--success);
+  }
+}
+
+.CertName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.CertDate {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.KeyStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+
+  > span:first-of-type {
+    flex: 1;
+  }
+}
+
+.Saved {
+  color: var(--success);
+}
+
+.Removed {
+  color: var(--danger);
+}
+
+.Options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.OptionsTitle {
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.Used {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  line-height: 1.6;
+}
+
+.NoteList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: var(--font-sm);
+  }
+
+  code {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-active);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+  }
+
+  code.Dropped {
+    background-color: var(--danger-soft);
+    color: var(--danger);
+  }
+}

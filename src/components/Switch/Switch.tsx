@@ -14,7 +14,12 @@ function Switch(props: SwitchProps) {
         type="checkbox"
         checked={props.checked}
         disabled={props.disabled}
-        onChange={event => props.onChange(event.currentTarget.checked)}
+        onChange={event => {
+          const next = event.currentTarget.checked;
+          // Stays as the prop says until the owner changes it, so a cancelled change doesn't leave it flipped.
+          event.currentTarget.checked = props.checked;
+          props.onChange(next);
+        }}
       />
       <span class={styles.Track} classList={{ [styles.Checked]: props.checked }}>
         <span class={styles.Thumb} />

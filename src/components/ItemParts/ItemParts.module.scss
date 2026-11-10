@@ -1,0 +1,42 @@
+.Icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background-color: rgb(from var(--item-color) r g b / 16%);
+  box-shadow: inset 0 0 0 1px rgb(from var(--item-color) r g b / 28%), inset 0 1px 0 rgb(255 255 255 / 6%);
+  color: var(--item-color);
+
+  &.Large {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-lg);
+    background-color: rgb(from var(--item-color) r g b / 18%);
+    box-shadow: inset 0 0 0 1px rgb(from var(--item-color) r g b / 30%), inset 0 1px 0 rgb(255 255 255 / 8%);
+  }
+}
+
+.Badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background-color: rgb(255 255 255 / 6%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%);
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  white-space: nowrap;
+
+  &.Warning {
+    background-color: rgb(from var(--warning) r g b / 12%);
+    box-shadow: inset 0 0 0 1px rgb(from var(--warning) r g b / 28%);
+    color: var(--warning);
+  }
+}

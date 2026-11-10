@@ -48,7 +48,7 @@ function ServerView() {
   const { pushToast, pushError } = useToastState;
   const [size, { refetch }] = createResource(() => safeInvoke("get_agent_history_size"));
 
-  const jsonConfig = createMemo(() => JSON.stringify({ mcpServers: { "fran-db": { type: "http", url: agent.url() } } }, null, 2));
+  const jsonConfig = createMemo(() => JSON.stringify({ mcpServers: { "fran": { type: "http", url: agent.url() } } }, null, 2));
   const keptHint = createMemo(() => {
     const bytes = size();
     return bytes === undefined ? "Older days are deleted." : `Older days are deleted. ${formatBytes(bytes)} kept right now.`;
@@ -76,7 +76,7 @@ function ServerView() {
       <div class={`${styles.Wrap} ${styles.Narrow}`}>
         <div class={styles.PageHead}>
           <h2>Server</h2>
-          <p>How agents reach Fran DB, what every agent may do, and what's kept.</p>
+          <p>How agents reach Fran, what every agent may do, and what's kept.</p>
         </div>
 
         <section class={styles.Section}>

@@ -1,0 +1,44 @@
+[package]
+name = "vpn-worker"
+version = "0.1.5"
+description = "Fran's VPN worker and service, running OpenVPN 3 and WireGuard"
+license = "GPL-3.0-or-later"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "fran-vpn"
+path = "src/main.rs"
+
+[dependencies]
+vpn-proto = { path = "../vpn-proto" }
+openvpn-rust-bindings = { path = "../../../openvpn-rust-bindings" }
+boringtun = { version = "0.7.1", default-features = false }
+base64 = "0.23.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+zeroize = "1.9.1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.191"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5.19.0"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_NetworkManagement_NetManagement",
+    "Win32_Networking_WinSock",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Pipes",
+    "Win32_System_Registry",
+    "Win32_System_Services",
+    "Win32_System_Threading",
+] }

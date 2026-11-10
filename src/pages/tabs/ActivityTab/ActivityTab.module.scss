@@ -1,0 +1,387 @@
+.ActivityTab {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.Toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 2;
+  height: 46px;
+  padding: 0 10px 0 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+}
+
+.Title {
+  margin-right: 6px;
+  color: var(--text-strong);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.Spacer {
+  flex: 1;
+}
+
+.Filter {
+  width: 240px;
+}
+
+.SearchIcon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.Content {
+  flex: 1;
+  min-height: 0;
+}
+
+.Center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.TableWrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: auto;
+}
+
+.Table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-md);
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 34px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border-strong);
+    background-color: var(--surface);
+    color: var(--text-muted);
+    font-size: var(--font-sm);
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: middle;
+    white-space: nowrap;
+    transition: background-color var(--duration-fast) var(--ease);
+  }
+}
+
+.Row {
+  cursor: pointer;
+
+  &:hover td {
+    background-color: rgb(255 255 255 / 2.5%);
+  }
+
+  &.Open td {
+    border-bottom-color: transparent;
+    background-color: var(--surface-hover);
+  }
+}
+
+.SortHint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 14px;
+  padding: 8px 8px 8px 12px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: rgb(255 255 255 / 3%);
+  color: var(--text);
+  font-size: var(--font-sm);
+
+  span {
+    flex: 1;
+  }
+}
+
+.SortHintIcon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.StatementColumn {
+  width: 100%;
+}
+
+// Takes the space left over and cuts the text off instead of widening the table.
+.Statement {
+  max-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+
+  span {
+    display: block;
+    overflow: hidden;
+    color: var(--text-strong);
+    text-overflow: ellipsis;
+  }
+}
+
+.Ellipsis {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.Numeric {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.SortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: var(--transition-colors);
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &.Sorted {
+    color: var(--text-strong);
+  }
+}
+
+.Strong {
+  color: var(--text-strong) !important;
+  font-weight: 550;
+}
+
+.Muted {
+  color: var(--text-muted) !important;
+}
+
+.DetailRow td {
+  padding: 0 14px 14px;
+  background-color: var(--surface-hover);
+  white-space: normal;
+}
+
+.Detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.DetailLabel {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.Sql {
+  max-height: 260px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-sunken);
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.DetailBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-sm);
+}
+
+.Footer {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 14px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.NoticeWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  overflow: auto;
+}
+
+.Notice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 620px;
+  padding: 18px 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface);
+  box-shadow: var(--highlight);
+
+  &.NoticeCompact {
+    max-width: none;
+    margin: 12px 14px;
+    padding: 12px 14px;
+    flex-shrink: 0;
+    width: auto;
+  }
+
+  &.NoticeLimited {
+    border-color: rgb(from var(--warning) r g b / 28%);
+    background-color: rgb(from var(--warning) r g b / 6%);
+
+    .NoticeIcon {
+      color: var(--warning);
+    }
+  }
+}
+
+.NoticeHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.NoticeIcon {
+  flex-shrink: 0;
+  color: var(--accent-strong);
+}
+
+.NoticeTitle {
+  color: var(--text-strong);
+  font-size: var(--font-lg);
+  font-weight: 600;
+
+  .NoticeCompact & {
+    font-size: var(--font-md);
+  }
+}
+
+.NoticeDetail {
+  color: var(--text);
+  font-size: var(--font-md);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.Steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 4px 0 0;
+  padding-left: 20px;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+
+  li::marker {
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.Step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 2px;
+}
+
+.StepLabel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.RestartBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid rgb(from var(--warning) r g b / 35%);
+  border-radius: 999px;
+  color: var(--warning);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.StepCode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-sunken);
+
+  pre {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 4px 0;
+    overflow-x: auto;
+    color: var(--text-strong);
+    font-family: var(--font-mono);
+    font-size: var(--font-sm);
+    line-height: 1.55;
+    user-select: text;
+  }
+}
+
+.NoticeFoot {
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+}

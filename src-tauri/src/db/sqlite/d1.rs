@@ -8,12 +8,32 @@ use zeroize::Zeroizing;
 use super::connection::{RawColumn, RawResult, SqlValue, SqliteConnection, SqliteConnector};
 use super::session::SqliteSession;
 use crate::connections::{SecretBag, SecretSlot};
+use crate::daylog::{DAY_MS, day_name, now_ms};
+use crate::db::activity::{
+    ActivityNotice, ActivitySupport, HISTORY_LIMIT, HistoryOrder, QueryHistory, SetupStep, StatementStats,
+};
 use crate::db::types::BatchOutcome;
 use crate::error::{AppError, AppResult, ErrorDetail};
 
 pub const API_TOKEN_SLOT: &str = "apiToken";
 const API_BASE: &str = "https://api.cloudflare.com/client/v4";
 const DATABASES_PER_PAGE: usize = 1000;
+const INSIGHTS_SOURCE: &str = "Cloudflare D1 query insights for the last 24 hours";
+const INSIGHTS_WINDOW_MS: u64 = DAY_MS;
+
+/// The same dataset `wrangler d1 insights` reads.
+const INSIGHTS_QUERY: &str = "query D1Insights($accountTag: string, $filter: ZoneWorkersRequestsFilter_InputObject) {
+  viewer {
+    accounts(filter: { accountTag: $accountTag }) {
+      d1QueriesAdaptiveGroups(limit: LIMIT, filter: $filter, orderBy: [ORDER]) {
+        sum { queryDurationMs rowsRead rowsReturned }
+        avg { queryDurationMs }
+        count
+        dimensions { query }
+      }
+    }
+  }
+}";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -69,6 +89,120 @@ struct ApiMessage {
 struct DatabaseEntry {
     uuid: String,
     name: String,
+}
+
+#[derive(Deserialize)]
+struct GraphqlResponse {
+    data: Option<InsightsData>,
+    errors: Option<Vec<ApiMessage>>,
+}
+
+#[derive(Deserialize)]
+struct InsightsData {
+    viewer: InsightsViewer,
+}
+
+#[derive(Deserialize)]
+struct InsightsViewer {
+    #[serde(default)]
+    accounts: Vec<InsightsAccount>,
+}
+
+#[derive(Deserialize)]
+struct InsightsAccount {
+    #[serde(rename = "d1QueriesAdaptiveGroups", default)]
+    groups: Vec<QueryGroup>,
+}
+
+#[derive(Deserialize)]
+struct QueryGroup {
+    sum: GroupNumbers,
+    avg: GroupNumbers,
+    count: u64,
+    dimensions: GroupDimensions,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupNumbers {
+    #[serde(default)]
+    query_duration_ms: f64,
+    rows_read: Option<f64>,
+    rows_returned: Option<f64>,
+}
+
+#[derive(Deserialize)]
+struct GroupDimensions {
+    query: String,
+}
+
+/// `2026-11-08T09:30:00Z`
+fn iso_time(ms: u64) -> String {
+    let seconds = (ms % DAY_MS) / 1000;
+    format!(
+        "{}T{:02}:{:02}:{:02}Z",
+        day_name(ms / DAY_MS),
+        seconds / 3600,
+        seconds / 60 % 60,
+        seconds % 60
+    )
+}
+
+/// D1 keeps no max time, so the view never offers that column and it falls back to the mean.
+fn insights_order(order: HistoryOrder) -> &'static str {
+    match order {
+        HistoryOrder::Calls => "count_DESC",
+        HistoryOrder::TotalMs => "sum_queryDurationMs_DESC",
+        HistoryOrder::MeanMs | HistoryOrder::MaxMs => "avg_queryDurationMs_DESC",
+        HistoryOrder::Rows => "sum_rowsReturned_DESC",
+    }
+}
+
+fn insights_history(response: GraphqlResponse, database: &str, since: String) -> QueryHistory {
+    let errors = response.errors.unwrap_or_default();
+    let groups = match response.data {
+        Some(data) if errors.is_empty() => data.viewer.accounts.into_iter().flat_map(|account| account.groups),
+        _ => {
+            let messages = errors.iter().map(|error| error.message.as_str()).collect::<Vec<_>>().join("\n");
+            return QueryHistory::unavailable(
+                INSIGHTS_SOURCE,
+                ActivityNotice::unavailable(
+                    "Cloudflare didn't return query insights",
+                    format!("{messages}\nReading D1 query insights needs an API token with the Account Analytics Read permission."),
+                    vec![SetupStep::text(
+                        "In the Cloudflare dashboard, edit this connection's API token and add Account, Account Analytics, Read.",
+                    )],
+                ),
+            );
+        }
+    };
+
+    let mut statements: Vec<StatementStats> = groups
+        .map(|group| StatementStats {
+            id: group.dimensions.query.clone(),
+            text: group.dimensions.query,
+            sample: None,
+            database: Some(database.to_string()),
+            user: None,
+            calls: group.count,
+            total_ms: group.sum.query_duration_ms,
+            mean_ms: group.avg.query_duration_ms,
+            max_ms: None,
+            rows: group.sum.rows_returned.map(|rows| rows as u64),
+            rows_examined: group.sum.rows_read.map(|rows| rows as u64),
+            last_seen: None,
+        })
+        .collect();
+    let limited = statements.len() > HISTORY_LIMIT;
+    statements.truncate(HISTORY_LIMIT);
+
+    QueryHistory {
+        source: INSIGHTS_SOURCE.to_string(),
+        since: Some(since),
+        statements,
+        limited,
+        notice: None,
+    }
 }
 
 #[derive(Deserialize, Default)]
@@ -239,6 +373,51 @@ impl SqliteConnector for D1Connector {
             database: Self::find(&self.api, catalog).await?,
         }))
     }
+
+    fn activity_support(&self) -> ActivitySupport {
+        ActivitySupport {
+            history: true,
+            running: false,
+        }
+    }
+
+    async fn query_history(&self, order: HistoryOrder) -> AppResult<QueryHistory> {
+        let end = now_ms();
+        let start = end.saturating_sub(INSIGHTS_WINDOW_MS);
+        // One past the limit, to tell whether there were more.
+        let query = INSIGHTS_QUERY
+            .replace("LIMIT", &(HISTORY_LIMIT + 1).to_string())
+            .replace("ORDER", insights_order(order));
+        let body = json!({
+            "query": query,
+            "variables": {
+                "accountTag": self.api.account_id,
+                "filter": { "AND": [{
+                    "datetimeHour_geq": iso_time(start),
+                    "datetimeHour_leq": iso_time(end),
+                    "databaseId": self.database.uuid,
+                }] },
+            },
+        });
+        let response = self
+            .api
+            .client
+            .post(format!("{API_BASE}/graphql"))
+            .bearer_auth(self.api.token.as_str())
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| AppError::general(format!("Couldn't reach Cloudflare: {error}")))?;
+        let status = response.status();
+        let text = response
+            .text()
+            .await
+            .map_err(|error| AppError::general(format!("Couldn't read Cloudflare's answer: {error}")))?;
+        let parsed: GraphqlResponse = serde_json::from_str(&text)
+            .map_err(|_| AppError::general(format!("Cloudflare answered with HTTP {status}")))?;
+        let since = iso_time(start).replace('T', " ").replace('Z', " UTC");
+        Ok(insights_history(parsed, &self.database.name, since))
+    }
 }
 
 /// Every call is its own HTTP request, so nothing carries over between statements,
@@ -374,6 +553,45 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(raw_result("UPDATE t SET a = 1", entry, 10).last_insert_id, None);
+    }
+
+    #[test]
+    fn reads_query_insights() {
+        let body = r#"{"data":{"viewer":{"accounts":[{"d1QueriesAdaptiveGroups":[
+            {"sum":{"queryDurationMs":812.5,"rowsRead":40000,"rowsReturned":200},
+             "avg":{"queryDurationMs":4.0625,"rowsRead":200,"rowsReturned":1},
+             "count":200,"dimensions":{"query":"SELECT * FROM orders WHERE customer = ?"}}
+        ]}]}},"errors":null}"#;
+        let response: GraphqlResponse = serde_json::from_str(body).unwrap();
+        let history = insights_history(response, "shop", "2026-11-07 10:00:00 UTC".to_string());
+
+        assert!(history.notice.is_none());
+        let stats = &history.statements[0];
+        assert_eq!(stats.text, "SELECT * FROM orders WHERE customer = ?");
+        assert_eq!(stats.calls, 200);
+        assert_eq!(stats.total_ms, 812.5);
+        assert_eq!(stats.mean_ms, 4.0625);
+        assert_eq!(stats.rows, Some(200));
+        assert_eq!(stats.rows_examined, Some(40000));
+        assert_eq!(stats.database.as_deref(), Some("shop"));
+    }
+
+    #[test]
+    fn a_token_without_analytics_says_what_to_add() {
+        let body = r#"{"data":null,"errors":[{"message":"not authorized for that account","path":["viewer","accounts"]}]}"#;
+        let response: GraphqlResponse = serde_json::from_str(body).unwrap();
+        let history = insights_history(response, "shop", String::new());
+
+        let notice = history.notice.expect("a notice");
+        assert!(history.statements.is_empty());
+        assert!(notice.detail.contains("not authorized for that account"));
+        assert!(notice.detail.contains("Account Analytics"));
+    }
+
+    #[test]
+    fn filters_by_utc_time() {
+        assert_eq!(iso_time(0), "1970-01-01T00:00:00Z");
+        assert_eq!(iso_time(1_762_597_845_000), "2025-11-08T10:30:45Z");
     }
 
     #[test]

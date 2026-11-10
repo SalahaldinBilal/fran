@@ -1,0 +1,33 @@
+.Note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: rgb(255 255 255 / 3%);
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+
+  b {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  &.Warning {
+    border-color: rgb(from var(--warning) r g b / 28%);
+    background-color: rgb(from var(--warning) r g b / 8%);
+    color: var(--text);
+
+    .Icon {
+      color: var(--warning);
+    }
+  }
+}
+
+.Icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--text-faint);
+}

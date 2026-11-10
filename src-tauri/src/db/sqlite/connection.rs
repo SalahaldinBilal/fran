@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
+use crate::db::activity::{ActivitySupport, HistoryOrder, QueryHistory};
 use crate::db::types::BatchOutcome;
 use crate::error::{AppError, AppResult};
 
@@ -101,5 +102,14 @@ pub trait SqliteConnector: Send + Sync {
 
     async fn with_catalog(&self, _catalog: &str) -> AppResult<Arc<dyn SqliteConnector>> {
         Err(AppError::general("This connection has no other databases to switch to"))
+    }
+
+    /// A file has no server, so no other client's queries can be seen.
+    fn activity_support(&self) -> ActivitySupport {
+        ActivitySupport::default()
+    }
+
+    async fn query_history(&self, _order: HistoryOrder) -> AppResult<QueryHistory> {
+        Err(AppError::general("A SQLite file keeps no query history"))
     }
 }

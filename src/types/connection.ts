@@ -1,10 +1,15 @@
 import type { AgentAccess } from "./agent";
+import type { SecretOwner } from "./ssh";
 
 export type DatabaseKind = "mysql" | "postgres" | "sqlite" | "d1";
 
+// Without `store` the slot belongs to the connection being opened.
 export type SecretSlot = {
   id: string,
   label: string,
+  store?: { owner: SecretOwner, slot: string },
+  // A one-time code, never offered for saving.
+  oneTime?: boolean,
 };
 
 export type HostKeyInfo = {
@@ -12,11 +17,22 @@ export type HostKeyInfo = {
   port: number,
   algorithm: string,
   fingerprint: string,
+  // When it was trusted, Unix milliseconds.
+  added?: number | null,
+};
+
+export type HopPosition = {
+  index: number,
+  total: number,
+  label: string,
+  target: string,
 };
 
 export type SshAuthMethod = "password" | "publicKey" | "agent";
 
 export type SshOptions = {
+  // A saved SSH host. When set, the fields below are ignored.
+  hostId: string | null,
   host: string,
   port: number,
   user: string,
@@ -123,10 +139,16 @@ export type ConnectionProfile = {
   color: string | null,
   group: string | null,
   forwardPort: number | null,
+  forwardAllNetworks: boolean,
   agentAccess: AgentAccess,
+  // Reaches the database server, or the SSH server with inline SSH. Saved hosts bring their own.
+  vpnId: string | null,
 } & DriverOptions;
 
 export type VaultStatus = {
   available: boolean,
   message: string | null,
+  // The vault key is wrapped with the app lock password instead of kept in the OS keychain.
+  lockEnabled: boolean,
+  locked: boolean,
 };

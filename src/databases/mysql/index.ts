@@ -4,6 +4,7 @@ import { MysqlOptions } from "@core/types";
 import { DefaultKind } from "@core/helpers/defaultValues";
 import { DatabaseModule } from "../types";
 import { sqlFormatter } from "../shared/format";
+import { sshName, sshVia, tcpOrSshLeg } from "../shared/ssh";
 import MysqlConnectionForm from "./MysqlConnectionForm";
 import { parseMysqlConnectionString } from "./connectionString";
 
@@ -61,7 +62,7 @@ function describeTarget(options: MysqlOptions): string {
     case "socket":
       return `${user}@${options.socketPath || "(no socket)"}`;
     case "sshTunnel":
-      return `${user}@${options.host}:${options.port} via ${options.ssh.user}@${options.ssh.host}`;
+      return `${user}@${options.host}:${options.port} via ${sshVia(options.ssh)}`;
     case "kubernetes":
       return `${user}@${options.kube.resource || "(no pod)"}:${options.port} in ${options.kube.context || "(no context)"}`;
   }
@@ -74,7 +75,7 @@ function suggestName(options: MysqlOptions): string {
     case "socket":
       return "Local MySQL";
     case "sshTunnel":
-      return options.ssh.host.trim() || options.host.trim() || "MySQL";
+      return sshName(options.ssh) || options.host.trim() || "MySQL";
     case "kubernetes":
       return options.kube.resource.replace(/^[^/]*\//, "").trim() || options.kube.context.trim() || "MySQL";
   }
@@ -107,7 +108,7 @@ const mysqlModule: DatabaseModule<"mysql"> = {
     socketPath: "",
     user: "root",
     defaultSchema: "",
-    ssh: { host: "", port: 22, user: "", auth: "password", keyFile: "", agentSocket: "" },
+    ssh: { hostId: null, host: "", port: 22, user: "", auth: "password", keyFile: "", agentSocket: "" },
     kube: { context: "", namespace: "", resource: "", kubectlPath: "" },
     ssl: { mode: "preferred", caFile: "", certFile: "", keyFile: "" },
     compression: false,
@@ -121,6 +122,7 @@ const mysqlModule: DatabaseModule<"mysql"> = {
   suggestName,
   methodLabel,
   sshTarget: options => (options.method === "sshTunnel" ? { host: options.host, port: options.port } : null),
+  vpnLeg: options => tcpOrSshLeg(options.method, options.ssh),
   defaultDatabase: options => options.defaultSchema.trim() || null,
   sqlDialect: MySQL,
   quoteIdentifier,

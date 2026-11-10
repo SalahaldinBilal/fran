@@ -1,5 +1,5 @@
 // Run with: npm run version:bump <version>  (e.g. 0.2.0)
-// Sets the version in package.json, Cargo.toml and tauri.conf.json, and turns CHANGELOG.md's
+// Sets the version in package.json, the Cargo.toml files and tauri.conf.json, and turns CHANGELOG.md's
 // "Unreleased" section into a dated section for that version, which deploy.ts uses as the release notes.
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -66,6 +66,9 @@ function cutChangelog() {
 
 bumpJsonVersion("../package.json");
 bumpCargoVersion("../src-tauri/Cargo.toml");
+// The service reports its build, so Fran can tell when the installed copy is older than the app.
+bumpCargoVersion("../crates/vpn-worker/Cargo.toml");
+bumpCargoVersion("../crates/vpn-proto/Cargo.toml");
 bumpJsonVersion("../src-tauri/tauri.conf.json");
 cutChangelog();
 

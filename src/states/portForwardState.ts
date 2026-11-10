@@ -18,15 +18,21 @@ function usePortForwardStateInner() {
     return forwards[connectionId];
   }
 
+  function all(): PortForwardInfo[] {
+    return Object.values(forwards);
+  }
+
   // Null means the user cancelled a credential or host key prompt.
-  async function start(profile: ConnectionProfile, localPort: number): Promise<PortForwardInfo | null> {
+  async function start(profile: ConnectionProfile, localPort: number, allNetworks: boolean): Promise<PortForwardInfo | null> {
     const info = await withConnectPrompts(
       { connectionId: profile.id, connectionName: profile.name },
-      secrets => safeInvoke("start_port_forward", { connectionId: profile.id, localPort, secrets }),
+      secrets => safeInvoke("start_port_forward", { connectionId: profile.id, localPort, allNetworks, secrets }),
     );
     if (info) {
       setForwards(info.connectionId, info);
-      if (profile.forwardPort !== localPort) await useConnectionsState.save({ ...profile, forwardPort: localPort });
+      if (profile.forwardPort !== localPort || profile.forwardAllNetworks !== allNetworks) {
+        await useConnectionsState.save({ ...profile, forwardPort: localPort, forwardAllNetworks: allNetworks });
+      }
     }
     return info;
   }
@@ -46,7 +52,7 @@ function usePortForwardStateInner() {
 
   void load();
 
-  return { active, start, stop, dialogProfile, openDialog, closeDialog };
+  return { active, all, start, stop, dialogProfile, openDialog, closeDialog };
 }
 
 const usePortForwardState = createRoot(usePortForwardStateInner);

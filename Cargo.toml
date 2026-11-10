@@ -1,0 +1,3 @@
+[workspace]
+members = ["src-tauri", "crates/vpn-proto", "crates/vpn-worker"]
+resolver = "3"

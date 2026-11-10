@@ -32,17 +32,17 @@ jobs:
         include:
           - name: windows
             runner: windows-latest
-            build-args: --bundles nsis
-            bundle-dir: src-tauri/target/release/bundle
+            build-args: --bundles nsis --config src-tauri/tauri.bundle.windows.conf.json
+            bundle-dir: target/release/bundle
           - name: macos
             runner: macos-latest
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-            build-args: --target universal-apple-darwin --bundles app,dmg
-            bundle-dir: src-tauri/target/universal-apple-darwin/release/bundle
+            build-args: --target universal-apple-darwin --bundles app,dmg --config src-tauri/tauri.bundle.conf.json
+            bundle-dir: target/universal-apple-darwin/release/bundle
           - name: linux
             runner: ubuntu-latest
-            build-args: --bundles appimage
-            bundle-dir: src-tauri/target/release/bundle
+            build-args: --bundles appimage --config src-tauri/tauri.bundle.conf.json
+            bundle-dir: target/release/bundle
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
@@ -58,7 +58,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "v0-rust-${{ matrix.name }}"
-          workspaces: "./src-tauri -> target"
+          workspaces: ". -> target"
           cache-on-failure: true
 
       - name: Install Linux build dependencies
@@ -66,7 +66,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential file libxdo-dev libssl-dev \
-            libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev pkg-config
+            libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev libpam0g-dev pkg-config
+
+      - name: Set up Strawberry Perl for the OpenSSL build
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path C:\Strawberry\perl\bin\perl.exe)) { choco install strawberryperl -y --no-progress }
+          "OPENSSL_SRC_PERL=C:\Strawberry\perl\bin\perl.exe" >> $env:GITHUB_ENV
 
       - name: Install dependencies
         run: npm ci

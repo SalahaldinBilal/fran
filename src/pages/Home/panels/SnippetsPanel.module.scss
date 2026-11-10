@@ -1,0 +1,11 @@
+.Warn {
+  flex-shrink: 0;
+  padding: 0 7px;
+  border-radius: 999px;
+  background-color: rgb(from var(--warning) r g b / 12%);
+  box-shadow: inset 0 0 0 1px rgb(from var(--warning) r g b / 28%);
+  color: var(--warning);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  line-height: 20px;
+}

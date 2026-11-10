@@ -10,7 +10,7 @@ const SHOW_MAIN_AFTER: Duration = Duration::from_secs(15);
 pub fn open(app: &AppHandle) -> tauri::Result<()> {
     let version = app.package_info().version.to_string();
     let splash = WebviewWindowBuilder::new(app, SPLASH, WebviewUrl::App("splash.html".into()))
-        .title("Fran DB")
+        .title("Fran")
         .inner_size(300.0, 340.0)
         .resizable(false)
         .maximizable(false)
@@ -57,11 +57,7 @@ pub fn bring_to_front(app: &AppHandle) {
         let _ = splash.set_focus();
         return;
     }
-    if let Some(main) = app.get_webview_window(MAIN) {
-        let _ = main.unminimize();
-        let _ = main.show();
-        let _ = main.set_focus();
-    }
+    crate::tray::show_main(app);
 }
 
 #[tauri::command]

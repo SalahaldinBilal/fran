@@ -1,0 +1,149 @@
+.Frame {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background-color: var(--surface);
+  box-shadow: var(--highlight), 0 1px 2px rgb(0 0 0 / 25%);
+}
+
+// The whole header is the drag handle, so it needs no grip of its own.
+.Header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+
+  &:hover .Actions,
+  &:focus-within .Actions {
+    opacity: 1;
+  }
+}
+
+.Icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.Title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: var(--font-md);
+  font-weight: 550;
+  letter-spacing: -.005em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.Count {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.Actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  opacity: .55;
+  cursor: default;
+  transition: opacity var(--duration) var(--ease);
+}
+
+// Top padding leaves room for a hovered card's lift and shadow, which this scroll area would clip.
+.Body {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 10px 10px;
+  overflow: auto;
+}
+
+.Center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.Rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.Row {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: var(--transition-colors);
+
+  &:hover {
+    background-color: var(--surface-hover);
+
+    .RowEnd {
+      color: var(--accent-strong);
+      opacity: 1;
+    }
+  }
+
+  &:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+}
+
+// Same tint as a filled connection card.
+.Row.Filled {
+  background-image: linear-gradient(90deg, rgb(from var(--row-color) r g b / 14%), rgb(from var(--row-color) r g b / 4%));
+  box-shadow: inset 0 0 0 1px rgb(from var(--row-color) r g b / 24%);
+}
+
+.RowText {
+  flex: 1;
+  min-width: 0;
+}
+
+.RowName {
+  display: block;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.RowSub {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.RowEnd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  opacity: .7;
+  transition: color var(--duration) var(--ease), opacity var(--duration) var(--ease);
+}

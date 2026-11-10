@@ -1,6 +1,6 @@
 import styles from "./SchemaBrowser.module.scss";
 import { Match, Show, Switch, createMemo, createSignal, onMount, untrack } from "solid-js";
-import { Cable, Database, RefreshCw, Unplug } from "lucide-solid";
+import { Cable, Database, Gauge, RefreshCw, Unplug } from "lucide-solid";
 import useWorkspaceState from "@core/states/workspaceState";
 import useToastState from "@core/states/toastState";
 import usePortForwardState from "@core/states/portForwardState";
@@ -102,6 +102,11 @@ function SchemaBrowser(props: { sessionId: string }) {
                   onClick={() => forwards.openDialog(current().profile)}
                 >
                   <Cable size={14} />
+                </Button>
+              </Show>
+              <Show when={current().info.activity.history || current().info.activity.running}>
+                <Button icon size="sm" tooltip="Slow queries" onClick={() => workspace.openActivity(props.sessionId)}>
+                  <Gauge size={14} />
                 </Button>
               </Show>
               <Button icon size="sm" tooltip="Refresh" onClick={refresh}>

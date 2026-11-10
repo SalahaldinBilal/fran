@@ -1,0 +1,94 @@
+.LockScreen {
+  position: fixed;
+  inset: var(--titlebar-height) 0 0;
+  z-index: calc(var(--z-modal) + 50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-sunken);
+}
+
+.Warning {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+  text-align: left;
+}
+
+.Choices {
+  display: flex;
+  align-self: stretch;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.Card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 340px;
+  padding: 28px 28px 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background-color: var(--surface);
+  box-shadow: var(--highlight), var(--shadow-modal);
+  text-align: center;
+
+  h1 {
+    margin: 6px 0 0;
+    color: var(--text-strong);
+    font-size: var(--font-lg);
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0 0 8px;
+    color: var(--text-muted);
+    font-size: var(--font-sm);
+  }
+}
+
+.Icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--accent-strong);
+}
+
+.Input,
+.Submit {
+  width: 100%;
+}
+
+.Submit {
+  justify-content: center;
+}
+
+.Error {
+  align-self: stretch;
+  color: var(--danger);
+  font-size: var(--font-sm);
+}
+
+.Forgot {
+  margin-top: 4px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: var(--font-xs);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-muted);
+  }
+}

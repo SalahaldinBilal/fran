@@ -1,3 +1,4 @@
+mod activity;
 mod classify;
 mod design;
 mod metadata;

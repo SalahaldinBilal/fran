@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, time::Duration};
 
 use serde_json::{Map, Value, json};
 
@@ -7,12 +7,15 @@ use super::approvals::{KeyValue, PreviewCell, PreviewRow, RowAction, RowPreview}
 use super::args::{
     AlterTableArgs, ColumnValuesArgs, CountRowsArgs, CreateTableArgs, DefinitionArgs, DeleteRowsArgs, DescribeTableArgs,
     DropObjectArgs, FilterArg, InsertRowsArgs, ListObjectsArgs, OpenSessionArgs, ReadRowsArgs, RelationshipsArgs,
-    RowUpdateArg, RunQueryArgs, SearchSchemaArgs, SessionArgs, SqlArgs, TableArgs, UpdateRowsArgs,
+    RowUpdateArg, RunQueryArgs, SearchSchemaArgs, SessionArgs, SlowQueriesArgs, SlowQueryOrderArg, SqlArgs, TableArgs,
+    UpdateRowsArgs,
 };
 use super::call::CallLog;
 use super::format;
+use super::history::Outcome;
 use super::host::{AgentHost, CloseReason, Live, refused};
 use super::sessions::AgentSession;
+use crate::db::activity::{HISTORY_LIMIT, HistoryOrder, StatementStats};
 use crate::db::classify::{ClassifiedStatement, StatementAccess};
 use crate::db::session::DatabaseSession;
 use crate::db::types::{
@@ -24,6 +27,7 @@ use crate::error::{AppError, AppResult};
 const DEFAULT_ROWS: u64 = 100;
 const MAX_ROWS: u64 = 1000;
 const DEFAULT_VALUES: u64 = 50;
+const DEFAULT_SLOW_QUERIES: usize = 50;
 const SEARCH_LIMIT: usize = 200;
 const PREVIEW_ROWS: usize = 50;
 const PREVIEW_CELL_LIMIT: usize = 300;
@@ -313,7 +317,7 @@ impl AgentHost {
         if mode == AgentMode::Off {
             return Err(refused(
                 log,
-                format!("{} isn't shared with agents. Turn on agent access for it in Fran DB.", profile.name),
+                format!("{} isn't shared with agents. Turn on agent access for it in Fran.", profile.name),
             ));
         }
 
@@ -350,7 +354,7 @@ impl AgentHost {
             None => Vec::new(),
         };
         let note = match mode {
-            AgentMode::Ask => "Changes wait for the user to approve them in Fran DB.",
+            AgentMode::Ask => "Changes wait for the user to approve them in Fran.",
             _ => "This connection is read only for agents.",
         };
 
@@ -742,6 +746,46 @@ impl AgentHost {
         self.run_changes(&live, Some(&database), "drop_object", vec![statement], None, log).await
     }
 
+    pub async fn slow_queries(&self, args: SlowQueriesArgs, log: &CallLog) -> AppResult<Value> {
+        let live = self.live(&args.session, log).await?;
+        let order = args.order_by.map_or(HistoryOrder::MeanMs, HistoryOrder::from);
+        let limit = args.limit.unwrap_or(DEFAULT_SLOW_QUERIES).clamp(1, HISTORY_LIMIT);
+        let session = &live.session;
+        let timeout_secs = live.config.query_timeout_secs;
+
+        let history = tokio::select! {
+            result = session.session.query_history(order) => result?,
+            () = log.cancel.cancelled() => {
+                log.outcome(Outcome::Cancelled);
+                return Err(AppError::general("The call was cancelled"));
+            }
+            () = session.closed.cancelled() => {
+                log.outcome(Outcome::Cancelled);
+                return Err(AppError::general("The session was closed in Fran"));
+            }
+            () = tokio::time::sleep(Duration::from_secs(u64::from(timeout_secs))) => {
+                log.outcome(Outcome::TimedOut);
+                return Err(AppError::general(format!("Reading the statistics took longer than {timeout_secs} seconds")));
+            }
+        };
+
+        let total = history.statements.len();
+        let mut statements = shared_statements(history.statements, &live.access);
+        let hidden = total - statements.len();
+        let more = history.limited || statements.len() > limit;
+        statements.truncate(limit);
+
+        Ok(json!({
+            "source": history.source,
+            "since": history.since,
+            "orderedBy": args.order_by.unwrap_or(SlowQueryOrderArg::Mean),
+            "statements": statements,
+            "more": more,
+            "hiddenNotShared": hidden,
+            "notice": history.notice,
+        }))
+    }
+
     pub async fn execute_sql(&self, args: SqlArgs, log: &CallLog) -> AppResult<Value> {
         let live = self.live(&args.session, log).await?;
         self.require_raw_sql(&live, log)?;
@@ -756,6 +800,18 @@ impl AgentHost {
             .collect();
         self.run_changes(&live, database.as_deref(), "execute_sql", statements, None, log).await
     }
+}
+
+/// Server statistics cover every database, so only those shared with agents are kept.
+/// With a database list set, statements that name no database are dropped, since they could have run anywhere.
+fn shared_statements(statements: Vec<StatementStats>, access: &AgentAccess) -> Vec<StatementStats> {
+    if access.databases.is_empty() {
+        return statements;
+    }
+    statements
+        .into_iter()
+        .filter(|stats| stats.database.as_deref().is_some_and(|database| access.allows(database)))
+        .collect()
 }
 
 fn parse_design(design: Value) -> AppResult<TableDesign> {
@@ -796,6 +852,36 @@ mod tests {
         );
         assert!(key_row(&columns, &map(json!({ "a": 1 })), "t").is_err());
         assert!(key_row(&columns, &map(json!({ "a": 1, "c": 2, "b": 3 })), "t").is_err());
+    }
+
+    fn stats(database: Option<&str>) -> StatementStats {
+        StatementStats {
+            id: database.unwrap_or("none").to_string(),
+            text: "SELECT ?".to_string(),
+            sample: None,
+            database: database.map(str::to_string),
+            user: None,
+            calls: 1,
+            total_ms: 1.0,
+            mean_ms: 1.0,
+            max_ms: None,
+            rows: None,
+            rows_examined: None,
+            last_seen: None,
+        }
+    }
+
+    #[test]
+    fn slow_queries_only_show_shared_databases() {
+        let all = || vec![stats(Some("shop")), stats(Some("payroll")), stats(None)];
+
+        let everything = AgentAccess { mode: AgentMode::ReadOnly, databases: Vec::new() };
+        assert_eq!(shared_statements(all(), &everything).len(), 3);
+
+        let shop_only = AgentAccess { mode: AgentMode::ReadOnly, databases: vec!["shop".to_string()] };
+        let shared = shared_statements(all(), &shop_only);
+        assert_eq!(shared.len(), 1);
+        assert_eq!(shared[0].database.as_deref(), Some("shop"));
     }
 
     #[test]

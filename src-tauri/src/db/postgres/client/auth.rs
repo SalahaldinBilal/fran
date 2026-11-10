@@ -19,7 +19,7 @@ pub struct StartupParams<'a> {
 
 fn unsupported(method: &str) -> PgError {
     PgError::Refused(format!(
-        "The server asks for {method} authentication, which Fran DB doesn't support. Use a password or trust login."
+        "The server asks for {method} authentication, which Fran doesn't support. Use a password or trust login."
     ))
 }
 
@@ -36,7 +36,7 @@ impl PgConnection {
             ("database", params.database),
             ("client_encoding", "UTF8"),
             ("DateStyle", "ISO"),
-            ("application_name", "Fran DB"),
+            ("application_name", "Fran"),
         ];
         if let Some(options) = params.options.as_deref() {
             parameters.push(("options", options));

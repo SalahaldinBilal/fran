@@ -3,14 +3,14 @@
   flex-direction: column;
   width: 100%;
   height: 100%;
-  background-color: var(--surface);
+  background-color: var(--bg);
 }
 
 .Header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 20px 24px 6px;
+  padding: 12px 16px 10px;
   flex-shrink: 0;
 
   h1 {
@@ -22,37 +22,35 @@
   }
 }
 
-.Count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  margin-left: 2px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background-color: var(--surface-active);
-  color: var(--text-muted);
-  font-size: var(--font-xs);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
 .Spacer {
   flex: 1;
 }
 
+.SearchBox {
+  position: relative;
+}
+
 .Search {
-  width: 240px;
+  width: 260px;
+}
+
+.Kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  line-height: 1.3;
 }
 
 .Banner {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 24px 14px;
+  margin: 0 16px 10px;
   padding: 8px 8px 8px 14px;
-  border: 1px solid rgb(236 106 100 / 30%);
+  border: 1px solid rgb(from var(--danger) r g b / 30%);
   border-radius: var(--radius-lg);
   background-color: var(--danger-soft);
   color: var(--danger);
@@ -64,113 +62,18 @@
   }
 }
 
-// Top padding leaves room for a hovered card's lift and shadow, which this scroll area would clip.
 .Body {
+  display: flex;
   flex: 1;
   min-height: 0;
-  padding: 10px 24px 32px;
-  overflow-y: auto;
+  padding: 0 16px 16px;
+  overflow: auto;
 }
 
 .Center {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
   height: 100%;
-}
-
-.Section + .Section {
-  margin-top: 28px;
-}
-
-.SectionHeader {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-bottom: 10px;
-
-  &:hover .Grip {
-    opacity: 1;
-  }
-}
-
-.Grip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  margin-left: -18px;
-  color: var(--text-faint);
-  cursor: grab;
-  opacity: 0;
-  transition: opacity var(--duration) var(--ease), color var(--duration) var(--ease);
-
-  &:hover {
-    color: var(--text-muted);
-  }
-}
-
-.SectionTitle {
-  margin: 0 0 0 2px;
-  color: var(--text-faint);
-  font-size: var(--font-xs);
-  font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-
-  &.Renamable {
-    cursor: text;
-    text-decoration: underline dotted transparent;
-    text-underline-offset: 3px;
-    transition: color var(--duration) var(--ease), text-decoration-color var(--duration) var(--ease);
-
-    &:hover {
-      color: var(--text-muted);
-      text-decoration-color: var(--text-faint);
-    }
-  }
-}
-
-.RenameInput {
-  margin-left: 2px;
-  padding: 1px 4px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  background-color: var(--control);
-  color: var(--text-strong);
-  font: inherit;
-  font-size: var(--font-sm);
-  font-weight: 600;
-  outline: none;
-}
-
-.Grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: 12px;
-
-  &.Empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 64px;
-    border: 1px dashed var(--border-strong);
-    border-radius: var(--radius-xl);
-    color: var(--text-faint);
-    font-size: var(--font-sm);
-  }
-}
-
-.RemoveGroup {
-  margin-left: 2px;
-}
-
-.AddGroup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
 }

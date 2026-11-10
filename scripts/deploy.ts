@@ -1,5 +1,5 @@
 // Run with: node scripts/deploy.ts  (in the release workflow, after every platform's build)
-// Expects each platform's `src-tauri/target/.../bundle` folder under bundles/bundle-<platform>/, and a
+// Expects each platform's `target/.../bundle` folder under bundles/bundle-<platform>/, and a
 // `## [<version>]` section in CHANGELOG.md, which becomes the release notes.
 // Required env vars: B2_APPLICATION_KEY_ID, B2_APPLICATION_KEY, GH_TOKEN.
 
@@ -101,7 +101,7 @@ function readChangelogNotes(version: string): string {
   return contents.slice(sectionStart, sectionEnd).trim();
 }
 
-// Tauri names files after the product name, which has a space, so they're found by suffix.
+// Tauri names files after the product name and version, so they're found by suffix.
 function findBuiltFile(artifact: Artifact): string {
   const dir = join(bundlesDir, artifact.bundle, artifact.folder);
   const files = existsSync(dir) ? readdirSync(dir) : [];

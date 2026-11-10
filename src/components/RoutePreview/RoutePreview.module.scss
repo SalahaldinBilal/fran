@@ -1,0 +1,68 @@
+.Route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.Hop {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background-color: var(--surface-raised);
+  color: var(--text);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  white-space: nowrap;
+
+  svg {
+    flex-shrink: 0;
+    color: var(--text-faint);
+  }
+}
+
+.Me {
+  color: var(--text-muted);
+}
+
+.Proxy {
+  border-style: dashed;
+}
+
+.Colored {
+  border-color: rgb(from var(--hop-color) r g b / 45%);
+
+  svg {
+    color: var(--hop-color);
+  }
+}
+
+.End {
+  border-color: var(--accent-line);
+  background-color: var(--accent-soft);
+  color: var(--text-strong);
+
+  svg {
+    color: var(--accent-strong);
+  }
+}
+
+.Database {
+  border-color: rgb(from var(--success) r g b / 40%);
+  background-color: rgb(from var(--success) r g b / 10%);
+  color: var(--text-strong);
+
+  svg {
+    color: var(--success);
+  }
+}
+
+.Arrow {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}

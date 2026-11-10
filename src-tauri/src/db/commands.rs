@@ -10,6 +10,7 @@ use tauri::{State, ipc::Channel};
 
 use super::{
     DatabaseKind,
+    activity::{HistoryOrder, QueryHistory, RunningQueries},
     session::{ContextAccess, ContextId},
     sessions::{OpenSession, SessionInfo, SessionManager},
     split_statements,
@@ -18,9 +19,10 @@ use super::{
         ObjectStructure, RowChange, ServerInfo, SqlTemplate, StatementOutcome, StatementRange, TableDesign,
     },
 };
-use crate::connections::{ConnectionProfile, ConnectionStore, resolve_secrets};
+use crate::connections::{ConnectionProfile, ConnectionStore, prepare::prepare_connect};
 use crate::error::AppResult;
 use crate::ssh::known_hosts::KnownHosts;
+use crate::ssh_store::SshStore;
 use crate::vault::Vault;
 
 #[tauri::command]
@@ -28,20 +30,16 @@ pub async fn open_session(
     store: State<'_, Arc<ConnectionStore>>,
     vault: State<'_, Arc<Vault>>,
     known_hosts: State<'_, Arc<KnownHosts>>,
+    ssh_store: State<'_, Arc<SshStore>>,
     sessions: State<'_, SessionManager>,
     connection_id: String,
     secrets: HashMap<String, String>,
 ) -> AppResult<SessionInfo> {
     let profile = store.find(&connection_id)?;
-    let bag = resolve_secrets(
-        &vault,
-        Some(&profile.id),
-        secrets,
-        &profile.driver.required_secrets(),
-        &profile.driver.optional_secrets(),
-    )?;
+    let prepared = prepare_connect(&profile.driver, Some(&profile.id), profile.vpn_id.as_deref(), secrets, &vault, &ssh_store)?;
+    let access = prepared.access(&known_hosts);
 
-    let session = profile.driver.connect(&bag, &known_hosts).await?;
+    let session = profile.driver.connect(&prepared.secrets, &access).await?;
     sessions.insert(OpenSession {
         info: SessionInfo {
             id: uuid::Uuid::new_v4().to_string(),
@@ -49,6 +47,7 @@ pub async fn open_session(
             kind: profile.driver.kind(),
             server: session.server_info(),
             catalog: session.catalog(),
+            activity: session.activity_support(),
         },
         session,
     })
@@ -69,8 +68,23 @@ pub async fn switch_catalog(
     open.session.switch_catalog(&catalog).await?;
     Ok(SessionInfo {
         catalog: open.session.catalog(),
+        activity: open.session.activity_support(),
         ..open.info.clone()
     })
+}
+
+#[tauri::command]
+pub async fn get_query_history(
+    sessions: State<'_, SessionManager>,
+    session_id: String,
+    order: HistoryOrder,
+) -> AppResult<QueryHistory> {
+    sessions.get(&session_id)?.session.query_history(order).await
+}
+
+#[tauri::command]
+pub async fn get_running_queries(sessions: State<'_, SessionManager>, session_id: String) -> AppResult<RunningQueries> {
+    sessions.get(&session_id)?.session.running_queries().await
 }
 
 /// Works on unsaved profiles too. Stored secrets are used when the profile already has an id.
@@ -78,19 +92,15 @@ pub async fn switch_catalog(
 pub async fn test_connection(
     vault: State<'_, Arc<Vault>>,
     known_hosts: State<'_, Arc<KnownHosts>>,
+    ssh_store: State<'_, Arc<SshStore>>,
     profile: ConnectionProfile,
     secrets: HashMap<String, String>,
 ) -> AppResult<ServerInfo> {
     let connection_id = (!profile.id.is_empty()).then_some(profile.id.as_str());
-    let bag = resolve_secrets(
-        &vault,
-        connection_id,
-        secrets,
-        &profile.driver.required_secrets(),
-        &profile.driver.optional_secrets(),
-    )?;
+    let prepared = prepare_connect(&profile.driver, connection_id, profile.vpn_id.as_deref(), secrets, &vault, &ssh_store)?;
+    let access = prepared.access(&known_hosts);
 
-    let session = profile.driver.connect(&bag, &known_hosts).await?;
+    let session = profile.driver.connect(&prepared.secrets, &access).await?;
     let info = session.server_info();
     session.close().await;
     Ok(info)

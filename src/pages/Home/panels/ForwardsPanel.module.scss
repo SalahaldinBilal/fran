@@ -1,0 +1,11 @@
+.Kind {
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  font-weight: 700;
+}
+
+.Toggle {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}

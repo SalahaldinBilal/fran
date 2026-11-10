@@ -9,7 +9,7 @@ import { SettingGroup, SettingRow, SettingsPage } from "./SettingsLayout";
 function UpdateSettings() {
   const updater = useUpdaterState;
 
-  const appLabel = createMemo(() => (updater.currentVersion() ? `Fran DB v${updater.currentVersion()}` : "Fran DB"));
+  const appLabel = createMemo(() => (updater.currentVersion() ? `Fran v${updater.currentVersion()}` : "Fran"));
 
   const downloadPercent = createMemo(() => {
     const { downloaded, total } = updater.progress();
@@ -23,7 +23,7 @@ function UpdateSettings() {
       case "upToDate": return "You're on the latest version.";
       case "available": return `Version ${updater.update()?.version} is available.${updater.selfUpdate ? "" : " Update it through Nix."}`;
       case "downloading": return downloadPercent() === null ? "Downloading the update…" : `Downloading the update, ${downloadPercent()}%`;
-      case "ready": return "Restart Fran DB to finish updating.";
+      case "ready": return "Restart Fran to finish updating.";
       case "error": return updater.error();
     }
   });

@@ -2,6 +2,7 @@ use std::sync::{Mutex, PoisonError};
 
 use async_trait::async_trait;
 
+use super::activity::{ActivitySupport, HistoryOrder, QueryHistory, RunningQueries};
 use super::classify::ClassifiedStatement;
 use super::types::{
     BatchOutcome, CatalogColumn, ColumnChoices, ColumnMeta, DatabaseInfo, DatabaseSize, DesignOptions, ObjectInfo, ObjectKind,
@@ -149,6 +150,21 @@ pub trait DatabaseSession: Send + Sync {
     ) -> AppResult<()>;
 
     async fn cancel(&self, context: ContextId) -> AppResult<()>;
+
+    /// Which parts of the slow queries view this server can fill. None by default.
+    fn activity_support(&self) -> ActivitySupport {
+        ActivitySupport::default()
+    }
+
+    /// Statements the server has seen from every client, read from its own statistics, highest first by `order`.
+    async fn query_history(&self, _order: HistoryOrder) -> AppResult<QueryHistory> {
+        Err(AppError::general("This database keeps no query history Fran can read"))
+    }
+
+    /// Statements running on the server right now, other than Fran's own lookup.
+    async fn running_queries(&self) -> AppResult<RunningQueries> {
+        Err(AppError::general("This database can't list the queries running on it"))
+    }
 
     async fn close(&self);
 }

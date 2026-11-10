@@ -1,16 +1,21 @@
 import { Component } from "solid-js";
 import { SQLDialect } from "@codemirror/lang-sql";
-import { DatabaseKind, IndexKind, OptionsByKind } from "@core/types";
+import { DatabaseKind, IndexKind, OptionsByKind, SecretOwner } from "@core/types";
 import { DefaultKind } from "@core/helpers/defaultValues";
 import type { SqlFormatter } from "./shared/format";
 
 // undefined means untouched, null means remove from the vault on save.
 export type PendingSecret = string | null | undefined;
 
+// Direct: the VPN reaches the database. Ssh: it reaches the SSH server typed in the form. SavedHost: the host's own VPN is used.
+export type VpnLeg = { kind: "direct" } | { kind: "ssh" } | { kind: "savedHost", hostId: string };
+
 export type SecretEditor = {
   isStored: (slot: string) => boolean,
   pending: (slot: string) => PendingSecret,
   setPending: (slot: string, value: PendingSecret) => void,
+  // Whose secrets these are, for Show. Null until the owner is saved.
+  owner?: () => SecretOwner | null,
 };
 
 export type ConnectionFormProps<Options> = {
@@ -48,6 +53,8 @@ export type DatabaseModule<K extends DatabaseKind> = {
   methodLabel: (options: OptionsByKind[K]) => string,
   // The database endpoint behind the SSH tunnel, when the connection uses one. Port forwards go there.
   sshTarget: (options: OptionsByKind[K]) => { host: string, port: number } | null,
+  // What a VPN would carry for these options. Null when no VPN can be used, like for files and sockets.
+  vpnLeg: (options: OptionsByKind[K]) => VpnLeg | null,
   defaultDatabase: (options: OptionsByKind[K]) => string | null,
   sqlDialect: SQLDialect,
   quoteIdentifier: (name: string) => string,

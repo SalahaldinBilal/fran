@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod classify;
 pub mod commands;
 pub mod mysql;
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::connections::{SecretBag, SecretSlot};
 use crate::error::AppResult;
-use crate::ssh::{SshOptions, known_hosts::KnownHosts};
+use crate::ssh::{SshAccess, SshOptions};
 use session::DatabaseSession;
 use types::StatementRange;
 
@@ -72,18 +73,28 @@ impl DriverOptions {
         }
     }
 
-    pub async fn connect(
-        &self,
-        secrets: &SecretBag,
-        known_hosts: &KnownHosts,
-    ) -> AppResult<Box<dyn DatabaseSession>> {
+    /// The server a direct TCP connection dials, which is what a VPN carries. None for files, sockets, SSH and Kubernetes.
+    pub fn network_target(&self) -> Option<(&str, u16)> {
         match self {
-            Self::Mysql(options) => Ok(Box::new(
-                mysql::MysqlSession::connect(options, secrets, known_hosts).await?,
-            )),
-            Self::Postgres(options) => Ok(Box::new(
-                postgres::PostgresSession::connect(options, secrets, known_hosts).await?,
-            )),
+            Self::Mysql(options) => options.network_target(),
+            Self::Postgres(options) => options.network_target(),
+            Self::Sqlite(_) | Self::D1(_) => None,
+        }
+    }
+
+    /// The SSH settings whether or not the tunnel method is picked, so a saved host still in use is found.
+    pub fn ssh_options(&self) -> Option<&SshOptions> {
+        match self {
+            Self::Mysql(options) => Some(&options.ssh),
+            Self::Postgres(options) => Some(&options.ssh),
+            Self::Sqlite(_) | Self::D1(_) => None,
+        }
+    }
+
+    pub async fn connect(&self, secrets: &SecretBag, ssh: &SshAccess<'_>) -> AppResult<Box<dyn DatabaseSession>> {
+        match self {
+            Self::Mysql(options) => Ok(Box::new(mysql::MysqlSession::connect(options, secrets, ssh).await?)),
+            Self::Postgres(options) => Ok(Box::new(postgres::PostgresSession::connect(options, secrets, ssh).await?)),
             Self::Sqlite(options) => Ok(Box::new(sqlite::SqliteSession::connect(options).await?)),
             Self::D1(options) => Ok(Box::new(sqlite::d1::connect(options, secrets).await?)),
         }

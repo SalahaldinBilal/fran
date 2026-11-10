@@ -1,6 +1,11 @@
 import styles from "./App.module.scss";
 import { For, Show, createMemo, onMount } from "solid-js";
-import { Bot, Database, House, Settings, X } from "lucide-solid";
+import { Bot, Database, FolderOpen, House, KeyRound, Lock, Settings, Shield, ShieldCheck, SquareTerminal, X } from "lucide-solid";
+import { setVpnOnComputer, watchVpnPrompts } from "./helpers/vpnActions";
+import { vpnBackendLabel } from "./helpers/vpn";
+import { startTray } from "./helpers/tray";
+import LockScreen from "./components/LockScreen/LockScreen";
+import useLockState from "./states/lockState";
 import TabStrip, { TabStripItem } from "./components/TabStrip/TabStrip";
 import Button from "./components/Button/Button";
 import Toasts from "./components/Toasts/Toasts";
@@ -8,13 +13,29 @@ import ContextMenuHost from "./components/ContextMenu/ContextMenuHost";
 import TooltipHost from "./components/Tooltip/TooltipHost";
 import Prompts from "./components/Prompts/Prompts";
 import PortForwardModal from "./components/PortForwardModal/PortForwardModal";
+import HostEditor from "./components/HostEditor/HostEditor";
+import SshImportModal from "./components/SshImport/SshImportModal";
+import Secrets from "./pages/Secrets/Secrets";
+import TerminalPage from "./pages/Terminal/Terminal";
+import SftpPage from "./pages/Sftp/Sftp";
+import useSftpState from "./states/sftpState";
+import SnippetEditor from "./components/SnippetEditor/SnippetEditor";
+import ForwardRuleEditor from "./components/ForwardRuleEditor/ForwardRuleEditor";
+import useSshState from "./states/sshState";
+import useVpnState from "./states/vpnState";
+import VpnEditor from "./components/VpnEditor/VpnEditor";
+import useTerminalState from "./states/terminalState";
+import useSnippetsState from "./states/snippetsState";
 import AgentApprovalModal from "./components/AgentApprovalModal/AgentApprovalModal";
 import useAgentState from "./states/agentState";
 import Home from "./pages/Home/Home";
 import Workspace from "./pages/Workspace/Workspace";
 import Agents from "./pages/Agents/Agents";
 import SettingsPage from "./pages/Settings/Settings";
-import useWorkspaceState, { AGENTS_TAB_ID, HOME_TAB_ID, SETTINGS_TAB_ID } from "./states/workspaceState";
+import Onboarding from "./pages/Onboarding/Onboarding";
+import useOnboardingState from "./states/onboardingState";
+import { featureOn } from "./helpers/features";
+import useWorkspaceState, { AGENTS_TAB_ID, HOME_TAB_ID, SECRETS_TAB_ID, SETTINGS_TAB_ID } from "./states/workspaceState";
 import useContextMenuState from "./states/contextMenuState";
 import useConnectionsState from "./states/connectionsState";
 import useVaultState from "./states/vaultState";
@@ -35,14 +56,38 @@ function App() {
   const { openContextMenu } = useContextMenuState;
 
   const agentsOpen = createMemo(() => workspace.store.globalTabs.some(tab => tab.kind === "agents"));
+  const databaseOn = createMemo(() => featureOn("database"));
   const settingsOpen = createMemo(() => workspace.store.globalTabs.some(tab => tab.kind === "settings"));
+  const secretsOpen = createMemo(() => workspace.store.globalTabs.some(tab => tab.kind === "secrets"));
   const pendingChanges = createMemo(() => agent.approvals.length);
   const agentsTooltip = createMemo(() => (pendingChanges() > 0 ? `Agents, ${plural(pendingChanges(), "change")} waiting` : "Agents"));
+  const vpnOn = createMemo(() => featureOn("vpn"));
+  const vpnsOnComputer = createMemo(() => useVpnState.onComputerCount());
+  const vpnButtonClass = createMemo(() => (vpnsOnComputer() > 0 ? `${styles.AgentsButton} ${styles.VpnOn}` : styles.AgentsButton));
+  const vpnTooltip = createMemo(() => (vpnsOnComputer() > 0 ? `VPN, ${plural(vpnsOnComputer(), "VPN")} on for this computer` : "VPN"));
+
+  function openVpnMenu(event: MouseEvent) {
+    const profiles = useVpnState.file.profiles;
+    openContextMenu(event, profiles.length === 0
+      ? [{ label: "No VPNs yet", disabled: true }]
+      : profiles.map(profile => {
+        const on = useVpnState.onComputer(profile.id);
+        const turning = useVpnState.turningOn(profile.id);
+        const backend = vpnBackendLabel(useVpnState.status(profile.id));
+        return {
+          label: profile.label,
+          icon: on ? ShieldCheck : Shield,
+          hint: turning ? "Turning on" : on ? (backend ? `On ${backend}` : "On for this computer") : "Off",
+          disabled: turning,
+          onSelect: () => void setVpnOnComputer(profile, !on),
+        };
+      }));
+  }
 
   const tabItems = createMemo<TabStripItem[]>(() =>
     workspace.store.globalTabs.map(tab => {
       if (tab.kind === "home") {
-        return { id: tab.id, label: "Connections", icon: House };
+        return { id: tab.id, label: "Home", icon: House };
       }
       if (tab.kind === "agents") {
         return { id: tab.id, label: "Agents", icon: Bot, closable: true, movable: true };
@@ -50,13 +95,44 @@ function App() {
       if (tab.kind === "settings") {
         return { id: tab.id, label: "Settings", icon: Settings, closable: true, movable: true };
       }
+      if (tab.kind === "secrets") {
+        return { id: tab.id, label: "Secrets", icon: KeyRound, closable: true, movable: true };
+      }
+      if (tab.kind === "sftp") {
+        const current = useSftpState.tab(tab.id);
+        const host = useSshState.host(current?.hostId ?? "");
+        return {
+          id: tab.id,
+          label: host ? `${host.label} files` : "Files",
+          icon: FolderOpen,
+          iconColor: host?.color,
+          tint: useSettingsState.settings.colorFill ? host?.color : null,
+          busy: current?.status === "connecting" || (current?.transfers.some(item => item.status === "running") ?? false),
+          closable: true,
+          movable: true,
+        };
+      }
+      if (tab.kind === "terminal") {
+        const host = useSshState.host(useTerminalState.tab(tab.id)?.hostId ?? "");
+        const connecting = Object.values(useTerminalState.tab(tab.id)?.panes ?? {}).some(pane => pane.status === "connecting");
+        return {
+          id: tab.id,
+          label: host?.label ?? "Terminal",
+          icon: SquareTerminal,
+          iconColor: host?.color,
+          tint: useSettingsState.settings.colorFill ? host?.color : null,
+          busy: connecting,
+          closable: true,
+          movable: true,
+        };
+      }
 
       const session = workspace.store.sessions[tab.sessionId];
       return {
         id: tab.id,
         label: session?.profile.name ?? "Connection",
-        icon: session?.profile.color ? undefined : Database,
-        dot: session?.profile.color,
+        icon: Database,
+        iconColor: session?.profile.color,
         tint: useSettingsState.settings.colorFill ? session?.profile.color : null,
         closable: true,
         movable: true,
@@ -71,6 +147,14 @@ function App() {
     previous,
     workspace.store.globalTabs.flatMap(tab => (tab.kind === "session" ? [tab.sessionId] : [])),
   ), []);
+  const terminalIds = createMemo<string[]>(previous => keepOrder(
+    previous,
+    workspace.store.globalTabs.flatMap(tab => (tab.kind === "terminal" ? [tab.id] : [])),
+  ), []);
+  const sftpIds = createMemo<string[]>(previous => keepOrder(
+    previous,
+    workspace.store.globalTabs.flatMap(tab => (tab.kind === "sftp" ? [tab.id] : [])),
+  ), []);
 
   installGlobalContextMenu();
 
@@ -83,15 +167,23 @@ function App() {
     const found = await useUpdaterState.checkForUpdate();
     if (!found) return;
     const hint = useUpdaterState.selfUpdate ? "Open Settings to install it." : "Update it through Nix.";
-    useToastState.pushToast(`Fran DB ${found.version} is available. ${hint}`, "info", 8000);
+    useToastState.pushToast(`Fran ${found.version} is available. ${hint}`, "info", 8000);
   }
 
   onMount(() => {
     // Two frames so the first paint is done before the window swaps in, otherwise it shows blank.
     requestAnimationFrame(() => requestAnimationFrame(() => safeInvoke("show_main_window")));
-    useSettingsState.load();
+    void useSettingsState.load().then(() => {
+      void safeInvoke("prune_terminal_logs", { keepDays: useSettingsState.settings.terminal.logDays }).catch(() => undefined);
+    });
+    useLockState.start();
     checkForUpdates();
     useConnectionsState.load();
+    useSshState.load();
+    useVpnState.load();
+    watchVpnPrompts();
+    startTray();
+    useSnippetsState.load();
     useSavedQueriesState.load();
     useVaultState.refresh();
     useAgentState.load();
@@ -108,9 +200,10 @@ function App() {
         onReorder={workspace.moveGlobalTab}
         onContextMenu={(event, id) => {
           if (id === HOME_TAB_ID) return;
+          const kind = workspace.store.globalTabs.find(tab => tab.id === id)?.kind;
           openContextMenu(event, [
             {
-              label: id === AGENTS_TAB_ID || id === SETTINGS_TAB_ID ? "Close" : "Disconnect",
+              label: kind === "session" || kind === "terminal" || kind === "sftp" ? "Disconnect" : "Close",
               icon: X,
               onSelect: () => workspace.closeGlobalTab(id),
             },
@@ -122,22 +215,52 @@ function App() {
         trailing={
           <>
             <div class={styles.Actions} classList={{ [styles.Locked]: useModalState.anyOpen() }}>
+              <Show when={useLockState.enabled()}>
+                <Button icon size="sm" tooltip="Lock Fran" onClick={() => void useLockState.lock()}>
+                  <Lock size={15} />
+                </Button>
+              </Show>
               <Button
                 icon
                 size="sm"
-                class={styles.AgentsButton}
-                active={workspace.store.activeGlobalTabId === AGENTS_TAB_ID}
-                tooltip={agentsTooltip()}
-                onClick={openAgents}
+                active={workspace.store.activeGlobalTabId === SECRETS_TAB_ID}
+                tooltip="Secrets"
+                onClick={workspace.openSecrets}
               >
-                <Bot size={16} />
-                <Show when={agent.status().running}>
-                  <span class={styles.Live} />
-                </Show>
-                <Show when={pendingChanges() > 0}>
-                  <span class={styles.Pending}>{pendingChanges()}</span>
-                </Show>
+                <KeyRound size={16} />
               </Button>
+              <Show when={vpnOn()}>
+                <Button
+                  icon
+                  size="sm"
+                  class={vpnButtonClass()}
+                  tooltip={vpnTooltip()}
+                  onClick={openVpnMenu}
+                >
+                  <Shield size={16} />
+                  <Show when={vpnsOnComputer() > 0}>
+                    <span class={styles.VpnCount}>{vpnsOnComputer()}</span>
+                  </Show>
+                </Button>
+              </Show>
+              <Show when={databaseOn()}>
+                <Button
+                  icon
+                  size="sm"
+                  class={styles.AgentsButton}
+                  active={workspace.store.activeGlobalTabId === AGENTS_TAB_ID}
+                  tooltip={agentsTooltip()}
+                  onClick={openAgents}
+                >
+                  <Bot size={16} />
+                  <Show when={agent.status().running}>
+                    <span class={styles.Live} />
+                  </Show>
+                  <Show when={pendingChanges() > 0}>
+                    <span class={styles.Pending}>{pendingChanges()}</span>
+                  </Show>
+                </Button>
+              </Show>
               <Button
                 icon
                 size="sm"
@@ -165,6 +288,20 @@ function App() {
             </div>
           )}
         </For>
+        <For each={terminalIds()}>
+          {tabId => (
+            <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== tabId }}>
+              <TerminalPage tabId={tabId} />
+            </div>
+          )}
+        </For>
+        <For each={sftpIds()}>
+          {tabId => (
+            <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== tabId }}>
+              <SftpPage tabId={tabId} />
+            </div>
+          )}
+        </For>
         <Show when={agentsOpen()}>
           <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== AGENTS_TAB_ID }}>
             <Agents />
@@ -175,10 +312,26 @@ function App() {
             <SettingsPage onOpenAgents={openAgents} />
           </div>
         </Show>
+        <Show when={secretsOpen()}>
+          <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== SECRETS_TAB_ID }}>
+            <Secrets />
+          </div>
+        </Show>
+        <Show when={useOnboardingState.shown()}>
+          <Onboarding />
+        </Show>
       </main>
+      <Show when={useLockState.locked()}>
+        <LockScreen />
+      </Show>
       <AgentApprovalModal />
       <Prompts />
       <PortForwardModal />
+      <HostEditor />
+      <VpnEditor />
+      <SnippetEditor />
+      <ForwardRuleEditor />
+      <SshImportModal />
       <ContextMenuHost />
       <TooltipHost />
       <Toasts />

@@ -22,6 +22,7 @@ export type InputProps = {
   onKeyDown?: JSX.EventHandler<HTMLInputElement, KeyboardEvent>,
   onBlur?: JSX.EventHandler<HTMLInputElement, FocusEvent>,
   onPaste?: JSX.EventHandler<HTMLInputElement, ClipboardEvent>,
+  inputRef?: (element: HTMLInputElement) => void,
 };
 
 function Input(props: InputProps) {
@@ -68,7 +69,10 @@ function Input(props: InputProps) {
     >
       {props.before}
       <input
-        ref={input}
+        ref={element => {
+          input = element;
+          props.inputRef?.(element);
+        }}
         type={props.type ?? "text"}
         value={props.value}
         placeholder={props.placeholder}

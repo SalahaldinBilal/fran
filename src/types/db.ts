@@ -10,6 +10,7 @@ export type ServerInfo = {
 
 export type PortForwardInfo = {
   connectionId: string,
+  allNetworks: boolean,
   localPort: number,
   host: string,
   port: number,
@@ -21,6 +22,69 @@ export type SessionInfo = {
   kind: DatabaseKind,
   server: ServerInfo,
   catalog: string | null,
+  activity: ActivitySupport,
+};
+
+export type ActivitySupport = {
+  history: boolean,
+  running: boolean,
+};
+
+export type SetupStep = {
+  label: string,
+  code: string | null,
+  language: "sql" | "config",
+  restart: boolean,
+};
+
+export type ActivityNotice = {
+  kind: "unavailable" | "limited",
+  title: string,
+  detail: string,
+  steps: SetupStep[],
+};
+
+export type StatementStats = {
+  id: string,
+  text: string,
+  sample: string | null,
+  database: string | null,
+  user: string | null,
+  calls: number,
+  totalMs: number,
+  meanMs: number,
+  maxMs: number | null,
+  rows: number | null,
+  rowsExamined: number | null,
+  lastSeen: string | null,
+};
+
+export type HistoryOrder = "calls" | "totalMs" | "meanMs" | "maxMs" | "rows";
+
+export type QueryHistory = {
+  source: string,
+  since: string | null,
+  statements: StatementStats[],
+  // The server had more statements than it sent, so another order may pick different ones.
+  limited: boolean,
+  notice: ActivityNotice | null,
+};
+
+export type RunningQuery = {
+  id: string,
+  user: string | null,
+  database: string | null,
+  client: string | null,
+  state: string | null,
+  runningMs: number | null,
+  text: string | null,
+};
+
+export type RunningQueries = {
+  queries: RunningQuery[],
+  // The server only counts whole seconds.
+  wholeSeconds: boolean,
+  notice: ActivityNotice | null,
 };
 
 export type DatabaseInfo = {

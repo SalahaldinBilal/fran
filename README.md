@@ -1,4 +1,4 @@
-# Fran DB
+# Fran
 
 A desktop SQL client for MySQL, MariaDB, PostgreSQL, SQLite and Cloudflare D1, built with [Tauri 2](https://tauri.app/) and [SolidJS](https://www.solidjs.com/).
 
@@ -6,9 +6,9 @@ A desktop SQL client for MySQL, MariaDB, PostgreSQL, SQLite and Cloudflare D1, b
 
 | Platform | Download |
 | --- | --- |
-| Windows (x64) | [Installer](https://frandb.won.fyi/fran-db_latest_x64-setup.exe) |
-| macOS (Apple Silicon and Intel) | [Disk image](https://frandb.won.fyi/fran-db_latest_universal.dmg) |
-| Linux (x64) | [AppImage](https://frandb.won.fyi/fran-db_latest_amd64.AppImage) |
+| Windows (x64) | [Installer](https://frandb.won.fyi/fran_latest_x64-setup.exe) |
+| macOS (Apple Silicon and Intel) | [Disk image](https://frandb.won.fyi/fran_latest_universal.dmg) |
+| Linux (x64) | [AppImage](https://frandb.won.fyi/fran_latest_amd64.AppImage) |
 
 Older versions are on the [releases page](../../releases). The app checks for updates when it starts, and Settings > Updates installs them.
 
@@ -19,23 +19,23 @@ The macOS build isn't signed, so macOS blocks it the first time. Open System Set
 Add the flake to your system flake's inputs. The `stable` branch always points at the latest release:
 
 ```nix
-inputs.fran-db = {
-  url = "github:SalahaldinBilal/fran-db/stable";
+inputs.fran = {
+  url = "github:SalahaldinBilal/fran/stable";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
 
-To stay on one version, use its tag instead, like `github:SalahaldinBilal/fran-db/v0.1.1`.
+To stay on one version, use its tag instead, like `github:SalahaldinBilal/fran/v0.1.1`.
 
 Then add the package to your configuration, with `inputs` passed in through `specialArgs`:
 
 ```nix
 environment.systemPackages = [
-  inputs.fran-db.packages.${pkgs.stdenv.hostPlatform.system}.default
+  inputs.fran.packages.${pkgs.stdenv.hostPlatform.system}.default
 ];
 ```
 
-Rebuild with `nixos-rebuild switch`. To update, run `nix flake update fran-db` and rebuild. The app tells you when a new version is out.
+Rebuild with `nixos-rebuild switch`. To update, run `nix flake update fran` and rebuild. The app tells you when a new version is out.
 
 Every release is built for x86_64 and aarch64 Linux and pushed to a binary cache. Add it so Nix downloads the build instead of compiling it:
 
@@ -80,11 +80,13 @@ nix.settings = {
 
 Everything is stored in the app data folder:
 
-- Windows: `%APPDATA%\com.frandb.app`
-- macOS: `~/Library/Application Support/com.frandb.app`
-- Linux: `~/.local/share/com.frandb.app`
+- Windows: `%APPDATA%\com.fran.app`
+- macOS: `~/Library/Application Support/com.fran.app`
+- Linux: `~/.local/share/com.fran.app`
 
 Connection profiles, saved queries, open tabs and settings are JSON files there. Passwords only go in `secrets.vault`, which can't be read without the key in the OS keychain.
+
+Fran used to be called Fran DB, which kept its data in `com.frandb.app`. On its first start Fran copies that folder and the vault key, and leaves Fran DB's own copy alone.
 
 ## Development
 

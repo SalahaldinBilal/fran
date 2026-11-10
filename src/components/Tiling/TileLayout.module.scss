@@ -1,0 +1,114 @@
+.Layout {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.Tile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  transition:
+    left var(--duration) var(--ease),
+    top var(--duration) var(--ease),
+    width var(--duration) var(--ease),
+    height var(--duration) var(--ease),
+    opacity var(--duration) var(--ease);
+
+  > * {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .Resizing & {
+    transition: opacity var(--duration) var(--ease);
+  }
+
+  &.Dragged {
+    opacity: .4;
+  }
+}
+
+.Splitter {
+  position: absolute;
+  z-index: 2;
+  cursor: col-resize;
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 14px;
+    bottom: 14px;
+    left: 50%;
+    width: 2px;
+    border-radius: 1px;
+    background-color: transparent;
+    transform: translateX(-50%);
+    transition: background-color var(--duration) var(--ease);
+  }
+
+  &.Column {
+    cursor: row-resize;
+
+    &::after {
+      top: 50%;
+      right: 14px;
+      bottom: auto;
+      left: 14px;
+      width: auto;
+      height: 2px;
+      transform: translateY(-50%);
+    }
+  }
+
+  &:hover::after,
+  &.Active::after {
+    background-color: var(--accent-line);
+  }
+}
+
+.Drop {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-xl);
+  background-color: var(--accent-soft);
+  pointer-events: none;
+  transition:
+    left 90ms var(--ease),
+    top 90ms var(--ease),
+    width 90ms var(--ease),
+    height 90ms var(--ease);
+
+  span {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background-color: var(--accent);
+    box-shadow: var(--shadow-float);
+    color: var(--text-strong);
+    font-size: var(--font-sm);
+    font-weight: 600;
+  }
+}
+
+.Ghost {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+  color: var(--text-strong);
+  font-size: var(--font-md);
+  font-weight: 600;
+  pointer-events: none;
+  transform: translate(12px, 12px);
+}

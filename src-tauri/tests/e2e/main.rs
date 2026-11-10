@@ -1,9 +1,13 @@
+mod activity;
 mod conformance;
 mod docker;
 mod mysql;
 mod postgres;
 mod servers;
+mod ssh;
 mod support;
+mod vpn;
+mod wireguard;
 
 use std::{collections::HashMap, sync::Arc, thread};
 
@@ -58,7 +62,7 @@ fn start_servers(needed: Vec<&'static Spec>) -> (Started, Option<docker::DockerH
 
 fn main() {
     let args = Arguments::from_args();
-    let cases: Vec<Case> = [conformance::all(), mysql::all(), postgres::all()].concat();
+    let cases: Vec<Case> = [conformance::all(), mysql::all(), postgres::all(), activity::all()].concat();
 
     let planned: Vec<(&'static Spec, Case)> = SPECS
         .iter()
@@ -83,6 +87,10 @@ fn main() {
         }
     }
 
+    let (ssh_trials, ssh_lab) = ssh::trials(|name| selected(&args, name), args.list);
+    let (vpn_trials, vpn_lab) = vpn::trials(|name| selected(&args, name), args.list);
+    let (wireguard_trials, wireguard_lab) = wireguard::trials(|name| selected(&args, name), args.list);
+
     let trials: Vec<Trial> = planned
         .into_iter()
         .map(|(spec, case)| {
@@ -93,9 +101,15 @@ fn main() {
                 None => Err(Failed::from(format!("{} wasn't started", spec.id))),
             })
         })
+        .chain(ssh_trials)
+        .chain(vpn_trials)
+        .chain(wireguard_trials)
         .collect();
 
     let conclusion = libtest_mimic::run(&args, trials);
+    drop(wireguard_lab);
+    drop(vpn_lab);
+    drop(ssh_lab);
     drop(started);
     drop(docker_host);
     conclusion.exit();

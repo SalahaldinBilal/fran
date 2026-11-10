@@ -27,13 +27,26 @@ use super::config::{AgentConfig, AgentConfigStore};
 use super::history::{ApprovalAnswer, ApprovalRecord, History, HistoryEntry, HistoryEvent, Outcome, now_ms};
 use super::server::AgentServer;
 use super::sessions::{AgentSession, AgentSessions};
-use crate::connections::{ConnectionProfile, ConnectionStore, resolve_secrets};
+use crate::connections::{ConnectionProfile, ConnectionStore, prepare::prepare_connect};
 use crate::db::types::StatementOutcome;
 use crate::error::{AppError, AppResult, ErrorDetail};
 use crate::ssh::known_hosts::KnownHosts;
+use crate::ssh_store::SshStore;
 use crate::vault::Vault;
 
 const APPROVAL_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+/// Waits `total`, counting only time the app isn't locked, so a request can't time out behind the lock screen.
+async fn unlocked_wait(vault: &Vault, total: Duration) {
+    let step = Duration::from_secs(1);
+    let mut left = total;
+    while !left.is_zero() {
+        tokio::time::sleep(step).await;
+        if !vault.is_locked() {
+            left = left.saturating_sub(step);
+        }
+    }
+}
 const IDLE_CLOSE_MS: u64 = 10 * 60 * 1000;
 const MAINTENANCE_EVERY: Duration = Duration::from_secs(60);
 
@@ -59,11 +72,11 @@ impl CloseReason {
     fn message(self) -> &'static str {
         match self {
             Self::Agent => "Closed by the agent",
-            Self::User => "Closed in Fran DB",
+            Self::User => "Closed in Fran",
             Self::Idle => "Closed after 10 minutes without use",
             Self::Access => "Closed because the connection changed or stopped being shared",
             Self::ServerOff => "Closed because the agent server was turned off",
-            Self::AppExit => "Closed because Fran DB quit",
+            Self::AppExit => "Closed because Fran quit",
         }
     }
 }
@@ -106,6 +119,7 @@ pub struct AgentHost {
     pub store: Arc<ConnectionStore>,
     pub vault: Arc<Vault>,
     pub known_hosts: Arc<KnownHosts>,
+    pub ssh_store: Arc<SshStore>,
     config: AgentConfigStore,
     pub sessions: AgentSessions,
     pub approvals: Approvals,
@@ -122,12 +136,14 @@ impl AgentHost {
         store: Arc<ConnectionStore>,
         vault: Arc<Vault>,
         known_hosts: Arc<KnownHosts>,
+        ssh_store: Arc<SshStore>,
     ) -> Self {
         Self {
             app,
             store,
             vault,
             known_hosts,
+            ssh_store,
             config: AgentConfigStore::load(data_dir.join("agent.json")),
             sessions: AgentSessions::default(),
             approvals: Approvals::default(),
@@ -144,6 +160,24 @@ impl AgentHost {
 
     pub fn status(&self) -> ServerStatus {
         self.status.read().map(|status| status.clone()).unwrap_or_default()
+    }
+
+    /// The app lock came on: calls are still recorded, in memory until the next unlock.
+    pub fn on_locked(&self) {
+        self.history.seal();
+    }
+
+    /// History written while locked is saved now, and a server that couldn't start while locked starts.
+    pub async fn on_unlocked(self: &Arc<Self>) {
+        let Ok(config) = self.config() else { return };
+        if config.history_enabled
+            && let Err(error) = self.history.unlock(&self.vault)
+        {
+            eprintln!("agent history: {}", error.message);
+        }
+        if config.enabled && !self.status().running {
+            self.apply().await;
+        }
     }
 
     fn set_status(&self, status: ServerStatus) {
@@ -365,26 +399,27 @@ impl AgentHost {
 
     pub async fn connect(&self, profile: &ConnectionProfile) -> AppResult<Box<dyn crate::db::session::DatabaseSession>> {
         let name = &profile.name;
-        let bag = resolve_secrets(
-            &self.vault,
-            Some(&profile.id),
-            HashMap::new(),
-            &profile.driver.required_secrets(),
-            &profile.driver.optional_secrets(),
-        )
-        .map_err(|error| match error.detail {
-            ErrorDetail::SecretsRequired { .. } => AppError::general(format!(
-                "Fran DB has no saved password for {name}. Save it in the connection's settings so agents can connect."
+        // A VPN that needs a code or an unsaved password only opens for agents once someone signed in to it in Fran.
+        let missing = |slots: &[crate::connections::SecretSlot]| match slots.iter().find(|slot| matches!(&slot.store, Some(store) if matches!(store.owner, crate::connections::SecretOwner::Vpn(_))) || slot.one_time) {
+            Some(slot) => AppError::general(format!("{} is needed for {name}. Connect to it once in Fran, then try again.", slot.label)),
+            None => AppError::general(format!(
+                "Fran has no saved password for {name}. Save it in the connection's settings so agents can connect."
             )),
-            _ => error,
-        })?;
+        };
+        let prepared = prepare_connect(&profile.driver, Some(&profile.id), profile.vpn_id.as_deref(), HashMap::new(), &self.vault, &self.ssh_store)
+            .map_err(|error| match &error.detail {
+                ErrorDetail::SecretsRequired { slots } => missing(slots),
+                _ => error,
+            })?;
+        let access = prepared.access(&self.known_hosts);
 
-        profile.driver.connect(&bag, &self.known_hosts).await.map_err(|error| match error.detail {
+        profile.driver.connect(&prepared.secrets, &access).await.map_err(|error| match &error.detail {
+            ErrorDetail::SecretsRequired { slots } => missing(slots),
             ErrorDetail::UnknownHostKey { .. } => AppError::general(format!(
-                "Fran DB doesn't know the SSH host key for {name} yet. Connect to it once in Fran DB and trust the key."
+                "Fran doesn't know the SSH host key for {name} yet. Connect to it once in Fran and trust the key."
             )),
             ErrorDetail::HostKeyChanged { .. } => AppError::general(format!(
-                "The SSH host key for {name} changed. Connect to it in Fran DB to check the new key."
+                "The SSH host key for {name} changed. Connect to it in Fran to check the new key."
             )),
             _ => error,
         })
@@ -394,7 +429,7 @@ impl AgentHost {
     pub async fn live(&self, id: &str, log: &CallLog) -> AppResult<Live> {
         let session = self.sessions.get(id).ok_or_else(|| {
             AppError::not_found(format!(
-                "No open session {id}. It may have been closed in Fran DB or after 10 minutes without use. \
+                "No open session {id}. It may have been closed in Fran or after 10 minutes without use. \
                  Open a new one with open_session."
             ))
         })?;
@@ -420,14 +455,14 @@ impl AgentHost {
         if live.config.allow_raw_sql {
             Ok(())
         } else {
-            Err(refused(log, "Raw SQL is turned off for agents in Fran DB. Use the other tools instead."))
+            Err(refused(log, "Raw SQL is turned off for agents in Fran. Use the other tools instead."))
         }
     }
 
     pub fn require_changes(&self, live: &Live, log: &CallLog) -> AppResult<()> {
         match live.mode {
             AgentMode::Ask => Ok(()),
-            _ if !live.config.allow_changes => Err(refused(log, "Changes are turned off for all agents in Fran DB")),
+            _ if !live.config.allow_changes => Err(refused(log, "Changes are turned off for all agents in Fran")),
             _ => Err(refused(log, format!("{} is read only for agents", live.session.connection_name))),
         }
     }
@@ -477,7 +512,7 @@ impl AgentHost {
         let (outcome, message) = tokio::select! {
             result = &mut run => return result,
             () = log.cancel.cancelled() => (Outcome::Cancelled, "The query was cancelled".to_string()),
-            () = session.closed.cancelled() => (Outcome::Cancelled, "The session was closed in Fran DB".to_string()),
+            () = session.closed.cancelled() => (Outcome::Cancelled, "The session was closed in Fran".to_string()),
             () = tokio::time::sleep(Duration::from_secs(u64::from(timeout_secs))) => (
                 Outcome::TimedOut,
                 format!("The query ran longer than {timeout_secs} seconds and was stopped"),
@@ -489,7 +524,7 @@ impl AgentHost {
         Err(AppError::general(message))
     }
 
-    /// Asks the user in Fran DB, then runs the statements with `execute_batch`.
+    /// Asks the user in Fran, then runs the statements with `execute_batch`.
     pub async fn run_changes(
         &self,
         live: &Live,
@@ -562,7 +597,7 @@ impl AgentHost {
                 Ok(false) => ApprovalAnswer::Rejected,
                 Err(_) => ApprovalAnswer::Cancelled,
             },
-            () = tokio::time::sleep(APPROVAL_TIMEOUT) => ApprovalAnswer::TimedOut,
+            () = unlocked_wait(&self.vault, APPROVAL_TIMEOUT) => ApprovalAnswer::TimedOut,
             () = log.cancel.cancelled() => ApprovalAnswer::Cancelled,
             () = session.closed.cancelled() => ApprovalAnswer::Cancelled,
         };
@@ -579,11 +614,11 @@ impl AgentHost {
             ApprovalAnswer::Approved => Ok(()),
             ApprovalAnswer::Rejected => {
                 log.outcome(Outcome::Refused);
-                Err(AppError::general("The user rejected this change in Fran DB, so nothing ran"))
+                Err(AppError::general("The user rejected this change in Fran, so nothing ran"))
             }
             ApprovalAnswer::TimedOut => {
                 log.outcome(Outcome::TimedOut);
-                Err(AppError::general("Nobody answered in Fran DB within 5 minutes, so nothing ran"))
+                Err(AppError::general("Nobody answered in Fran within 5 minutes, so nothing ran"))
             }
             ApprovalAnswer::Cancelled => {
                 log.outcome(Outcome::Cancelled);

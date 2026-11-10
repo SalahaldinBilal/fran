@@ -16,6 +16,7 @@ use super::config::AgentConfig;
 use super::host::{AgentHost, CloseReason, Notifier};
 use crate::connections::ConnectionStore;
 use crate::ssh::known_hosts::KnownHosts;
+use crate::ssh_store::SshStore;
 use crate::vault::Vault;
 
 #[derive(Default)]
@@ -77,7 +78,7 @@ fn answer_next(host: &Arc<AgentHost>, approved: bool) {
 #[tokio::test(flavor = "multi_thread")]
 async fn serves_tools_over_http() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let dir =TempDir(std::env::temp_dir().join(format!("fran-db-agent-{}", uuid::Uuid::new_v4())));
+    let dir =TempDir(std::env::temp_dir().join(format!("fran-agent-{}", uuid::Uuid::new_v4())));
     std::fs::create_dir_all(&dir.0).unwrap();
     let database = dir.0.join("app.sqlite");
     rusqlite::Connection::open(&database)
@@ -107,6 +108,7 @@ async fn serves_tools_over_http() {
         Arc::new(ConnectionStore::load(dir.0.join("connections.json"))),
         Arc::new(Vault::new(dir.0.join("secrets.vault"))),
         Arc::new(KnownHosts::load(dir.0.join("known_hosts.json"))),
+        Arc::new(SshStore::load(dir.0.join("ssh.json"))),
     ));
     host.apply().await;
     assert!(host.status().running, "{:?}", host.status());
@@ -125,6 +127,24 @@ async fn serves_tools_over_http() {
     let client = ().serve(StreamableHttpClientTransport::from_uri(url.as_str())).await.unwrap();
     let tools = client.list_all_tools().await.unwrap();
     assert!(tools.iter().any(|tool| tool.name == "execute_sql"));
+    // Agents get no SSH surface: no terminals, files, hosts, keys, forwards or snippets. A new tool has to be added here on purpose.
+    let mut names: Vec<&str> = tools.iter().map(|tool| tool.name.as_ref()).collect();
+    names.sort_unstable();
+    assert_eq!(
+        names,
+        [
+            "alter_table", "close_session", "column_values", "count_rows", "create_table", "delete_rows", "describe_table",
+            "drop_object", "execute_sql", "explain_query", "get_definition", "get_relationships", "get_table_design",
+            "insert_rows", "list_connections", "list_databases", "list_objects", "open_session", "read_rows", "run_query",
+            "search_schema", "slow_queries", "update_rows",
+        ]
+    );
+    for tool in &tools {
+        let text = format!("{} {}", tool.name, tool.description.as_deref().unwrap_or_default()).to_lowercase();
+        for word in ["ssh", "terminal", "sftp", "snippet", "port forward", "private key"] {
+            assert!(!text.contains(word), "{} mentions {word}", tool.name);
+        }
+    }
 
     let connections = data(&call(&client, "list_connections", json!({})).await);
     assert_eq!(connections["connections"].as_array().unwrap().len(), 1);
@@ -163,6 +183,10 @@ async fn serves_tools_over_http() {
     assert!(text(&write).contains("only runs reads"));
     let query = data(&call(&client, "run_query", json!({ "session": session, "sql": "SELECT name FROM users WHERE id = 1" })).await);
     assert_eq!(query["statements"][0]["results"][0]["rows"], json!([["ana"]]));
+
+    let slow = call(&client, "slow_queries", json!({ "session": session, "order_by": "total", "limit": 10 })).await;
+    assert_eq!(slow.is_error, Some(true));
+    assert!(text(&slow).contains("no query history"), "{}", text(&slow));
 
     answer_next(&host, true);
     let inserted = data(

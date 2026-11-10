@@ -38,6 +38,7 @@ function MysqlConnectionForm(props: ConnectionFormProps<MysqlOptions>) {
   const isSocket = createMemo(() => props.options.method === "socket");
   const isKube = createMemo(() => props.options.method === "kubernetes");
   const portLabel = createMemo(() => (isKube() ? "Remote port" : "Port"));
+  const databaseTarget = createMemo(() => `${props.options.host.trim() || "database"}:${props.options.port}`);
 
   return (
     <div class={shared.Form}>
@@ -68,6 +69,7 @@ function MysqlConnectionForm(props: ConnectionFormProps<MysqlOptions>) {
               <SshSection
                 ssh={props.options.ssh}
                 description="The tunnel opens first, then MySQL is reached from the SSH server."
+                databaseTarget={databaseTarget()}
                 secrets={props.secrets}
                 update={mutate => props.update(options => mutate(options.ssh))}
               />

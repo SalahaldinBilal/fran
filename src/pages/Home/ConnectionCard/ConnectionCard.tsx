@@ -10,9 +10,13 @@ import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";
 import usePortForwardState from "@core/states/portForwardState";
 import useSettingsState from "@core/states/settingsState";
+import useVpnState from "@core/states/vpnState";
+import { connectionVpnId } from "@core/helpers/vpnActions";
+import { vpnWaitLabel } from "@core/helpers/vpn";
 import Button from "@core/components/Button/Button";
 import Spinner from "@core/components/Spinner/Spinner";
 import { tooltip } from "@core/components/Tooltip/Tooltip";
+import { ItemBadge, ItemIcon } from "@core/components/ItemParts/ItemParts";
 
 export type ConnectionCardProps = {
   profile: ConnectionProfile,
@@ -38,7 +42,16 @@ function ConnectionCard(props: ConnectionCardProps) {
     })),
   );
   const forwarding = createMemo(() => forwards.active(props.profile.id) !== undefined);
+  const forwardTooltip = createMemo(() => {
+    const info = forwards.active(props.profile.id);
+    return info ? `Forwarding ${info.allNetworks ? "0.0.0.0" : "127.0.0.1"}:${info.localPort}` : "Port forward";
+  });
   const connecting = createMemo(() => workspace.store.connecting[props.profile.id] ?? false);
+  const vpnWait = createMemo(() => {
+    if (!connecting()) return null;
+    const profile = useVpnState.profile(connectionVpnId(props.profile));
+    return vpnWaitLabel(profile, profile ? useVpnState.status(profile.id) : undefined);
+  });
 
   function connect() {
     if (!connecting()) workspace.openConnection(props.profile);
@@ -97,9 +110,9 @@ function ConnectionCard(props: ConnectionCardProps) {
       onContextMenu={event => openContextMenu(event, menuItems())}
     >
       <div class={styles.Top}>
-        <div class={styles.Icon}>
+        <ItemIcon size="lg" color={props.profile.color}>
           <Database size={18} />
-        </div>
+        </ItemIcon>
         <div class={styles.Titles}>
           <div class={styles.Name} ref={element => tooltip(element, () => props.profile.name)}>{props.profile.name}</div>
           <div class={styles.Kind}>{details().kind}</div>
@@ -121,7 +134,7 @@ function ConnectionCard(props: ConnectionCardProps) {
               icon
               size="sm"
               active={forwarding()}
-              tooltip={forwarding() ? `Forwarding 127.0.0.1:${forwards.active(props.profile.id)?.localPort}` : "Port forward"}
+              tooltip={forwardTooltip()}
               onClick={() => forwards.openDialog(props.profile)}
             >
               <Cable size={14} />
@@ -150,7 +163,7 @@ function ConnectionCard(props: ConnectionCardProps) {
       </div>
 
       <div class={styles.Bottom}>
-        <span class={styles.Method}>{details().method}</span>
+        <ItemBadge>{details().method}</ItemBadge>
         <span class={styles.Status}>
           <Show
             when={connecting()}
@@ -162,7 +175,7 @@ function ConnectionCard(props: ConnectionCardProps) {
             }
           >
             <Spinner size={12} />
-            Connecting
+            <span ref={element => tooltip(element, vpnWait)}>{vpnWait() ? "Waiting for VPN" : "Connecting"}</span>
           </Show>
         </span>
       </div>

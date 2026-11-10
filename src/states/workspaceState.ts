@@ -8,17 +8,31 @@ import {
   CatalogColumn, ConnectionProfile, DatabaseInfo, DatabaseKind, ObjectInfo, ObjectKind, SavedQuery, SessionInfo,
 } from "@core/types";
 import useToastState from "./toastState";
-import useSettingsState, { isRowLimit } from "./settingsState";
+import useSettingsState, { RECENT_LIMIT, isRowLimit } from "./settingsState";
 
 export const HOME_TAB_ID = "home";
 export const AGENTS_TAB_ID = "agents";
 export const SETTINGS_TAB_ID = "settings";
+export const SECRETS_TAB_ID = "secrets";
 
 export type GlobalTab =
   | { id: typeof HOME_TAB_ID, kind: "home" }
   | { id: typeof AGENTS_TAB_ID, kind: "agents" }
   | { id: typeof SETTINGS_TAB_ID, kind: "settings" }
-  | { id: string, kind: "session", sessionId: string };
+  | { id: typeof SECRETS_TAB_ID, kind: "secrets" }
+  | { id: string, kind: "session", sessionId: string }
+  | { id: string, kind: "terminal" }
+  | { id: string, kind: "sftp" };
+
+// Tab kinds whose state lives in another module close through it, which keeps this file free of import cycles.
+const tabClosers = new Map<GlobalTab["kind"], (id: string) => void>();
+// Asked before a tab of that kind closes. False keeps it open.
+const tabGuards = new Map<GlobalTab["kind"], (id: string) => Promise<boolean>>();
+
+export function registerTabCloser(kind: GlobalTab["kind"], close: (id: string) => void, guard?: (id: string) => Promise<boolean>) {
+  tabClosers.set(kind, close);
+  if (guard) tabGuards.set(kind, guard);
+}
 
 export type QueryTabState = {
   id: string,
@@ -33,7 +47,8 @@ export type QueryTabState = {
 export type DatabaseTab =
   | QueryTabState
   | StructureTabState
-  | { id: string, kind: "design", title: string, table: string | null };
+  | { id: string, kind: "design", title: string, table: string | null }
+  | { id: string, kind: "activity", title: string };
 
 export type StructureTabState = {
   id: string,
@@ -87,7 +102,8 @@ type PersistedTab =
   | { kind: "query", title: string, sql: string, rowLimit?: number, table?: string }
   | { kind: "data", title: string, table: string }
   | { kind: "structure", title: string, objectName: string, objectKind: ObjectKind, objectSignature?: string | null }
-  | { kind: "design", title: string, table: string | null };
+  | { kind: "design", title: string, table: string | null }
+  | { kind: "activity", title: string };
 
 type PersistedScope = { tabs: PersistedTab[], activeIndex: number, queryCount: number };
 
@@ -172,6 +188,8 @@ function restoreTab(saved: PersistedTab, selectRowsSql: (table: string, limit: n
       };
     case "design":
       return { id, kind: "design", title: saved.title, table: saved.table };
+    case "activity":
+      return { id, kind: "activity", title: saved.title };
     default:
       return null;
   }
@@ -219,6 +237,8 @@ function useWorkspaceStateInner() {
             };
           case "design":
             return { kind: "design", title: tab.title, table: tab.table };
+          case "activity":
+            return { kind: "activity", title: tab.title };
         }
       });
       scopes[database] = {
@@ -323,6 +343,19 @@ function useWorkspaceStateInner() {
     }
   }
 
+  function rememberRecent(id: string, kind: "database" | "ssh" = "database") {
+    const { settings, update } = useSettingsState;
+    const rest = settings.recentConnections.filter(item => item.id !== id).map(item => ({ ...item }));
+    void update({ recentConnections: [{ id, openedAt: Date.now(), kind }, ...rest].slice(0, RECENT_LIMIT) });
+  }
+
+  function addGlobalTab(tab: GlobalTab) {
+    setStore(produce(state => {
+      if (!state.globalTabs.some(existing => existing.id === tab.id)) state.globalTabs.push(tab);
+      state.activeGlobalTabId = tab.id;
+    }));
+  }
+
   async function openConnection(profile: ConnectionProfile) {
     if (store.connecting[profile.id]) return;
     setStore("connecting", profile.id, true);
@@ -343,6 +376,7 @@ function useWorkspaceStateInner() {
         workspace.activeGlobalTabId = info.id;
       }));
 
+      rememberRecent(profile.id);
       await loadTree(info.id);
     } catch (error) {
       pushError(error);
@@ -394,6 +428,13 @@ function useWorkspaceStateInner() {
     }));
   }
 
+  function openSecrets() {
+    setStore(produce(state => {
+      if (!state.globalTabs.some(tab => tab.kind === "secrets")) state.globalTabs.push({ id: SECRETS_TAB_ID, kind: "secrets" });
+      state.activeGlobalTabId = SECRETS_TAB_ID;
+    }));
+  }
+
   function removeGlobalTab(id: string) {
     setStore(produce(state => {
       const index = state.globalTabs.findIndex(tab => tab.id === id);
@@ -406,9 +447,21 @@ function useWorkspaceStateInner() {
     }));
   }
 
-  function closeGlobalTab(id: string) {
-    if (id === AGENTS_TAB_ID || id === SETTINGS_TAB_ID) removeGlobalTab(id);
-    else closeSession(id);
+  // `force` skips the tab's own question, for callers that already asked.
+  async function closeGlobalTab(id: string, force = false) {
+    const tab = store.globalTabs.find(candidate => candidate.id === id);
+    if (!tab || tab.kind === "home") return;
+    const guard = tabGuards.get(tab.kind);
+    if (!force && guard && !(await guard(id))) return;
+    const closer = tabClosers.get(tab.kind);
+    if (closer) {
+      removeGlobalTab(id);
+      closer(id);
+    } else if (tab.kind === "session") {
+      closeSession(id);
+    } else {
+      removeGlobalTab(id);
+    }
   }
 
   async function closeSession(sessionId: string) {
@@ -635,6 +688,24 @@ function useWorkspaceStateInner() {
     openTab(sessionId, database, { id: generateId(), kind: "design", title: table ?? "New table", table });
   }
 
+  // The view covers the whole server, so one tab per session is enough, wherever it was opened.
+  function openActivity(sessionId: string) {
+    const session = store.sessions[sessionId];
+    if (!session) return;
+
+    for (const database of Object.keys(session.scopes)) {
+      if (focusExisting(sessionId, database, tab => tab.kind === "activity")) return;
+    }
+
+    const database = session.selectedDatabase;
+    if (!database) {
+      const namespace = databaseModule(session.info.kind).namespace.singular;
+      pushToast(`Pick a ${namespace} first, slow queries will open there`, "info");
+      return;
+    }
+    openTab(sessionId, database, { id: generateId(), kind: "activity", title: "Slow queries" });
+  }
+
   function updateTab(sessionId: string, database: string, tabId: string, change: (tab: DatabaseTab) => void) {
     setStore("sessions", sessionId, "scopes", database, "tabs", tab => tab.id === tabId, produce(change));
     schedulePersist(sessionId);
@@ -685,7 +756,10 @@ function useWorkspaceStateInner() {
     activateGlobalTab,
     openAgents,
     openSettings,
+    openSecrets,
+    addGlobalTab,
     closeGlobalTab,
+    rememberRecent,
     openConnection,
     switchCatalog,
     closeSession,
@@ -703,6 +777,7 @@ function useWorkspaceStateInner() {
     clearRunOnOpen,
     openStructure,
     openDesigner,
+    openActivity,
     updateTab,
     activateTab,
     closeTab,

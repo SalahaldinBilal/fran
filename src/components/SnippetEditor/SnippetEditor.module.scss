@@ -1,0 +1,43 @@
+.Form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.Command {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 84px;
+  padding: 8px 10px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  outline: none;
+  background-color: var(--control);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+  resize: vertical;
+  transition: var(--transition-colors);
+
+  &:hover {
+    border-color: var(--control-border-hover);
+  }
+
+  &:focus {
+    border-color: var(--accent);
+    box-shadow: var(--focus-ring);
+  }
+
+  &::placeholder {
+    color: var(--text-faint);
+  }
+}
+
+.Spacer {
+  flex: 1;
+}
+
+.Delete {
+  color: var(--danger);
+}

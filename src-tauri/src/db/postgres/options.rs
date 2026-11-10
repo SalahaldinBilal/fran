@@ -96,6 +96,10 @@ impl PostgresOptions {
         }
     }
 
+    pub fn network_target(&self) -> Option<(&str, u16)> {
+        (self.method == PostgresConnectMethod::Tcp).then(|| (self.host.trim(), self.port))
+    }
+
     pub fn ssh_target(&self) -> Option<(&SshOptions, &str, u16)> {
         match self.method {
             PostgresConnectMethod::SshTunnel => Some((&self.ssh, self.host.trim(), self.port)),

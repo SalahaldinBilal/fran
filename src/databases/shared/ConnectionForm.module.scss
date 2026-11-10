@@ -46,6 +46,18 @@
   }
 }
 
+.Actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ActionHint {
+  min-width: 0;
+  color: var(--text-faint);
+  font-size: var(--font-sm);
+}
+
 .Picker {
   display: flex;
   gap: 8px;

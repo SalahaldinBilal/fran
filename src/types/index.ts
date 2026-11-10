@@ -4,6 +4,8 @@ export * from "./agent";
 export * from "./connection";
 export * from "./db";
 export * from "./errors";
+export * from "./ssh";
+export * from "./vpn";
 
 declare module "solid-js" {
   namespace JSX {

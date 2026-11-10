@@ -1,0 +1,37 @@
+.HostList {
+  min-width: 0;
+}
+
+.EmptyGroup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--text-faint);
+  font-size: var(--font-sm);
+}
+
+.Badges {
+  display: flex;
+  flex-shrink: 1;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.Tools {
+  display: flex;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--duration) var(--ease);
+
+  &:focus-within {
+    opacity: 1;
+  }
+}
+
+.HostRow:hover .Tools {
+  opacity: 1;
+}

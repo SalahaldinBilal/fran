@@ -1,0 +1,795 @@
+.Sftp {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg);
+}
+
+.Center {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.Spacer {
+  flex: 1;
+}
+
+.TopBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 10px 0 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--bg);
+  font-size: var(--font-sm);
+}
+
+.Missing {
+  color: var(--danger);
+  font-size: var(--font-sm);
+}
+
+.Separator {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background-color: var(--border-strong);
+}
+
+.Main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 8px;
+  background-color: var(--bg-sunken);
+}
+
+.Panes {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+}
+
+.Pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background-color: var(--surface);
+  box-shadow: var(--highlight), 0 1px 2px rgb(0 0 0 / 25%);
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+
+  &.DropActive {
+    border-color: var(--accent-line);
+    box-shadow: var(--highlight), var(--focus-ring);
+  }
+}
+
+.PaneHeader {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding: 0 6px 0 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.PaneIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background-color: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text-muted);
+}
+
+.PaneTitles {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.PaneTitle {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.PaneSub {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.PaneActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.PathBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 6px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--bg);
+}
+
+.Crumbs {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  height: 26px;
+  overflow: hidden;
+  cursor: text;
+}
+
+.CrumbSep {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.Crumb {
+  flex-shrink: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--transition-colors);
+
+  &:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-strong);
+  }
+
+  &:last-child {
+    flex-shrink: 0;
+    color: var(--text-strong);
+    font-weight: 500;
+  }
+}
+
+.PathInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.FilterRow {
+  display: flex;
+  align-items: center;
+  padding: 6px 6px 4px;
+  flex-shrink: 0;
+}
+
+.Filter {
+  flex: 1;
+}
+
+$columns: minmax(0, 1fr) 76px 148px 92px;
+$columns-no-mode: minmax(0, 1fr) 76px 148px;
+
+.ListHead {
+  display: grid;
+  grid-template-columns: $columns;
+  gap: 10px;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  letter-spacing: .02em;
+
+  &.NoMode {
+    grid-template-columns: $columns-no-mode;
+  }
+}
+
+.Num {
+  text-align: right;
+}
+
+.SortHead {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+
+  &:hover,
+  &.SortActive {
+    color: var(--text-muted);
+  }
+
+  &.SortEnd {
+    justify-content: flex-end;
+  }
+}
+
+.List {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 4px;
+  overflow: auto;
+  outline: none;
+
+  &:focus-visible .Selected {
+    box-shadow: inset 0 0 0 1px var(--accent-line);
+  }
+}
+
+.ListError {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 2px 2px 6px;
+  padding: 7px 9px;
+  border-radius: var(--radius-md);
+  background-color: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--font-sm);
+
+  svg {
+    flex-shrink: 0;
+  }
+}
+
+.Row {
+  display: grid;
+  grid-template-columns: $columns;
+  gap: 10px;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: var(--font-sm);
+  cursor: default;
+  transition: background-color var(--duration-fast) var(--ease);
+
+  &.NoMode {
+    grid-template-columns: $columns-no-mode;
+  }
+
+  &:hover {
+    background-color: var(--surface-hover);
+  }
+
+  &.Selected {
+    background-color: var(--accent-soft);
+    color: var(--text-strong);
+
+    .EntryIcon {
+      color: var(--accent-strong);
+    }
+  }
+
+  &.DropOn {
+    background-color: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--accent-line);
+  }
+
+  &.Dragged {
+    opacity: .5;
+  }
+
+  &.HiddenEntry .NameText {
+    color: var(--text-muted);
+  }
+
+  > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.Name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.EntryIcon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-faint);
+
+  &.FolderIcon {
+    color: var(--value-number);
+  }
+}
+
+.NameText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.Faint {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}
+
+.Mode {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+}
+
+.PaneFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 26px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+}
+
+.Connecting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
+.ConnectingText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  em {
+    color: var(--text-faint);
+    font-size: var(--font-xs);
+    font-style: normal;
+  }
+}
+
+.Queue {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background-color: var(--surface);
+
+  &.QueueOpen {
+    max-height: 240px;
+  }
+}
+
+.QueueHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 6px 0 4px;
+  flex-shrink: 0;
+}
+
+.QueueToggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+
+  &:not(:disabled):hover {
+    background-color: var(--surface-hover);
+  }
+}
+
+.QueueTitle {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.QueueAttention {
+  flex-shrink: 0;
+  padding: 0 7px;
+  border-radius: 999px;
+  background-color: rgb(from var(--warning) r g b / 12%);
+  box-shadow: inset 0 0 0 1px rgb(from var(--warning) r g b / 28%);
+  color: var(--warning);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.QueueSummary {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: var(--font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.QueueList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding: 0 6px 6px;
+  overflow: auto;
+}
+
+.Transfer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 8px 8px 10px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface-raised);
+
+  &.TransferFailed .TransferStatus {
+    color: var(--danger);
+  }
+}
+
+.TransferTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 26px;
+}
+
+.TransferIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background-color: rgb(from var(--success) r g b / 12%);
+  color: var(--success);
+
+  &.Up {
+    background-color: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+}
+
+.TransferText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.TransferName {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.TransferSub {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.TransferStatus {
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.Progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--control);
+}
+
+.ProgressFill {
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--accent);
+  transition: width 120ms linear;
+
+  &.ProgressDone {
+    background-color: var(--success);
+  }
+}
+
+.TransferCurrent {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ConflictBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  border-radius: var(--radius-md);
+  background-color: rgb(from var(--warning) r g b / 10%);
+  box-shadow: inset 0 0 0 1px rgb(from var(--warning) r g b / 26%);
+  font-size: var(--font-sm);
+}
+
+.ConflictText {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+
+  strong {
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+}
+
+.SkippedToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 0 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--warning);
+  font: inherit;
+  font-size: var(--font-xs);
+  line-height: 20px;
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--surface-hover);
+  }
+}
+
+.SkippedList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 120px;
+  margin: 0;
+  padding: 0 4px;
+  overflow: auto;
+  list-style: none;
+
+  li {
+    display: flex;
+    gap: 10px;
+    font-size: var(--font-xs);
+  }
+
+  code {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    flex-shrink: 0;
+    color: var(--text-faint);
+  }
+}
+
+.Status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 28px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  background-color: var(--chrome);
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  white-space: nowrap;
+
+  > span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  svg {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  // Trimmed to the letters, so the icon centers on them instead of on the font's line box.
+  em {
+    display: block;
+    font-style: normal;
+    text-box: trim-both cap alphabetic;
+  }
+}
+
+.Dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--success);
+  box-shadow: 0 0 0 3px rgb(from var(--success) r g b / 18%);
+
+  &.DotWait {
+    background-color: var(--warning);
+    box-shadow: 0 0 0 3px rgb(from var(--warning) r g b / 18%);
+  }
+
+  &.DotOff:not(.DotWait) {
+    background-color: var(--text-faint);
+    box-shadow: none;
+  }
+}
+
+.Ghost {
+  position: fixed;
+  z-index: var(--z-menu);
+  max-width: 320px;
+  padding: 5px 10px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background-color: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+
+  &.GhostReady {
+    background-color: var(--accent);
+    color: var(--text-strong);
+  }
+}
+
+.ModalPath {
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  word-break: break-all;
+}
+
+.PreviewBody {
+  display: flex;
+  height: 60vh;
+  min-height: 0;
+}
+
+.ModalHint {
+  margin: 10px 0 0;
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+}
+
+.PermGrid {
+  display: grid;
+  grid-template-columns: 90px repeat(3, 1fr);
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.PermHead {
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  text-align: center;
+}
+
+.PermWho {
+  color: var(--text);
+  font-size: var(--font-sm);
+}
+
+.PermBit {
+  justify-content: center;
+  width: 100%;
+  font-family: var(--font-mono);
+}
+
+.PermOctal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-size: var(--font-sm);
+}
+
+.PermInput {
+  width: 90px;
+}

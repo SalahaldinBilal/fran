@@ -5,7 +5,7 @@ use std::{
 
 use serde::Serialize;
 
-use super::{DatabaseKind, session::DatabaseSession, types::ServerInfo};
+use super::{DatabaseKind, activity::ActivitySupport, session::DatabaseSession, types::ServerInfo};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Serialize)]
@@ -16,6 +16,7 @@ pub struct SessionInfo {
     pub kind: DatabaseKind,
     pub server: ServerInfo,
     pub catalog: Option<String>,
+    pub activity: ActivitySupport,
 }
 
 pub struct OpenSession {

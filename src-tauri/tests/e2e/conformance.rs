@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
-use fran_db_lib::db::session::ContextAccess;
-use fran_db_lib::db::types::{
+use fran_lib::db::session::ContextAccess;
+use fran_lib::db::types::{
     CellEdit, ColumnDefinition, ColumnDesign, FilterOp, FilterValue, ForeignKeyDesign, IndexColumnDesign, IndexDefinition,
     IndexDesign, IndexKind, ObjectKind, ReadQuery, RowChange, RowFilter, RowOrder, SqlTemplate, TableDesign, ValueCategory,
 };
@@ -231,10 +231,10 @@ async fn create_sql_rebuilds_the_table(ctx: &Ctx) -> TestResult {
     ctx.run(&create).await?;
 
     let after = ctx.session.object_structure(&ctx.ns, "items", ObjectKind::Table, None).await?;
-    let columns = |structure: &fran_db_lib::db::types::ObjectStructure| {
+    let columns = |structure: &fran_lib::db::types::ObjectStructure| {
         structure.columns.iter().map(column_summary).collect::<Vec<_>>()
     };
-    let indexes = |structure: &fran_db_lib::db::types::ObjectStructure| {
+    let indexes = |structure: &fran_lib::db::types::ObjectStructure| {
         structure.indexes.iter().map(index_summary).collect::<Vec<_>>()
     };
     assert_eq!(columns(&after), columns(&before));

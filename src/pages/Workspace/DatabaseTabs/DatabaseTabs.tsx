@@ -1,6 +1,6 @@
 import styles from "./DatabaseTabs.module.scss";
 import { For, Match, Show, Switch, createMemo, onMount } from "solid-js";
-import { Database, FileCode, PencilRuler, Plus, SquareTerminal, X } from "lucide-solid";
+import { Database, FileCode, Gauge, PencilRuler, Plus, SquareTerminal, X } from "lucide-solid";
 import useWorkspaceState, { DatabaseTab } from "@core/states/workspaceState";
 import useSavedQueriesState from "@core/states/savedQueriesState";
 import useContextMenuState from "@core/states/contextMenuState";
@@ -14,6 +14,7 @@ import { keepOrder } from "@core/helpers";
 import QueryTab from "../../tabs/QueryTab/QueryTab";
 import StructureTab from "../../tabs/StructureTab/StructureTab";
 import TableDesignerTab from "../../tabs/TableDesignerTab/TableDesignerTab";
+import ActivityTab from "../../tabs/ActivityTab/ActivityTab";
 
 export type DatabaseTabsProps = {
   sessionId: string,
@@ -28,6 +29,8 @@ function tabIcon(tab: DatabaseTab) {
       return tab.objectKind === "table" ? FileCode : objectKindInfo(tab.objectKind).icon;
     case "design":
       return PencilRuler;
+    case "activity":
+      return Gauge;
   }
 }
 
@@ -161,6 +164,9 @@ function DatabaseTabs(props: DatabaseTabsProps) {
                         table={design().table}
                       />
                     )}
+                  </Match>
+                  <Match when={tab.kind === "activity"}>
+                    <ActivityTab sessionId={props.sessionId} database={props.database} tabId={tab.id} />
                   </Match>
                 </Switch>
               </div>

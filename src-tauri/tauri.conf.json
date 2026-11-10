@@ -1,19 +1,19 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Fran DB",
+  "productName": "Fran",
   "version": "0.1.5",
-  "identifier": "com.frandb.app",
+  "identifier": "com.fran.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "node scripts/vpn-worker.ts && npm run dev",
     "devUrl": "http://localhost:1430",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "node scripts/vpn-worker.ts && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
         "label": "main",
-        "title": "Fran DB",
+        "title": "Fran",
         "width": 1360,
         "height": 860,
         "minWidth": 900,

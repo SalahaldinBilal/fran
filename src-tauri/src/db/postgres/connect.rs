@@ -16,7 +16,8 @@ use super::sqlgen::quote_identifier;
 use crate::connections::SecretBag;
 use crate::error::{AppError, AppResult};
 use crate::kube::KubeForward;
-use crate::ssh::{SshTunnel, known_hosts::KnownHosts};
+use crate::ssh::{SshAccess, SshTunnel};
+use crate::vpn::VpnRelay;
 
 const KEEPALIVE_AFTER: Duration = Duration::from_secs(60);
 const READ_ONLY_OPTION: &str = "-c default_transaction_read_only=on";
@@ -33,6 +34,7 @@ enum Endpoint {
 pub enum Transport {
     Ssh(SshTunnel),
     Kube(KubeForward),
+    Vpn(VpnRelay),
 }
 
 /// Everything needed to open another connection to the same server, for contexts, batches and cancels.
@@ -124,7 +126,7 @@ impl Connector {
     pub async fn prepare(
         options: &PostgresOptions,
         secrets: &SecretBag,
-        known_hosts: &KnownHosts,
+        ssh: &SshAccess<'_>,
     ) -> AppResult<(Self, Option<Transport>)> {
         let timeout = Duration::from_secs(u64::from(options.connect_timeout_secs.max(1)));
         let password = secrets
@@ -135,11 +137,19 @@ impl Connector {
         let tls = tls_settings(options)?;
 
         let (endpoint, transport) = match options.method {
-            PostgresConnectMethod::Tcp => (Endpoint::Tcp { host, port: options.port }, None),
+            PostgresConnectMethod::Tcp => match ssh.vpn_relay(&host, options.port, timeout).await? {
+                Some(relay) => (
+                    Endpoint::Tcp {
+                        host: "127.0.0.1".to_string(),
+                        port: relay.local_port(),
+                    },
+                    Some(Transport::Vpn(relay)),
+                ),
+                None => (Endpoint::Tcp { host, port: options.port }, None),
+            },
             PostgresConnectMethod::Socket => (socket_endpoint(&options.socket_path, options.port)?, None),
             PostgresConnectMethod::SshTunnel => {
-                let tunnel =
-                    SshTunnel::open(&options.ssh, secrets, known_hosts, &host, options.port, 0, timeout).await?;
+                let tunnel = ssh.tunnel(&host, options.port, timeout).await?;
                 (
                     Endpoint::Tcp {
                         host: "127.0.0.1".to_string(),

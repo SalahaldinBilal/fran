@@ -1,5 +1,5 @@
 import styles from "./Modal.module.scss";
-import { JSX, Show, createEffect, createMemo, onCleanup } from "solid-js";
+import { JSX, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Transition } from "solid-transition-group";
 import { makeEventListener } from "@solid-primitives/event-listener";
@@ -20,9 +20,13 @@ export type ModalProps = {
 
 function Modal(props: ModalProps) {
   const dismissible = createMemo(() => props.dismissible ?? true);
+  const [layer, setLayer] = createSignal(0);
+  const backdropStyle = createMemo(() => ({ "z-index": `calc(var(--z-modal) + ${layer()})` }));
 
   createEffect(() => {
-    if (props.show) onCleanup(useModalState.track());
+    if (!props.show) return;
+    setLayer(useModalState.nextLayer());
+    onCleanup(useModalState.track());
   });
 
   makeEventListener(window, "keydown", event => {
@@ -41,6 +45,7 @@ function Modal(props: ModalProps) {
         <Show when={props.show}>
           <div
             class={styles.Backdrop}
+            style={backdropStyle()}
             onMouseDown={event => {
               if (event.target === event.currentTarget && dismissible()) props.onHide?.();
             }}

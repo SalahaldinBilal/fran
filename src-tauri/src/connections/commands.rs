@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tauri::State;
 
-use super::{ConnectionProfile, ConnectionStore, ConnectionsFile, secret_id, secret_prefix};
+use super::{ConnectionProfile, ConnectionStore, ConnectionsFile, PRIVATE_KEY_SLOT, SecretOwner, secret_id, secret_prefix};
 use crate::agent::AgentHost;
 use crate::error::{AppError, AppResult};
 use crate::tab_state::TabStateStore;
@@ -162,6 +162,34 @@ pub async fn set_connection_secret(
 ) -> AppResult<()> {
     let value = zeroize::Zeroizing::new(value);
     vault.set(&secret_id(&connection_id, &slot), &value)
+}
+
+#[tauri::command]
+pub async fn get_owner_secrets(vault: State<'_, Arc<Vault>>, owner: SecretOwner) -> AppResult<Vec<String>> {
+    let prefix = owner.prefix();
+    Ok(vault
+        .ids_with_prefix(&prefix)?
+        .into_iter()
+        .filter_map(|id| id.strip_prefix(&prefix).map(str::to_string))
+        .filter(|slot| slot != PRIVATE_KEY_SLOT)
+        .collect())
+}
+
+#[tauri::command]
+pub async fn set_owner_secret(vault: State<'_, Arc<Vault>>, owner: SecretOwner, slot: String, value: String) -> AppResult<()> {
+    let value = zeroize::Zeroizing::new(value);
+    if !owner.accepts(&slot) {
+        return Err(AppError::general("That secret can't be set from here"));
+    }
+    vault.set(&owner.secret_id(&slot), &value)
+}
+
+#[tauri::command]
+pub async fn clear_owner_secret(vault: State<'_, Arc<Vault>>, owner: SecretOwner, slot: String) -> AppResult<()> {
+    if !owner.accepts(&slot) {
+        return Err(AppError::general("That secret can't be cleared from here"));
+    }
+    vault.remove(&owner.secret_id(&slot))
 }
 
 #[tauri::command]

@@ -7,6 +7,7 @@ export type TabStripItem = {
   id: string,
   label: string,
   icon?: LucideIcon,
+  iconColor?: string | null,
   dot?: string | null,
   tint?: string | null,
   closable?: boolean,
@@ -270,7 +271,7 @@ function TabStrip(props: TabStripProps) {
               </Show>
               <Show when={item.icon}>
                 {icon => (
-                  <span class={styles.Icon} classList={{ [styles.Busy]: item.busy ?? false }}>
+                  <span class={styles.Icon} classList={{ [styles.Busy]: item.busy ?? false }} style={{ color: item.iconColor ?? undefined }}>
                     <Dynamic component={icon()} size={14} />
                   </span>
                 )}

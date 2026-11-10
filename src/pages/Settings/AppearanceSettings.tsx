@@ -6,7 +6,7 @@ function AppearanceSettings() {
   const { settings, update } = useSettingsState;
 
   return (
-    <SettingsPage title="Appearance" description="How Fran DB looks.">
+    <SettingsPage title="Appearance" description="How Fran looks.">
       <SettingGroup>
         <SettingRow
           name="Fill with the connection color"

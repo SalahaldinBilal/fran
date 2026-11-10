@@ -39,7 +39,7 @@ pub struct Report {
 pub enum PgError {
     /// The server rejected the statement. The connection is still usable.
     Server(Report),
-    /// Fran DB refused something, like COPY. The connection is still usable.
+    /// Fran refused something, like COPY. The connection is still usable.
     Refused(String),
     /// The connection is gone or out of step and has to be dropped.
     Transport(String),
@@ -305,7 +305,7 @@ impl PgConnection {
                     failure.get_or_insert(PgError::Server(error));
                 }
                 Message::CopyInResponse(_) => {
-                    frontend::copy_fail("Fran DB doesn't send COPY data", &mut self.write_buf).map_err(encoding)?;
+                    frontend::copy_fail("Fran doesn't send COPY data", &mut self.write_buf).map_err(encoding)?;
                     self.send().await?;
                     failure.get_or_insert(PgError::Refused(
                         "COPY FROM STDIN isn't supported here. Use INSERT, or COPY from a file on the server.".to_string(),
@@ -387,7 +387,7 @@ impl PgConnection {
                 }
                 // The Sync sent with the statement is ignored during COPY IN, so it needs another.
                 Message::CopyInResponse(_) => {
-                    frontend::copy_fail("Fran DB doesn't send COPY data", &mut self.write_buf).map_err(encoding)?;
+                    frontend::copy_fail("Fran doesn't send COPY data", &mut self.write_buf).map_err(encoding)?;
                     frontend::sync(&mut self.write_buf);
                     self.send().await?;
                     failure.get_or_insert(PgError::Refused(
@@ -435,7 +435,7 @@ impl PgConnection {
                     failure.get_or_insert(PgError::Server(error));
                 }
                 Message::CopyInResponse(_) => {
-                    frontend::copy_fail("Fran DB doesn't send COPY data", &mut self.write_buf).map_err(encoding)?;
+                    frontend::copy_fail("Fran doesn't send COPY data", &mut self.write_buf).map_err(encoding)?;
                     frontend::sync(&mut self.write_buf);
                     self.send().await?;
                 }

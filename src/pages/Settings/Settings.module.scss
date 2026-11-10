@@ -53,6 +53,13 @@
   }
 }
 
+.NavCount {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+}
+
 .Mark {
   width: 6px;
   height: 6px;
@@ -142,6 +149,16 @@
   font-weight: 550;
 }
 
+.IconName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  svg {
+    color: var(--text-muted);
+  }
+}
+
 .Hint {
   margin-top: 2px;
   color: var(--text-muted);
@@ -193,6 +210,109 @@
   to {
     left: 100%;
   }
+}
+
+.RowButtons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.InlineForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: -10px 0 22px;
+  padding: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface);
+}
+
+.FormLead {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+}
+
+.FormField {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 320px);
+  gap: 12px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
+.FormError {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--font-sm);
+}
+
+.PathField {
+  flex-shrink: 0;
+  width: 320px;
+}
+
+.FormActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.FormHint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+}
+
+.LogList {
+  display: flex;
+  flex-direction: column;
+}
+
+.LogRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+
+  & + & {
+    border-top: 1px solid var(--border);
+  }
+}
+
+.LogText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+
+  strong {
+    color: var(--text-strong);
+    font-weight: 550;
+  }
+
+  span {
+    color: var(--text-muted);
+    font-size: var(--font-xs);
+  }
+}
+
+.LogEmpty {
+  padding: 18px 16px;
+  color: var(--text-faint);
+  font-size: var(--font-sm);
+  text-align: center;
+}
+
+.LogView {
+  display: flex;
+  height: 60vh;
+  min-height: 0;
 }
 
 .Error {
