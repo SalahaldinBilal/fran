@@ -5,12 +5,14 @@ import useSshState from "@core/states/sshState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";
 import { createOwnerSecrets } from "@core/helpers/ownerSecrets";
+import { shownField } from "@core/helpers/secretRefs";
 import { IS_WINDOWS } from "@core/helpers/platform";
 import { Identity, IdentityAuth } from "@core/types";
 import Modal from "@core/components/Modal/Modal";
 import Button from "@core/components/Button/Button";
 import Field, { FieldRow } from "@core/components/Field/Field";
 import Input from "@core/components/Input/Input";
+import SecretInput from "@core/components/SecretInput/SecretInput";
 import Select, { SelectItem } from "@core/components/Select/Select";
 import SegmentedControl from "@core/components/SegmentedControl/SegmentedControl";
 import SecretField from "@core/components/SecretField/SecretField";
@@ -44,8 +46,11 @@ function IdentityModal(props: { identity: Identity | null, show: boolean, onClos
     setKind(identity?.auth.kind ?? (ssh.file.keys.length > 0 ? "key" : "agent"));
     setKeyId(identity?.auth.kind === "key" ? identity.auth.keyId : ssh.file.keys[0]?.id ?? null);
     setSocket(identity?.auth.kind === "agent" ? identity.auth.socket : "");
-    void secrets.reset(identity ? { kind: "identity", id: identity.id } : null);
+    void secrets.reset(identity ? { kind: "identity", id: identity.id } : null, identity?.secretRefs);
   }));
+
+  const userFromSecret = createMemo(() => secrets.refs.editor.get("user") !== undefined);
+  const canSave = createMemo(() => !busy() && (user().trim() !== "" || userFromSecret()));
 
   const title = createMemo(() => (props.identity ? `Edit ${props.identity.label}` : "New identity"));
   const saveLabel = createMemo(() => (props.identity ? "Save" : "Add identity"));
@@ -70,7 +75,8 @@ function IdentityModal(props: { identity: Identity | null, show: boolean, onClos
   async function save() {
     setBusy(true);
     try {
-      const saved = await ssh.saveIdentity({ id: props.identity?.id ?? "", label: label(), user: user(), auth: auth() });
+      const secretRefs = secrets.refs.snapshot(key => key === "user" || kind() === "password");
+      const saved = await ssh.saveIdentity({ id: props.identity?.id ?? "", label: label(), user: user(), auth: auth(), secretRefs });
       if (saved.auth.kind === "password") await secrets.apply({ kind: "identity", id: saved.id });
       props.onClose();
     } catch (error) {
@@ -89,7 +95,7 @@ function IdentityModal(props: { identity: Identity | null, show: boolean, onClos
       footer={
         <>
           <Button variant="subtle" onClick={props.onClose}>Cancel</Button>
-          <Button variant="primary" disabled={busy() || user().trim() === ""} onClick={save}>{saveLabel()}</Button>
+          <Button variant="primary" disabled={!canSave()} onClick={save}>{saveLabel()}</Button>
         </>
       }
     >
@@ -99,7 +105,7 @@ function IdentityModal(props: { identity: Identity | null, show: boolean, onClos
             <Input value={label()} onValue={setLabel} placeholder={namePlaceholder()} autofocus />
           </Field>
           <Field label="User" grow>
-            <Input value={user()} onValue={setUser} placeholder="deploy" />
+            <SecretInput path="user" refs={secrets.refs.editor} value={user()} onValue={setUser} placeholder="deploy" />
           </Field>
         </FieldRow>
         <Field label="Log in with">
@@ -177,11 +183,12 @@ function IdentitiesView() {
               const usedBy = createMemo(() => ssh.file.hosts.filter(host => host.identityId === identity.id).map(host => host.label));
               const usedText = createMemo(() => (usedBy().length > 0 ? usedBy().join(", ") : "Nothing"));
               const keyLabel = createMemo(() => (identity.auth.kind === "key" ? ssh.key(identity.auth.keyId)?.label ?? "a deleted key" : ""));
+              const user = createMemo(() => shownField(identity.secretRefs, "user", identity.user));
               return (
                 <div class={styles.ListRow}>
                   <div class={styles.Name}>
                     <span class={styles.ItemIcon}><User size={15} /></span>
-                    <span class={styles.NameText}><b>{identity.label}</b><small class={styles.Mono}>{identity.user}</small></span>
+                    <span class={styles.NameText}><b>{identity.label}</b><small class={styles.Mono}>{user()}</small></span>
                   </div>
                   <span class={styles.Cell}>
                     <Switch>

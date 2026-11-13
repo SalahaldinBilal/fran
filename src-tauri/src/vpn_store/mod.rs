@@ -2,8 +2,10 @@ pub mod commands;
 
 use serde::{Deserialize, Serialize};
 
+use crate::connections::PASSWORD_SLOT;
 use crate::error::{AppError, AppResult};
 use crate::json_store::JsonStore;
+use crate::secrets::{SecretRefs, fill::RefRules};
 
 pub const VPN_FILE_VERSION: u32 = 1;
 
@@ -201,7 +203,20 @@ pub struct VpnProfile {
     pub pkcs11_provider: Option<String>,
     pub imported: Option<ImportInfo>,
     pub wire_guard: WireGuardSettings,
+    #[serde(skip_serializing_if = "SecretRefs::is_empty")]
+    pub secret_refs: SecretRefs,
 }
+
+fn remote_field(path: &str) -> bool {
+    let mut parts = path.split('.');
+    matches!(
+        (parts.next(), parts.next(), parts.next(), parts.next()),
+        (Some("remotes"), Some(index), Some("host" | "port"), None) if index.parse::<usize>().is_ok()
+    )
+}
+
+/// The server and the login name. Certificates, keys and ciphers have formats a save has to check.
+pub const SECRET_RULES: RefRules = RefRules { field: |path| path == "user" || remote_field(path), slot: |slot| slot == PASSWORD_SLOT };
 
 impl Default for VpnProfile {
     fn default() -> Self {
@@ -236,6 +251,7 @@ impl Default for VpnProfile {
             pkcs11_provider: None,
             imported: None,
             wire_guard: WireGuardSettings::default(),
+            secret_refs: SecretRefs::new(),
         }
     }
 }

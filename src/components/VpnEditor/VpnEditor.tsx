@@ -5,7 +5,7 @@ import styles from "./VpnEditor.module.scss";
 import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
 import { createStore, produce, reconcile, unwrap } from "solid-js/store";
 import { ArrowDown, ArrowUp, FileText, KeyRound, Monitor, Plus, Server, ShieldCheck, Trash2, User, X } from "@core/icons";
-import { CertSummary, TlsWrap, VerifyNameKind, VpnAuth, VpnProfile, VpnProto } from "@core/types";
+import { CertSummary, SecretRefs, TlsWrap, VerifyNameKind, VpnAuth, VpnProfile, VpnProto } from "@core/types";
 import { PendingSecret, SecretEditor } from "@core/databases/types";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import useVpnEditorState from "@core/states/vpnEditorState";
@@ -16,6 +16,7 @@ import Modal from "../Modal/Modal";
 import Button from "../Button/Button";
 import Field, { FieldRow } from "../Field/Field";
 import Input from "../Input/Input";
+import SecretInput from "../SecretInput/SecretInput";
 import Select, { SelectItem } from "../Select/Select";
 import SegmentedControl from "../SegmentedControl/SegmentedControl";
 import SuggestInput from "../SuggestInput/SuggestInput";
@@ -160,7 +161,39 @@ function VpnEditor() {
     pending: slot => pending[slot],
     setPending: (slot, value) => setPending(slot, value),
     owner: () => (draft.id ? { kind: "vpn", id: draft.id } : null),
+    refs: {
+      get: key => draft.secretRefs?.[key],
+      set: (key, secretId) => setDraft(produce(profile => {
+        const refs = profile.secretRefs ??= {};
+        if (secretId) refs[key] = secretId;
+        else delete refs[key];
+      })),
+    },
   };
+  const secretRefs = secrets.refs;
+
+  // Server refs are keyed by position, so they move with their server. `from` is each server's old position.
+  function moveRemoteRefs(from: number[]) {
+    setDraft(produce(profile => {
+      const old = profile.secretRefs ?? {};
+      const next: SecretRefs = {};
+      for (const [key, secretId] of Object.entries(old)) {
+        if (!key.startsWith("remotes.")) next[key] = secretId;
+      }
+      from.forEach((oldIndex, index) => {
+        for (const field of ["host", "port"]) {
+          const secretId = old[`remotes.${oldIndex}.${field}`];
+          if (secretId) next[`remotes.${index}.${field}`] = secretId;
+        }
+      });
+      profile.secretRefs = next;
+    }));
+  }
+
+  function removeRemote(index: number) {
+    moveRemoteRefs(draft.remotes.map((_, at) => at).filter(at => at !== index));
+    setDraft("remotes", items => items.filter((_, at) => at !== index));
+  }
 
   const isNew = createMemo(() => !draft.id);
   const title = createMemo(() => (isNew() ? "New VPN" : `Edit ${editor.request()?.profile?.label ?? draft.label}`));
@@ -207,6 +240,8 @@ function VpnEditor() {
     const first = draft.remotes[0];
     setDraft("kind", kind);
     setDraft("remotes", [{ host: first?.host ?? "", port, proto: "udp" }]);
+    moveRemoteRefs([0]);
+    secretRefs?.set("remotes.0.port", null);
   }
 
   function updateRemote(index: number, change: (remote: VpnProfile["remotes"][number]) => void) {
@@ -214,6 +249,10 @@ function VpnEditor() {
   }
 
   function moveRemote(index: number, by: number) {
+    const from = draft.remotes.map((_, at) => at);
+    const [moved] = from.splice(index, 1);
+    from.splice(index + by, 0, moved);
+    moveRemoteRefs(from);
     setDraft("remotes", produce(remotes => {
       const [moved] = remotes.splice(index, 1);
       remotes.splice(index + by, 0, moved);
@@ -375,13 +414,17 @@ function VpnEditor() {
             <For each={draft.remotes}>
               {(remote, index) => (
                 <div class={styles.Remote}>
-                  <Input
+                  <SecretInput
+                    path={`remotes.${index()}.host`}
+                    refs={secretRefs}
                     class={hostStyles.Grow}
                     value={remote.host}
                     onValue={value => updateRemote(index(), item => { item.host = value; })}
                     placeholder="vpn.example.com"
                   />
-                  <Input
+                  <SecretInput
+                    path={`remotes.${index()}.port`}
+                    refs={secretRefs}
                     class={styles.Port}
                     type="number"
                     value={remote.port}
@@ -394,7 +437,7 @@ function VpnEditor() {
                   <Button icon size="sm" tooltip="Move down" disabled={index() === draft.remotes.length - 1} onClick={() => moveRemote(index(), 1)}>
                     <ArrowDown size={14} />
                   </Button>
-                  <Button icon size="sm" tooltip="Remove" disabled={draft.remotes.length === 1} onClick={() => setDraft("remotes", items => items.filter((_, at) => at !== index()))}>
+                  <Button icon size="sm" tooltip="Remove" disabled={draft.remotes.length === 1} onClick={() => removeRemote(index())}>
                     <X size={14} />
                   </Button>
                 </div>
@@ -428,7 +471,7 @@ function VpnEditor() {
           <Show when={usesPassword()}>
             <FieldRow>
               <Field label="User" grow>
-                <Input value={draft.user} onValue={value => setDraft("user", value)} />
+                <SecretInput path="user" refs={secretRefs} value={draft.user} onValue={value => setDraft("user", value)} />
               </Field>
               <Field label="Password" grow>
                 <SecretField slot="password" secrets={secrets} />

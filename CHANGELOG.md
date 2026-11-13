@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Secrets: values with a name that any field can use. Add them on the Secrets page, then press the key button in a field to fill it from one, like a host, a port, a user or a database name. The field only saves the secret's name, and the value is read from the vault when you connect, so changing a secret changes it for everything that uses it. They work in database connections (inline SSH included), SSH hosts, identities, proxies, and a VPN's servers and user name.
+- A password field can use a secret too, so several connections can share one password. The link button in the field picks one.
+- A secret that has no value on this computer is asked for when you connect, and can be saved from that prompt.
+
 ## [0.2.0] - 2026-11-10
 
 ### Added

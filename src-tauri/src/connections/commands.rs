@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use tauri::State;
 
-use super::{ConnectionProfile, ConnectionStore, ConnectionsFile, PRIVATE_KEY_SLOT, SecretOwner, secret_id, secret_prefix};
+use super::{ConnectionProfile, ConnectionStore, ConnectionsFile, PRIVATE_KEY_SLOT, SECRET_RULES, SecretOwner, secret_id, secret_prefix};
 use crate::agent::AgentHost;
 use crate::error::{AppError, AppResult};
+use crate::secrets::fill::{blanked, check_refs};
 use crate::tab_state::TabStateStore;
 use crate::vault::Vault;
 
@@ -43,6 +44,8 @@ pub async fn save_connection(
     if profile.id.is_empty() {
         profile.id = uuid::Uuid::new_v4().to_string();
     }
+    check_refs(&profile, &profile.secret_refs, &SECRET_RULES, &crate::secrets::snapshot()?)?;
+    let profile = blanked(&profile, &profile.secret_refs)?;
 
     let saved = profile.clone();
     store.update(move |file| {
@@ -180,6 +183,11 @@ pub async fn set_owner_secret(vault: State<'_, Arc<Vault>>, owner: SecretOwner, 
     let value = zeroize::Zeroizing::new(value);
     if !owner.accepts(&slot) {
         return Err(AppError::general("That secret can't be set from here"));
+    }
+    if let SecretOwner::Secret(id) = &owner
+        && crate::secrets::snapshot()?.secret(id).is_none()
+    {
+        return Err(AppError::not_found("That secret was deleted"));
     }
     vault.set(&owner.secret_id(&slot), &value)
 }

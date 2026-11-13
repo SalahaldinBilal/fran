@@ -2,7 +2,7 @@ import styles from "./ConnectionCard.module.scss";
 import { Show, createMemo } from "solid-js";
 import { ArrowRight, Cable, Copy, Database, Ellipsis, GripVertical, Pencil, Plug, Server, Trash2 } from "@core/icons";
 import { ConnectionProfile } from "@core/types";
-import { withDatabaseModule } from "@core/databases";
+import { describeConnection, withDatabaseModule } from "@core/databases";
 import useWorkspaceState from "@core/states/workspaceState";
 import useConnectionsState from "@core/states/connectionsState";
 import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
@@ -36,7 +36,7 @@ function ConnectionCard(props: ConnectionCardProps) {
   const details = createMemo(() =>
     withDatabaseModule(props.profile, (module, options) => ({
       kind: module.label,
-      target: module.describeTarget(options),
+      target: describeConnection(props.profile),
       method: module.methodLabel(options),
       forwardable: module.sshTarget(options) !== null,
     })),

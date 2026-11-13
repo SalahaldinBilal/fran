@@ -6,6 +6,7 @@ import Field, { FieldRow, FieldSection } from "@core/components/Field/Field";
 import Input from "@core/components/Input/Input";
 import SegmentedControl from "@core/components/SegmentedControl/SegmentedControl";
 import SecretField from "@core/components/SecretField/SecretField";
+import SecretInput from "@core/components/SecretInput/SecretInput";
 import { toTimeout } from "../shared/fields";
 
 type Section = "connection" | "advanced";
@@ -33,7 +34,9 @@ function D1ConnectionForm(props: ConnectionFormProps<D1Options>) {
               description="Queries go through Cloudflare's HTTP API. The token needs the D1 Edit permission, or D1 Read to only browse."
             >
               <Field label="Account ID" hint="On the account's home page in the Cloudflare dashboard.">
-                <Input
+                <SecretInput
+                  path="accountId"
+                  refs={props.refs}
                   mono
                   value={props.options.accountId}
                   onValue={value => props.update(options => { options.accountId = value; })}
@@ -46,7 +49,9 @@ function D1ConnectionForm(props: ConnectionFormProps<D1Options>) {
             <FieldSection title="D1">
               <FieldRow>
                 <Field label="Database" hint="Its name or ID. Other databases in the account can be opened after connecting." grow>
-                  <Input
+                  <SecretInput
+                    path="database"
+                    refs={props.refs}
                     value={props.options.database}
                     onValue={value => props.update(options => { options.database = value; })}
                     placeholder="my-database"

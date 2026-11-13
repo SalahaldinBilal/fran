@@ -8,6 +8,8 @@ import Input from "@core/components/Input/Input";
 import Select, { SelectItem } from "@core/components/Select/Select";
 import SegmentedControl from "@core/components/SegmentedControl/SegmentedControl";
 import SecretField from "@core/components/SecretField/SecretField";
+import SecretInput from "@core/components/SecretInput/SecretInput";
+import { scopedRefs } from "@core/helpers/secretRefs";
 import SshSection from "../shared/SshSection";
 import KubeSection from "../shared/KubeSection";
 import SslFileFields from "../shared/SslFileFields";
@@ -71,6 +73,7 @@ function PostgresConnectionForm(props: ConnectionFormProps<PostgresOptions>) {
                 description="The tunnel opens first, then Postgres is reached from the SSH server."
                 databaseTarget={databaseTarget()}
                 secrets={props.secrets}
+                refs={scopedRefs(props.refs, "ssh.")}
                 update={mutate => props.update(options => mutate(options.ssh))}
               />
             </Show>
@@ -90,7 +93,9 @@ function PostgresConnectionForm(props: ConnectionFormProps<PostgresOptions>) {
                     when={!isSocket()}
                     fallback={
                       <Field label="Socket directory" hint="Or the socket file itself." grow>
-                        <Input
+                        <SecretInput
+                          path="socketPath"
+                          refs={props.refs}
                           mono
                           value={props.options.socketPath}
                           onValue={value => props.update(options => { options.socketPath = value; })}
@@ -100,7 +105,9 @@ function PostgresConnectionForm(props: ConnectionFormProps<PostgresOptions>) {
                     }
                   >
                     <Field label={isSsh() ? "Postgres host (from the SSH server)" : "Host"} grow>
-                      <Input
+                      <SecretInput
+                        path="host"
+                        refs={props.refs}
                         value={props.options.host}
                         onValue={value => props.update(options => { options.host = value; })}
                         onPaste={event => {
@@ -112,7 +119,9 @@ function PostgresConnectionForm(props: ConnectionFormProps<PostgresOptions>) {
                   </Show>
                 </Show>
                 <Field label={portLabel()} width={120}>
-                  <Input
+                  <SecretInput
+                    path="port"
+                    refs={props.refs}
                     type="number"
                     value={props.options.port}
                     onValue={value => props.update(options => { options.port = toPort(value); })}
@@ -121,7 +130,9 @@ function PostgresConnectionForm(props: ConnectionFormProps<PostgresOptions>) {
               </FieldRow>
               <FieldRow>
                 <Field label="User" grow>
-                  <Input
+                  <SecretInput
+                    path="user"
+                    refs={props.refs}
                     value={props.options.user}
                     onValue={value => props.update(options => { options.user = value; })}
                   />
@@ -132,14 +143,18 @@ function PostgresConnectionForm(props: ConnectionFormProps<PostgresOptions>) {
               </FieldRow>
               <FieldRow>
                 <Field label="Database" hint="One connection works inside one database." grow>
-                  <Input
+                  <SecretInput
+                    path="database"
+                    refs={props.refs}
                     value={props.options.database}
                     onValue={value => props.update(options => { options.database = value; })}
                     placeholder="postgres"
                   />
                 </Field>
                 <Field label="Default schema" hint="Opened after connecting." grow>
-                  <Input
+                  <SecretInput
+                    path="defaultSchema"
+                    refs={props.refs}
                     value={props.options.defaultSchema}
                     onValue={value => props.update(options => { options.defaultSchema = value; })}
                     placeholder="public"

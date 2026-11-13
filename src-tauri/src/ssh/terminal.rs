@@ -427,8 +427,12 @@ pub async fn terminal_type_password(
         .as_deref()
         .and_then(|identity_id| file.identity(identity_id))
         .ok_or_else(|| AppError::not_found("This host has no login"))?;
+    let stored = match identity.secret_refs.get(&format!("{}{PASSWORD_SLOT}", crate::secrets::SLOT_PREFIX)) {
+        Some(secret) => crate::secrets::vault_id(secret),
+        None => SecretOwner::Identity(identity.id.clone()).secret_id(PASSWORD_SLOT),
+    };
     let password = vault
-        .get(&SecretOwner::Identity(identity.id.clone()).secret_id(PASSWORD_SLOT))?
+        .get(&stored)?
         .ok_or_else(|| AppError::not_found(format!("{} has no saved password. Save one in the Keychain, under Identities.", identity.label)))?;
 
     writer

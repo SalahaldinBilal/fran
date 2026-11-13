@@ -3,7 +3,8 @@ use std::{path::Path, sync::Arc};
 use serde::Serialize;
 use tauri::State;
 
-use super::{TlsWrap, VpnFile, VpnKind, VpnProfile, VpnStore};
+use super::{SECRET_RULES, TlsWrap, VpnFile, VpnKind, VpnProfile, VpnProto, VpnRemote, VpnStore};
+use crate::secrets::fill::{blanked, check_refs, with_placeholders};
 use crate::connections::{ConnectionStore, PASSWORD_SLOT, PRESHARED_KEY_SLOT, PRIVATE_KEY_SLOT, SecretOwner, TLS_KEY_SLOT};
 use crate::error::{AppError, AppResult};
 use crate::ssh_store::SshStore;
@@ -58,22 +59,24 @@ fn checked(mut profile: VpnProfile, existing: Option<&VpnProfile>) -> AppResult<
     if existing.is_some_and(|existing| existing.kind != profile.kind) {
         return Err(AppError::general("A VPN can't switch between OpenVPN and WireGuard. Make a new one."));
     }
+    check_refs(&profile, &profile.secret_refs, &SECRET_RULES, &crate::secrets::snapshot()?)?;
+    let mut profile = blanked(&profile, &profile.secret_refs)?;
     if profile.is_wireguard() {
         return checked_wireguard(profile, existing);
     }
     if profile.remotes.is_empty() {
         return Err(AppError::general("Add the VPN server"));
     }
-    for remote in &mut profile.remotes {
+    for (index, remote) in profile.remotes.iter_mut().enumerate() {
         remote.host = remote.host.trim().to_string();
-        if remote.host.is_empty() {
+        if remote.host.is_empty() && !profile.secret_refs.contains_key(&format!("remotes.{index}.host")) {
             return Err(AppError::general("A server has no address"));
         }
         if remote.port == 0 {
             return Err(AppError::general(format!("Choose a port for {}", remote.host)));
         }
     }
-    if profile.auth.uses_password() && profile.user.is_empty() {
+    if profile.auth.uses_password() && profile.user.is_empty() && !profile.secret_refs.contains_key("user") {
         return Err(AppError::general("Enter the user name for the VPN login"));
     }
     profile.ca = match profile.ca.trim() {
@@ -112,22 +115,29 @@ fn checked(mut profile: VpnProfile, existing: Option<&VpnProfile>) -> AppResult<
         TlsWrap::CryptV2 => "-----BEGIN OpenVPN tls-crypt-v2 client key-----\nAAAA\n-----END OpenVPN tls-crypt-v2 client key-----\n",
         _ => "-----BEGIN OpenVPN Static key V1-----\n00\n-----END OpenVPN Static key V1-----\n",
     });
-    config::core_profile(&profile, placeholder)?;
+    config::core_profile(&with_placeholders(&profile, &profile.secret_refs)?, placeholder)?;
     Ok(profile)
 }
 
 /// Only the fields WireGuard uses are kept, so nothing from OpenVPN's side of the editor ends up in vpn.json.
 fn checked_wireguard(profile: VpnProfile, existing: Option<&VpnProfile>) -> AppResult<VpnProfile> {
     let remote = profile.remotes.first().ok_or_else(|| AppError::general("Add the WireGuard server's endpoint"))?;
+    // An endpoint that comes from a secret is checked on connect, once its value is known.
+    let remote = match profile.secret_refs.keys().any(|path| path.starts_with("remotes.0.")) {
+        true if remote.port != 0 => VpnRemote { host: remote.host.clone(), port: remote.port, proto: VpnProto::Udp },
+        _ => wireguard::clean_endpoint(remote)?,
+    };
     let mut wire_guard = wireguard::clean(profile.wire_guard)?;
     wire_guard.public_key = existing.and_then(|existing| existing.wire_guard.public_key.clone());
+    let secret_refs = profile.secret_refs.into_iter().filter(|(path, _)| path.starts_with("remotes.0.")).collect();
     Ok(VpnProfile {
         id: profile.id,
         label: profile.label,
         group: profile.group,
         color: profile.color,
         kind: VpnKind::WireGuard,
-        remotes: vec![wireguard::clean_endpoint(remote)?],
+        secret_refs,
+        remotes: vec![remote],
         require_server_cert: false,
         route_all: profile.route_all,
         use_vpn_dns: profile.use_vpn_dns,

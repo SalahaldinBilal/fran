@@ -5,7 +5,34 @@ export type SecretOwner =
   | { kind: "identity", id: string }
   | { kind: "key", id: string }
   | { kind: "proxy", id: string }
-  | { kind: "vpn", id: string };
+  | { kind: "vpn", id: string }
+  | { kind: "secret", id: string };
+
+// A field path, or `slot:<name>` for a password slot, to the id of the named secret that fills it.
+export type SecretRefs = Record<string, string>;
+
+// A named value any field can use. The value itself stays in the vault.
+export type NamedSecret = {
+  id: string,
+  name: string,
+  note: string,
+};
+
+export type SecretUserKind = "connection" | "sshHost" | "identity" | "proxy" | "vpn";
+
+export type SecretUse = {
+  kind: SecretUserKind,
+  id: string,
+  label: string,
+  // The field path, or the slot name when `slot` is set.
+  field: string,
+  slot: boolean,
+};
+
+export type SecretInfo = NamedSecret & {
+  hasValue: boolean,
+  usedBy: SecretUse[],
+};
 
 export type SshHost = {
   id: string,
@@ -27,6 +54,7 @@ export type SshHost = {
   clipboardWrite: boolean,
   // Typed at the prompt after login, without pressing Enter.
   startupSnippetId: string | null,
+  secretRefs?: SecretRefs,
 };
 
 export type ForwardKind = "local" | "remote" | "dynamic";
@@ -145,6 +173,7 @@ export type Identity = {
   label: string,
   user: string,
   auth: IdentityAuth,
+  secretRefs?: SecretRefs,
 };
 
 export type KeyStorage = { kind: "vault" } | { kind: "file", path: string };
@@ -171,6 +200,7 @@ export type Proxy = {
   port: number,
   // Empty means the proxy takes no login.
   user: string,
+  secretRefs?: SecretRefs,
 };
 
 export type SshFile = {

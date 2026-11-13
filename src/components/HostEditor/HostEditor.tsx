@@ -16,6 +16,8 @@ import Modal from "@core/components/Modal/Modal";
 import Button from "@core/components/Button/Button";
 import Field, { FieldRow } from "@core/components/Field/Field";
 import Input from "@core/components/Input/Input";
+import SecretInput from "@core/components/SecretInput/SecretInput";
+import { SecretRefsEditor } from "@core/helpers/secretRefs";
 import Select, { SelectItem } from "@core/components/Select/Select";
 import SegmentedControl from "@core/components/SegmentedControl/SegmentedControl";
 import SuggestInput from "@core/components/SuggestInput/SuggestInput";
@@ -81,8 +83,17 @@ function HostEditor() {
     setCustomPassword("");
   }));
 
+  const secretRefs: SecretRefsEditor = {
+    get: key => draft.secretRefs?.[key],
+    set: (key, secretId) => setDraft(produce(host => {
+      const refs = host.secretRefs ??= {};
+      if (secretId) refs[key] = secretId;
+      else delete refs[key];
+    })),
+  };
+
   const isNew = createMemo(() => !draft.id);
-  const title = createMemo(() => (isNew() ? "New SSH host" : `Edit ${editor.request()?.host?.label ?? ""}`));
+  const title = createMemo(() => (isNew() ? "New SSH host": `Edit ${editor.request()?.host?.label ?? ""}`));
   const saveLabel = createMemo(() => (saving() ? "Saving" : isNew() ? "Add host" : "Save"));
   const customLogin = createMemo(() => (draft.identityId ?? CUSTOM_LOGIN) === CUSTOM_LOGIN);
   const identityHint = createMemo(() => (customLogin()
@@ -178,7 +189,7 @@ function HostEditor() {
         if (!user) throw new Error("Enter the user to log in as");
         const identity = await ssh.saveIdentity({
           id: "",
-          label: `${user} (${host.label.trim() || host.host.trim()})`,
+          label: `${user} (${host.label.trim() || host.host.trim() || "new host"})`,
           user,
           auth: customIdentityAuth(),
         });
@@ -256,10 +267,10 @@ function HostEditor() {
         </FieldRow>
         <FieldRow>
           <Field label="Address" grow>
-            <Input value={draft.host} onValue={value => setDraft("host", value)} placeholder="10.0.3.11 or server.example.com" />
+            <SecretInput path="host" refs={secretRefs} value={draft.host} onValue={value => setDraft("host", value)} placeholder="10.0.3.11 or server.example.com" />
           </Field>
           <Field label="Port" width={96}>
-            <Input type="number" value={draft.port} onValue={value => setDraft("port", toPort(value))} />
+            <SecretInput path="port" refs={secretRefs} type="number" value={draft.port} onValue={value => setDraft("port", toPort(value))} />
           </Field>
         </FieldRow>
         <Field label="Color">

@@ -1,4 +1,4 @@
-import type { SecretOwner } from "./ssh";
+import type { SecretOwner, SecretRefs } from "./ssh";
 import type { SecretSlot } from "./connection";
 
 export type VpnProto = "udp" | "tcp";
@@ -84,6 +84,7 @@ export type VpnProfile = {
   pkcs11Provider: string | null,
   imported: ImportInfo | null,
   wireGuard: WireGuardSettings,
+  secretRefs?: SecretRefs,
 };
 
 export type VpnFile = {
@@ -114,7 +115,7 @@ export type VpnStatus = {
 
 export type VpnPrompt = { title: string, slots: SecretSlot[] };
 
-export type SecretGroup = "connection" | "identity" | "key" | "proxy" | "vpn" | "internal" | "unknown";
+export type SecretGroup = "connection" | "identity" | "key" | "proxy" | "vpn" | "secret" | "internal" | "unknown";
 
 // One entry in the vault, without its value.
 export type SavedSecret = {

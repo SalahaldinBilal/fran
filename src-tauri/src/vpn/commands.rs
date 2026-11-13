@@ -11,9 +11,18 @@ use super::system::{
     self, OpenVpnProgram,
     setup::{self, Change, InstallHelp, ServiceStatus},
 };
-use crate::connections::resolve_secrets;
+use crate::connections::{SecretBag, prepare::resolve_slots};
 use crate::error::{AppError, AppResult};
+use crate::secrets::fill::Filler;
+use crate::ssh_store::SshStore;
 use crate::vault::Vault;
+
+fn planned(vault: &Vault, ssh_store: &SshStore, profile_id: &str, secrets: HashMap<String, String>) -> AppResult<(VpnPlan, SecretBag)> {
+    let filler = Filler::new(vault, &secrets)?;
+    let plan = VpnPlan::for_profile(profile_id, &filler)?;
+    let bag = resolve_slots(&filler, vault, None, ssh_store, secrets, plan.login_slots(), Vec::new())?;
+    Ok((plan, bag))
+}
 
 #[tauri::command]
 pub async fn watch_vpn(manager: State<'_, Arc<VpnManager>>, channel: Channel<Vec<VpnStatus>>) -> AppResult<()> {
@@ -39,13 +48,13 @@ pub async fn disconnect_vpn(manager: State<'_, Arc<VpnManager>>, profile_id: Str
 pub async fn turn_on_vpn_system(
     manager: State<'_, Arc<VpnManager>>,
     vault: State<'_, Arc<Vault>>,
+    ssh_store: State<'_, Arc<SshStore>>,
     profile_id: String,
     secrets: HashMap<String, String>,
     program: Option<String>,
     with: SystemBackend,
 ) -> AppResult<()> {
-    let plan = VpnPlan::for_profile(&profile_id)?;
-    let bag = resolve_secrets(&vault, None, secrets, &plan.login_slots(), &[])?;
+    let (plan, bag) = planned(&vault, &ssh_store, &profile_id, secrets)?;
     let leg = plan.resolve(&bag);
     let use_service = leg.is_wireguard() || (with == SystemBackend::Fran && !leg.needs_installed());
     if use_service && !setup::usable_service().await? {
@@ -103,11 +112,11 @@ pub async fn install_openvpn() -> AppResult<()> {
 pub async fn open_vpn_tunnel(
     manager: State<'_, Arc<VpnManager>>,
     vault: State<'_, Arc<Vault>>,
+    ssh_store: State<'_, Arc<SshStore>>,
     profile_id: String,
     secrets: HashMap<String, String>,
 ) -> AppResult<()> {
-    let plan = VpnPlan::for_profile(&profile_id)?;
-    let bag = resolve_secrets(&vault, None, secrets, &plan.login_slots(), &[])?;
+    let (plan, bag) = planned(&vault, &ssh_store, &profile_id, secrets)?;
     manager.open_own(&plan.resolve(&bag)).await
 }
 

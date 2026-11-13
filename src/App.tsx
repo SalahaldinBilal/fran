@@ -26,6 +26,8 @@ import useVpnState from "./states/vpnState";
 import VpnEditor from "./components/VpnEditor/VpnEditor";
 import useTerminalState from "./states/terminalState";
 import useSnippetsState from "./states/snippetsState";
+import useSecretsState from "./states/secretsState";
+import SecretEditor from "./components/SecretEditor/SecretEditor";
 import AgentApprovalModal from "./components/AgentApprovalModal/AgentApprovalModal";
 import useAgentState from "./states/agentState";
 import Home from "./pages/Home/Home";
@@ -184,6 +186,7 @@ function App() {
     watchVpnPrompts();
     startTray();
     useSnippetsState.load();
+    useSecretsState.load();
     useSavedQueriesState.load();
     useVaultState.refresh();
     useAgentState.load();
@@ -330,6 +333,7 @@ function App() {
       <HostEditor />
       <VpnEditor />
       <SnippetEditor />
+      <SecretEditor />
       <ForwardRuleEditor />
       <SshImportModal />
       <ContextMenuHost />

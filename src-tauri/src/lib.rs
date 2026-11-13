@@ -8,6 +8,7 @@ pub mod json_store;
 pub mod kube;
 pub mod legacy;
 pub mod saved_queries;
+pub mod secrets;
 pub mod settings;
 pub mod snippets;
 pub mod splash;
@@ -72,6 +73,9 @@ pub fn run() {
             let known_hosts = Arc::new(KnownHosts::load(data_dir.join("known_hosts.json")));
             let ssh_store = Arc::new(SshStore::load(data_dir.join("ssh.json")));
             let vpn_store = Arc::new(VpnStore::load(data_dir.join("vpn.json")));
+            let secrets_store = Arc::new(secrets::SecretsStore::load(data_dir.join("secrets.json")));
+            secrets::install(secrets_store.clone());
+            app.manage(secrets_store);
             let vpn_manager = VpnManager::new(vpn_store.clone(), vault.clone());
             vpn::manager::install(vpn_manager.clone());
             let agent = Arc::new(AgentHost::new(
@@ -126,6 +130,9 @@ pub fn run() {
             vault::reveal::lock_secrets,
             vault::reveal::get_secrets_unlock,
             vault::reveal::reveal_all_secrets,
+            secrets::commands::list_secrets,
+            secrets::commands::save_secret,
+            secrets::commands::delete_secret,
             connections::commands::list_connections,
             connections::commands::save_connection,
             connections::commands::save_connection_order,

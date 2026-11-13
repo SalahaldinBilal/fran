@@ -4,8 +4,10 @@ use serde::Serialize;
 use tauri::State;
 
 use super::{
-    Identity, IdentityAuth, KeyMeta, KeyStorage, Proxy, SshFile, SshHost, SshStore, now_millis,
+    HOST_SECRET_RULES, IDENTITY_SECRET_RULES, Identity, IdentityAuth, KeyMeta, KeyStorage, PROXY_SECRET_RULES, Proxy, SshFile, SshHost,
+    SshStore, now_millis,
 };
+use crate::secrets::fill::{blanked, check_refs};
 use crate::connections::{ConnectionStore, PASSWORD_SLOT, PRIVATE_KEY_SLOT, SecretOwner};
 use crate::error::{AppError, AppResult};
 use crate::json_store::write_atomic;
@@ -107,7 +109,9 @@ pub async fn save_ssh_host(
     if host.label.is_empty() {
         return Err(AppError::general("A host needs a name"));
     }
-    if host.host.is_empty() {
+    check_refs(&host, &host.secret_refs, &HOST_SECRET_RULES, &crate::secrets::snapshot()?)?;
+    let mut host = blanked(&host, &host.secret_refs)?;
+    if host.host.is_empty() && !host.secret_refs.contains_key("host") {
         return Err(AppError::general("A host needs an address"));
     }
     if host.port == 0 {
@@ -178,8 +182,14 @@ pub async fn save_identity(
 ) -> AppResult<Identity> {
     identity.user = identity.user.trim().to_string();
     identity.label = identity.label.trim().to_string();
-    if identity.user.is_empty() {
+    check_refs(&identity, &identity.secret_refs, &IDENTITY_SECRET_RULES, &crate::secrets::snapshot()?)?;
+    let mut identity = blanked(&identity, &identity.secret_refs)?;
+    let user_from_secret = identity.secret_refs.contains_key("user");
+    if identity.user.is_empty() && !user_from_secret {
         return Err(AppError::general("Enter a user name"));
+    }
+    if identity.label.is_empty() && user_from_secret {
+        return Err(AppError::general("Give this identity a name, since its user name comes from a secret"));
     }
     if identity.label.is_empty() {
         identity.label = identity.user.clone();
@@ -231,11 +241,17 @@ pub async fn save_proxy(store: State<'_, Arc<SshStore>>, vault: State<'_, Arc<Va
     proxy.host = proxy.host.trim().to_string();
     proxy.user = proxy.user.trim().to_string();
     proxy.label = proxy.label.trim().to_string();
-    if proxy.host.is_empty() {
+    check_refs(&proxy, &proxy.secret_refs, &PROXY_SECRET_RULES, &crate::secrets::snapshot()?)?;
+    let mut proxy = blanked(&proxy, &proxy.secret_refs)?;
+    let host_from_secret = proxy.secret_refs.contains_key("host");
+    if proxy.host.is_empty() && !host_from_secret {
         return Err(AppError::general("Enter the proxy address"));
     }
     if proxy.port == 0 {
         return Err(AppError::general("Choose a port"));
+    }
+    if proxy.label.is_empty() && host_from_secret {
+        return Err(AppError::general("Give this proxy a name, since its address comes from a secret"));
     }
     if proxy.label.is_empty() {
         proxy.label = proxy.host.clone();
@@ -252,7 +268,7 @@ pub async fn save_proxy(store: State<'_, Arc<SshStore>>, vault: State<'_, Arc<Va
         }
         Ok(())
     })?;
-    if saved.user.is_empty() {
+    if saved.user.is_empty() && !saved.secret_refs.contains_key("user") {
         vault.remove(&SecretOwner::Proxy(saved.id.clone()).secret_id(PASSWORD_SLOT))?;
     }
     Ok(saved)
@@ -595,7 +611,7 @@ impl Importer<'_> {
             IdentityAuth::Key { key_id } => self.file.key(key_id).map(|key| key.label.clone()).unwrap_or_default(),
             _ => "agent".to_string(),
         };
-        let identity = Identity { id: new_id(), label: format!("{user} ({how})"), user: user.to_string(), auth };
+        let identity = Identity { id: new_id(), label: format!("{user} ({how})"), user: user.to_string(), auth, secret_refs: Default::default() };
         let id = identity.id.clone();
         self.file.identities.push(identity);
         Ok(id)

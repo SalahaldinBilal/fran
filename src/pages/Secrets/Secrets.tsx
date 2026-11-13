@@ -1,7 +1,9 @@
 import settingsStyles from "../Settings/Settings.module.scss";
 import { For, JSX, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
-import { Cog, Globe, KeyRound, Lock, LucideIcon, Shield, ShieldCheck, User } from "@core/icons";
+import { Braces, Cog, Globe, KeyRound, Lock, LucideIcon, Shield, ShieldCheck, User } from "@core/icons";
 import useSshState from "@core/states/sshState";
+import useSecretsState from "@core/states/secretsState";
+import NamedSecretsView from "./NamedSecretsView";
 import useSavedSecretsState from "@core/states/savedSecretsState";
 import useWorkspaceState, { SECRETS_TAB_ID } from "@core/states/workspaceState";
 import PasswordsView from "./PasswordsView";
@@ -34,6 +36,7 @@ function Secrets() {
   createEffect(() => {
     if (useWorkspaceState.store.activeGlobalTabId === SECRETS_TAB_ID) {
       void saved.load();
+      void useSecretsState.load();
       void saved.resume();
     } else {
       saved.hideValues();
@@ -42,7 +45,14 @@ function Secrets() {
 
   const vpnKeyOwners = createMemo(() => new Set(saved.secrets.filter(secret => secret.group === "vpn" && !secret.revealable).map(secret => secret.owner?.id)).size);
   const sections: Section[] = [
-    { id: "passwords", label: "Passwords", icon: Lock, count: () => saved.secrets.filter(secret => secret.revealable).length, view: () => <PasswordsView /> },
+    { id: "secrets", label: "Secrets", icon: Braces, count: () => useSecretsState.secrets.length, view: () => <NamedSecretsView /> },
+    {
+      id: "passwords",
+      label: "Passwords",
+      icon: Lock,
+      count: () => saved.secrets.filter(secret => secret.revealable && secret.group !== "secret").length,
+      view: () => <PasswordsView />,
+    },
     { id: "keys", label: "SSH keys", icon: KeyRound, count: () => ssh.file.keys.length, view: () => <KeysView /> },
     { id: "vpnKeys", label: "VPN keys", icon: Shield, count: vpnKeyOwners, view: () => <VpnKeysView /> },
     { id: "identities", label: "Identities", icon: User, count: () => ssh.file.identities.length, view: () => <IdentitiesView /> },

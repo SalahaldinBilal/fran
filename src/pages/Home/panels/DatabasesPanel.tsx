@@ -6,7 +6,7 @@ import { Check, CircleAlert, Database, GripVertical, Pencil, Plus, X } from "@co
 import useConnectionsState from "@core/states/connectionsState";
 import useToastState from "@core/states/toastState";
 import { startReorder } from "@core/helpers/dragReorder";
-import { withDatabaseModule } from "@core/databases";
+import { describeConnection } from "@core/databases";
 import { errorMessage } from "@core/helpers/errors";
 import { ConnectionProfile } from "@core/types";
 import Button from "@core/components/Button/Button";
@@ -35,7 +35,7 @@ function DatabasesPanel(props: PanelProps) {
     if (!query) return connections.connections;
 
     return connections.connections.filter(profile => {
-      const target = withDatabaseModule(profile, (module, options) => module.describeTarget(options));
+      const target = describeConnection(profile);
       return [profile.name, profile.group ?? "", target].some(text => text.toLowerCase().includes(query));
     });
   });

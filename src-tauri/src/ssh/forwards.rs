@@ -12,9 +12,10 @@ use super::{
     SshConnection, SshTunnel, connect_saved_host, forward_local, known_hosts::KnownHosts, policy::ChannelPolicy,
     route::RoutePlan, socks::SocksServer,
 };
-use crate::connections::{ConnectionStore, resolve_secrets};
+use crate::connections::{ConnectionStore, prepare::resolve_slots};
 use crate::error::{AppError, AppResult};
 use crate::forward::LocalForward;
+use crate::secrets::fill::Filler;
 use crate::ssh_store::{ForwardKind, ForwardRule, SshStore, now_millis};
 use crate::vault::Vault;
 
@@ -59,16 +60,18 @@ pub async fn start_port_forward(
     if local_port == 0 {
         return Err(AppError::general("Choose a local port"));
     }
-    let profile = store.find(&connection_id)?;
+    let saved = store.find(&connection_id)?;
+    let filler = Filler::new(&vault, &secrets)?;
+    let profile = filler.fill(&saved, &saved.secret_refs, &saved.name)?;
     let (ssh, host, port) = profile.driver.ssh_target().ok_or_else(|| {
         AppError::general("Port forwarding needs a connection that uses an SSH tunnel")
     })?;
-    let plan = RoutePlan::for_options(ssh, &ssh_store, profile.vpn_id.as_deref())?;
+    let plan = RoutePlan::for_options(ssh, &ssh_store, profile.vpn_id.as_deref(), &filler)?;
     let mut required = ssh.required_secrets();
     required.extend(plan.required_secrets());
     let mut optional = ssh.optional_secrets();
     optional.extend(plan.optional_secrets());
-    let bag = resolve_secrets(&vault, Some(&profile.id), secrets, &required, &optional)?;
+    let bag = resolve_slots(&filler, &vault, Some((saved.id.as_str(), &saved.secret_refs)), &ssh_store, secrets, required, optional)?;
     let route = plan.resolve(&bag, &vault)?;
 
     let address = if all_networks { Ipv4Addr::UNSPECIFIED } else { Ipv4Addr::LOCALHOST };
@@ -80,13 +83,16 @@ pub async fn start_port_forward(
         SocketAddr::from((address, local_port)),
         CONNECT_TIMEOUT,
     )
-    .await?;
+    .await
+    .map_err(|error| filler.scrub(error))?;
+    // The window gets the target as saved, so one that comes from a secret isn't shown.
+    let (shown_host, shown_port) = saved.driver.ssh_target().map(|(_, host, port)| (host.to_string(), port)).unwrap_or_default();
     let info = PortForwardInfo {
         connection_id: profile.id.clone(),
         all_networks,
         local_port,
-        host: host.to_string(),
-        port,
+        host: shown_host,
+        port: shown_port,
     };
     forwards
         .active

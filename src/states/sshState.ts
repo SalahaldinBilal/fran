@@ -1,6 +1,7 @@
 import { createRoot, createSignal } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import { safeInvoke } from "@core/helpers/safeInvoke";
+import { shownField } from "@core/helpers/secretRefs";
 import { ForwardRule, HostKeyInfo, Identity, KeyMeta, Proxy, SshFile, SshHost } from "@core/types";
 
 const EMPTY: SshFile = { version: 1, hosts: [], identities: [], keys: [], proxies: [], forwards: [], groupOrder: [] };
@@ -66,8 +67,10 @@ function useSshStateInner() {
   }
 
   function address(target: SshHost): string {
-    const user = identity(target.identityId)?.user ?? "?";
-    return `${user}@${target.host}${target.port !== 22 ? `:${target.port}` : ""}`;
+    const login = identity(target.identityId);
+    const user = login ? shownField(login.secretRefs, "user", login.user) : "?";
+    const port = shownField(target.secretRefs, "port", target.port);
+    return `${user}@${shownField(target.secretRefs, "host", target.host)}${port !== "22" ? `:${port}` : ""}`;
   }
 
   function upsert<T extends { id: string }>(items: T[], saved: T): T[] {

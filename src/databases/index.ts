@@ -1,4 +1,5 @@
-import { DatabaseKind, DriverOptions, OptionsByKind } from "@core/types";
+import { ConnectionProfile, DatabaseKind, DriverOptions, OptionsByKind } from "@core/types";
+import { withSecretNames } from "@core/helpers/secretRefs";
 import { DatabaseModule } from "./types";
 import mysqlModule from "./mysql";
 import postgresModule from "./postgres";
@@ -11,6 +12,11 @@ const modules: { [K in DatabaseKind]: DatabaseModule<K> } = {
   sqlite: sqliteModule,
   d1: d1Module,
 };
+
+// The connection's target for labels and search. A field a named secret fills reads as the secret's name.
+export function describeConnection(profile: ConnectionProfile): string {
+  return withDatabaseModule(withSecretNames(profile), (module, options) => module.describeTarget(options));
+}
 
 const driverDefaults: { [K in DatabaseKind]: () => { kind: K, options: OptionsByKind[K] } } = {
   mysql: () => ({ kind: "mysql", options: mysqlModule.defaultOptions() }),

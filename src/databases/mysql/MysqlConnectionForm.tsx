@@ -10,6 +10,8 @@ import Select, { SelectItem } from "@core/components/Select/Select";
 import Switch from "@core/components/Switch/Switch";
 import SegmentedControl from "@core/components/SegmentedControl/SegmentedControl";
 import SecretField from "@core/components/SecretField/SecretField";
+import SecretInput from "@core/components/SecretInput/SecretInput";
+import { scopedRefs } from "@core/helpers/secretRefs";
 import SshSection from "../shared/SshSection";
 import KubeSection from "../shared/KubeSection";
 import SslFileFields from "../shared/SslFileFields";
@@ -71,6 +73,7 @@ function MysqlConnectionForm(props: ConnectionFormProps<MysqlOptions>) {
                 description="The tunnel opens first, then MySQL is reached from the SSH server."
                 databaseTarget={databaseTarget()}
                 secrets={props.secrets}
+                refs={scopedRefs(props.refs, "ssh.")}
                 update={mutate => props.update(options => mutate(options.ssh))}
               />
             </Show>
@@ -91,7 +94,9 @@ function MysqlConnectionForm(props: ConnectionFormProps<MysqlOptions>) {
                     label={IS_WINDOWS ? "Pipe name" : "Socket path"}
                     hint={IS_WINDOWS ? "The server's named_pipe name, usually MySQL." : undefined}
                   >
-                    <Input
+                    <SecretInput
+                      path="socketPath"
+                      refs={props.refs}
                       mono
                       value={props.options.socketPath}
                       onValue={value => props.update(options => { options.socketPath = value; })}
@@ -103,7 +108,9 @@ function MysqlConnectionForm(props: ConnectionFormProps<MysqlOptions>) {
                 <FieldRow>
                   <Show when={!isKube()}>
                     <Field label={isSsh() ? "MySQL host (from the SSH server)" : "Host"} grow>
-                      <Input
+                      <SecretInput
+                        path="host"
+                        refs={props.refs}
                         value={props.options.host}
                         onValue={value => props.update(options => { options.host = value; })}
                         onPaste={event => {
@@ -114,7 +121,9 @@ function MysqlConnectionForm(props: ConnectionFormProps<MysqlOptions>) {
                     </Field>
                   </Show>
                   <Field label={portLabel()} width={120}>
-                    <Input
+                    <SecretInput
+                      path="port"
+                      refs={props.refs}
                       type="number"
                       value={props.options.port}
                       onValue={value => props.update(options => { options.port = toPort(value); })}
@@ -124,7 +133,9 @@ function MysqlConnectionForm(props: ConnectionFormProps<MysqlOptions>) {
               </Show>
               <FieldRow>
                 <Field label="User" grow>
-                  <Input
+                  <SecretInput
+                    path="user"
+                    refs={props.refs}
                     value={props.options.user}
                     onValue={value => props.update(options => { options.user = value; })}
                   />
@@ -134,7 +145,9 @@ function MysqlConnectionForm(props: ConnectionFormProps<MysqlOptions>) {
                 </Field>
               </FieldRow>
               <Field label="Default schema" hint="Opened automatically after connecting. Leave empty for none.">
-                <Input
+                <SecretInput
+                  path="defaultSchema"
+                  refs={props.refs}
                   value={props.options.defaultSchema}
                   onValue={value => props.update(options => { options.defaultSchema = value; })}
                 />

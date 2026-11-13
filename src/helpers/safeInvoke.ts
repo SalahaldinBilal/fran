@@ -9,7 +9,7 @@ import {
   TerminalInfo, TerminalLogSession, TransferDirection, TransferEvent, TreeCount, VaultStatus,
   VpnCertificates, VpnFile, VpnProfile, VpnStatus, SavedSecret, RevealOptions, OpenVpnCheck, TrayItem,
   SystemBackend, VpnServiceAccess, VpnServiceStatus, OpenVpnInstallHelp,
-  HistoryOrder, QueryHistory, RunningQueries,
+  HistoryOrder, QueryHistory, RunningQueries, NamedSecret, SecretInfo,
 } from "@core/types";
 
 export async function safeInvoke<T extends keyof Commands>(
@@ -34,6 +34,9 @@ type Commands = {
   "change_app_lock_password": Command<{ current: string, next: string }>,
   "lock_app": Command<undefined, VaultStatus>,
   "list_saved_secrets": Command<undefined, SavedSecret[]>,
+  "list_secrets": Command<undefined, SecretInfo[]>,
+  "save_secret": Command<{ secret: NamedSecret, value: string | null }, NamedSecret>,
+  "delete_secret": Command<{ id: string }>,
   "reveal_secret": Command<{ owner: SecretOwner, slot: string, options: RevealOptions }, string>,
   "copy_secret": Command<{ owner: SecretOwner, slot: string, options: RevealOptions }>,
   "install_os_auth": Command,

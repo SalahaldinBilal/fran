@@ -15,6 +15,7 @@ use super::Vault;
 use super::os_auth::{self, Outcome};
 use crate::connections::{ConnectionStore, ConnectionsFile, SecretOwner};
 use crate::error::{AppError, AppResult, ErrorDetail};
+use crate::secrets::SecretsFile;
 use crate::ssh_store::{SshFile, SshStore};
 use crate::vpn_store::{VpnFile, VpnStore};
 
@@ -38,6 +39,8 @@ pub enum SecretGroup {
     Key,
     Proxy,
     Vpn,
+    /// A named secret's value.
+    Secret,
     /// Fran's own keys, like the one for agent history.
     Internal,
     Unknown,
@@ -60,6 +63,7 @@ struct Stores {
     connections: ConnectionsFile,
     ssh: SshFile,
     vpn: VpnFile,
+    secrets: SecretsFile,
 }
 
 fn connection_slot_label(file: &ConnectionsFile, id: &str, slot: &str) -> String {
@@ -88,6 +92,7 @@ fn owner_of(vault_id: &str) -> Option<(SecretOwner, &str)> {
         "key" => SecretOwner::Key(id),
         "proxy" => SecretOwner::Proxy(id),
         "vpn" => SecretOwner::Vpn(id),
+        "secret" => SecretOwner::Secret(id),
         _ => return None,
     };
     Some((owner, slot))
@@ -162,6 +167,12 @@ fn describe(vault_id: &str, stores: &Stores) -> SavedSecret {
             }
             .to_string(),
         ),
+        "secret" => (
+            SecretOwner::Secret(id.to_string()),
+            SecretGroup::Secret,
+            stores.secrets.secret(id).map(|secret| secret.name.clone()),
+            "Secret".to_string(),
+        ),
         _ => return unknown(),
     };
     SavedSecret {
@@ -176,7 +187,7 @@ fn describe(vault_id: &str, stores: &Stores) -> SavedSecret {
 }
 
 fn stores(connections: &ConnectionStore, ssh: &SshStore, vpn: &VpnStore) -> AppResult<Stores> {
-    Ok(Stores { connections: connections.read(Clone::clone)?, ssh: ssh.snapshot()?, vpn: vpn.snapshot()? })
+    Ok(Stores { connections: connections.read(Clone::clone)?, ssh: ssh.snapshot()?, vpn: vpn.snapshot()?, secrets: crate::secrets::snapshot()? })
 }
 
 /// "Password" reads as "password" in a sentence, "SSH password" stays as it is.
@@ -415,12 +426,17 @@ pub async fn install_os_auth() -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::secrets::NamedSecret;
     use crate::ssh_store::{Identity, IdentityAuth};
 
     fn sample() -> Stores {
         let mut ssh = SshFile::default();
-        ssh.identities.push(Identity { id: "i1".to_string(), label: "deploy".to_string(), user: "deploy".to_string(), auth: IdentityAuth::Password });
-        Stores { connections: ConnectionsFile::default(), ssh, vpn: VpnFile::default() }
+        ssh.identities.push(Identity { id: "i1".to_string(), label: "deploy".to_string(), user: "deploy".to_string(), auth: IdentityAuth::Password, secret_refs: Default::default() });
+        let secrets = SecretsFile {
+            secrets: vec![NamedSecret { id: "s1".to_string(), name: "PROD_DB_HOST".to_string(), note: String::new() }],
+            ..Default::default()
+        };
+        Stores { connections: ConnectionsFile::default(), ssh, vpn: VpnFile::default(), secrets }
     }
 
     #[test]
@@ -429,7 +445,7 @@ mod tests {
         for id in ["key:k1:private", "vpn:v1:private", "vpn:v1:tlsKey", "agent:historyKey", "terminal:logKey", "odd"] {
             assert!(!describe(id, &stores).revealable, "{id}");
         }
-        for id in ["identity:i1:password", "key:k1:passphrase", "proxy:p1:password", "vpn:v1:password", "connection:c1:sshPassword"] {
+        for id in ["identity:i1:password", "key:k1:passphrase", "proxy:p1:password", "vpn:v1:password", "connection:c1:sshPassword", "secret:s1:value"] {
             assert!(describe(id, &stores).revealable, "{id}");
         }
     }

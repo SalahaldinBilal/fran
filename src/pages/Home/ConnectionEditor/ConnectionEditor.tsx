@@ -3,11 +3,12 @@ import { Match, Show, Switch, createEffect, createMemo, createSignal, on } from 
 import { createStore, produce, reconcile, unwrap } from "solid-js/store";
 import { CircleAlert, CircleCheck, Plug, Wand2 } from "@core/icons";
 import { ConnectionProfile, DatabaseKind, DriverOptions } from "@core/types";
-import { databaseModule, databaseModules, defaultDriver, parseConnectionString, ParsedDriver, withDatabaseModule } from "@core/databases";
+import { databaseModule, databaseModules, defaultDriver, describeConnection, parseConnectionString, ParsedDriver, withDatabaseModule } from "@core/databases";
 import { PendingSecret, SecretEditor } from "@core/databases/types";
 import { ConnectionStringError } from "@core/databases/shared/connectionString";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { withConnectPrompts } from "@core/helpers/connectFlow";
+import { SecretRefsEditor, scopedRefs } from "@core/helpers/secretRefs";
 import { errorMessage } from "@core/helpers/errors";
 import useConnectionsState from "@core/states/connectionsState";
 import usePromptState from "@core/states/promptState";
@@ -65,7 +66,7 @@ function ConnectionEditor(props: ConnectionEditorProps) {
   const [testResult, setTestResult] = createSignal<TestResult | null>(null);
 
   const isNew = createMemo(() => !draft.id);
-  const target = createMemo(() => withDatabaseModule(draft, (module, options) => module.describeTarget(options)));
+  const target = createMemo(() => describeConnection(draft));
   const suggestedName = createMemo(() => withDatabaseModule(draft, (module, options) => module.suggestName(options)));
   const vpnLeg = createMemo(() => withDatabaseModule(draft, (module, options) => module.vpnLeg(options)));
   const vpnItems = createMemo<SelectItem<string | null>[]>(() => [
@@ -122,11 +123,25 @@ function ConnectionEditor(props: ConnectionEditorProps) {
     }
   }));
 
+  const secretRefs: SecretRefsEditor = {
+    get: key => draft.secretRefs?.[key],
+    set: (key, secretId) => {
+      setDraft(produce(profile => {
+        const refs = profile.secretRefs ??= {};
+        if (secretId) refs[key] = secretId;
+        else delete refs[key];
+      }));
+      setTestResult(null);
+    },
+  };
+  const optionRefs = scopedRefs(secretRefs, "options.");
+
   const secretEditor: SecretEditor = {
     isStored: slot => storedSlots().includes(slot),
     pending: slot => pending[slot],
     setPending: (slot, value) => setPending(slot, value),
     owner: () => (draft.id ? { kind: "connection", id: draft.id } : null),
+    refs: secretRefs,
   };
 
   function snapshot(): ConnectionProfile {
@@ -148,7 +163,10 @@ function ConnectionEditor(props: ConnectionEditorProps) {
 
   function changeKind(kind: DatabaseKind) {
     if (kind === draft.kind) return;
-    setDraft(produce(profile => Object.assign(profile, defaultDriver(kind))));
+    setDraft(produce(profile => {
+      Object.assign(profile, defaultDriver(kind));
+      profile.secretRefs = {};
+    }));
     setPending(reconcile({}));
   }
 
@@ -174,7 +192,11 @@ function ConnectionEditor(props: ConnectionEditorProps) {
       if (!confirmed) return;
     }
 
-    setDraft(produce(profile => Object.assign(profile, parsed.driver)));
+    // The string's own values replace whatever secrets the fields used.
+    setDraft(produce(profile => {
+      Object.assign(profile, parsed.driver);
+      profile.secretRefs = {};
+    }));
     if (switching) setPending(reconcile({}));
     if (parsed.password !== null) setPending("password", parsed.password);
     setConnectionString("");
@@ -355,7 +377,7 @@ function ConnectionEditor(props: ConnectionEditorProps) {
         <div class={styles.Divider} />
 
         {withDatabaseModule(draft, (module, options) => (
-          <module.ConnectionForm options={options} update={updateOptions} secrets={secretEditor} onConnectionString={pastedIntoHost} />
+          <module.ConnectionForm options={options} update={updateOptions} secrets={secretEditor} refs={optionRefs} onConnectionString={pastedIntoHost} />
         ))}
 
         <Switch>

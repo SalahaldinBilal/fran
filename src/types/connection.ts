@@ -1,5 +1,5 @@
 import type { AgentAccess } from "./agent";
-import type { SecretOwner } from "./ssh";
+import type { SecretOwner, SecretRefs } from "./ssh";
 
 export type DatabaseKind = "mysql" | "postgres" | "sqlite" | "d1";
 
@@ -143,6 +143,8 @@ export type ConnectionProfile = {
   agentAccess: AgentAccess,
   // Reaches the database server, or the SSH server with inline SSH. Saved hosts bring their own.
   vpnId: string | null,
+  // Field paths start at `options`.
+  secretRefs?: SecretRefs,
 } & DriverOptions;
 
 export type VaultStatus = {

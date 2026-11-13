@@ -81,7 +81,8 @@ function PasswordsView() {
   const ticker = setInterval(() => setNow(Date.now()), 1000);
   onCleanup(() => clearInterval(ticker));
 
-  const passwords = createMemo(() => saved.secrets.filter(secret => secret.revealable));
+  // Named secrets have their own view.
+  const passwords = createMemo(() => saved.secrets.filter(secret => secret.revealable && secret.group !== "secret"));
   const unlocked = createMemo(() => {
     const until = saved.unlockedUntil();
     return until !== null && until > now();

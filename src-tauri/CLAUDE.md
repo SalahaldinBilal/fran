@@ -28,6 +28,9 @@
 - A missing required secret returns `secretsRequired`. `withConnectPrompts` (`src/helpers/connectFlow.ts` in the frontend) prompts, optionally saves to the vault, and retries. Use it for every connect-like call.
 - If the keychain is unavailable the vault reports it. Never fall back to a weaker store.
 - App lock (`vault/lock.rs`, Settings > Security): the vault key moves out of the keychain into `vault.lock`, wrapped (XChaCha20-Poly1305) with a key from Argon2id (64 MiB, 3 passes, random salt). The KDF settings are part of the AAD and bounds-checked before deriving. While locked, `Vault` holds nothing and every read returns `appLocked`. `lock_app` / `unlock_app` also seal and reopen the `DayLog`s. Sessions, terminals and forwards keep running. Agent approvals count only unlocked time toward their 5 minutes.
+- Named secrets (`src/secrets/`) are values with a name, listed in `secrets.json` with the value in the vault as `secret:<id>:value` (`SecretOwner::Secret`). Items carry `secret_refs`, a map from a field path (`host`, `options.ssh.user`, `remotes.0.port`) or `slot:<name>` to a secret id. Each item type has `RefRules` for which fields and slots may use one, checked on save, and saves keep the text fields a secret fills empty (`fill::blanked`).
+- `fill::Filler` fills those fields just before a connect, on the item's JSON by path. It's called where each item is read for connecting: `prepare_connect` (the filled profile is `Prepared.profile`), `RoutePlan::for_host`, `VpnPlan::for_profile`, the connection forward. A filled item never crosses IPC and is never saved, and `Filler::scrub` takes the values out of error text. A secret without a value comes back as `secretsRequired`, a deleted one as an error. Values with control characters are refused, since a field can end up in an OpenVPN config.
+- A password slot that uses a secret is redirected with `Filler::redirect` (through `prepare::resolve_slots`, which every connect path uses instead of calling `resolve_secrets` itself): its `store` points at the secret, so the value is read from it and a typed one is saved to it.
 - `DayLog` (`src/daylog.rs`) is one encrypted file per UTC day with its key in the vault, used by agent history and terminal logs. Sealed (app locked), appends wait in memory, up to 16 MiB, and are written on unlock.
 
 ## VPN
@@ -54,6 +57,6 @@
 
 ## Files
 
-All in the Tauri app data dir: `connections.json` (profiles, no secrets), `known_hosts.json`, `ssh.json` (SSH hosts, identities, key metadata, proxies, forward rules, host group order), `vpn.json` (VPN profiles with public certificates, no keys), `snippets.json`, `saved_queries.json`, `tab_state.json`, `settings.json`, `secrets.vault`, `vault.lock` (only with the app lock on), `agent.json`, `agent_history/`, `terminal_logs/`.
+All in the Tauri app data dir: `connections.json` (profiles, no secrets), `known_hosts.json`, `ssh.json` (SSH hosts, identities, key metadata, proxies, forward rules, host group order), `vpn.json` (VPN profiles with public certificates, no keys), `secrets.json` (named secrets, no values), `snippets.json`, `saved_queries.json`, `tab_state.json`, `settings.json`, `secrets.vault`, `vault.lock` (only with the app lock on), `agent.json`, `agent_history/`, `terminal_logs/`.
 
 `settings.json` and `tab_state.json` are owned by the frontend, Rust only stores the JSON. `JsonStore` refuses to overwrite a file it failed to parse.

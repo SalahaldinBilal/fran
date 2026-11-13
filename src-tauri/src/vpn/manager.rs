@@ -26,6 +26,7 @@ use super::wireguard;
 use crate::vpn_store::RouteAll;
 use crate::connections::{PASSWORD_SLOT, PRESHARED_KEY_SLOT, PRIVATE_KEY_SLOT, SecretBag, SecretOwner, SecretSlot, TLS_KEY_SLOT};
 use crate::error::{AppError, AppResult};
+use crate::secrets::fill::Filler;
 use crate::vault::Vault;
 use crate::vpn_store::{TlsWrap, VpnChallenge, VpnProfile, VpnStore};
 
@@ -654,8 +655,24 @@ pub fn code_slot(profile: &VpnProfile) -> SecretSlot {
 }
 
 impl VpnPlan {
-    pub fn for_profile(id: &str) -> AppResult<Self> {
-        Ok(Self { profile: manager()?.store().find(id)? })
+    pub fn for_profile(id: &str, filler: &Filler) -> AppResult<Self> {
+        let saved = manager()?.store().find(id)?;
+        let mut profile = filler.fill(&saved, &saved.secret_refs, &format!("VPN {}", saved.label))?;
+        // What a save checks, again for the parts that came from secrets.
+        profile.user = profile.user.trim().to_string();
+        if profile.is_wireguard() {
+            if let Some(remote) = profile.remotes.first_mut() {
+                *remote = wireguard::clean_endpoint(remote)?;
+            }
+        } else {
+            for remote in &mut profile.remotes {
+                remote.host = remote.host.trim().to_string();
+                if remote.host.is_empty() || remote.host.contains(char::is_whitespace) || remote.port == 0 {
+                    return Err(AppError::general(format!("A server of VPN {} has no usable address or port", profile.label)));
+                }
+            }
+        }
+        Ok(Self { profile })
     }
 
     /// What a new login needs. Turning a VPN on for the computer always logs in again.

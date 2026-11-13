@@ -36,10 +36,10 @@ pub async fn open_session(
     secrets: HashMap<String, String>,
 ) -> AppResult<SessionInfo> {
     let profile = store.find(&connection_id)?;
-    let prepared = prepare_connect(&profile.driver, Some(&profile.id), profile.vpn_id.as_deref(), secrets, &vault, &ssh_store)?;
+    let prepared = prepare_connect(&profile, secrets, &vault, &ssh_store)?;
     let access = prepared.access(&known_hosts);
 
-    let session = profile.driver.connect(&prepared.secrets, &access).await?;
+    let session = prepared.profile.driver.connect(&prepared.secrets, &access).await.map_err(|error| prepared.scrub(error))?;
     sessions.insert(OpenSession {
         info: SessionInfo {
             id: uuid::Uuid::new_v4().to_string(),
@@ -96,11 +96,10 @@ pub async fn test_connection(
     profile: ConnectionProfile,
     secrets: HashMap<String, String>,
 ) -> AppResult<ServerInfo> {
-    let connection_id = (!profile.id.is_empty()).then_some(profile.id.as_str());
-    let prepared = prepare_connect(&profile.driver, connection_id, profile.vpn_id.as_deref(), secrets, &vault, &ssh_store)?;
+    let prepared = prepare_connect(&profile, secrets, &vault, &ssh_store)?;
     let access = prepared.access(&known_hosts);
 
-    let session = profile.driver.connect(&prepared.secrets, &access).await?;
+    let session = prepared.profile.driver.connect(&prepared.secrets, &access).await.map_err(|error| prepared.scrub(error))?;
     let info = session.server_info();
     session.close().await;
     Ok(info)

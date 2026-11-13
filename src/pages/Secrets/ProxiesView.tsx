@@ -5,6 +5,8 @@ import useSshState from "@core/states/sshState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";
 import { createOwnerSecrets } from "@core/helpers/ownerSecrets";
+import { shownField } from "@core/helpers/secretRefs";
+import SecretInput from "@core/components/SecretInput/SecretInput";
 import { toPort } from "@core/databases/shared/fields";
 import { Proxy, ProxyKind } from "@core/types";
 import Modal from "@core/components/Modal/Modal";
@@ -41,8 +43,11 @@ function ProxyModal(props: { proxy: Proxy | null, show: boolean, onClose: () => 
     setPort(proxy?.port ?? 1080);
     setLogin((proxy?.user ?? "") !== "");
     setUser(proxy?.user ?? "");
-    void secrets.reset(proxy ? { kind: "proxy", id: proxy.id } : null);
+    void secrets.reset(proxy ? { kind: "proxy", id: proxy.id } : null, proxy?.secretRefs);
   }));
+
+  const hostFromSecret = createMemo(() => secrets.refs.editor.get("host") !== undefined);
+  const canSave = createMemo(() => !busy() && (host().trim() !== "" || hostFromSecret()));
 
   const title = createMemo(() => (props.proxy ? `Edit ${props.proxy.label}` : "New proxy"));
   const saveLabel = createMemo(() => (props.proxy ? "Save" : "Add proxy"));
@@ -58,8 +63,9 @@ function ProxyModal(props: { proxy: Proxy | null, show: boolean, onClose: () => 
         host: host(),
         port: port(),
         user: login() ? user() : "",
+        secretRefs: secrets.refs.snapshot(key => key === "host" || key === "port" || login()),
       });
-      if (saved.user) await secrets.apply({ kind: "proxy", id: saved.id });
+      if (login()) await secrets.apply({ kind: "proxy", id: saved.id });
       props.onClose();
     } catch (error) {
       pushError(error);
@@ -77,7 +83,7 @@ function ProxyModal(props: { proxy: Proxy | null, show: boolean, onClose: () => 
       footer={
         <>
           <Button variant="subtle" onClick={props.onClose}>Cancel</Button>
-          <Button variant="primary" disabled={busy() || host().trim() === ""} onClick={save}>{saveLabel()}</Button>
+          <Button variant="primary" disabled={!canSave()} onClick={save}>{saveLabel()}</Button>
         </>
       }
     >
@@ -98,17 +104,17 @@ function ProxyModal(props: { proxy: Proxy | null, show: boolean, onClose: () => 
         </Field>
         <FieldRow>
           <Field label="Address" grow>
-            <Input value={host()} onValue={setHost} placeholder="proxy.example.com" />
+            <SecretInput path="host" refs={secrets.refs.editor} value={host()} onValue={setHost} placeholder="proxy.example.com" />
           </Field>
           <Field label="Port" width={96}>
-            <Input type="number" value={port()} onValue={value => setPort(toPort(value))} />
+            <SecretInput path="port" refs={secrets.refs.editor} type="number" value={port()} onValue={value => setPort(toPort(value))} />
           </Field>
         </FieldRow>
         <Switch checked={login()} onChange={setLogin} label="The proxy needs a login" />
         <Show when={login()}>
           <FieldRow>
             <Field label="User" grow>
-              <Input value={user()} onValue={setUser} />
+              <SecretInput path="user" refs={secrets.refs.editor} value={user()} onValue={setUser} />
             </Field>
             <Field label="Password" grow>
               <SecretField slot="password" secrets={secrets.editor} />
@@ -164,6 +170,7 @@ function ProxiesView() {
             {proxy => {
               const usedBy = createMemo(() => ssh.file.hosts.filter(host => host.proxyId === proxy.id).map(host => host.label));
               const usedText = createMemo(() => (usedBy().length > 0 ? usedBy().join(", ") : "Nothing"));
+              const address = createMemo(() => `${shownField(proxy.secretRefs, "host", proxy.host)}:${shownField(proxy.secretRefs, "port", proxy.port)}`);
               return (
                 <div class={styles.ListRow}>
                   <div class={styles.Name}>
@@ -171,7 +178,7 @@ function ProxiesView() {
                     <span class={styles.NameText}><b>{proxy.label}</b></span>
                   </div>
                   <span class={styles.Cell}>{KIND_LABELS[proxy.kind]}</span>
-                  <span class={`${styles.Cell} ${styles.Mono}`}>{proxy.host}:{proxy.port}</span>
+                  <span class={`${styles.Cell} ${styles.Mono}`}>{address()}</span>
                   <span class={styles.Cell}>{usedText()}</span>
                   <div class={styles.Tools}>
                     <Button icon size="sm" tooltip="Edit" onClick={() => setEditing({ proxy })}><Pencil size={14} /></Button>

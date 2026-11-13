@@ -6,7 +6,7 @@ import useConnectionsState from "@core/states/connectionsState";
 import useWorkspaceState from "@core/states/workspaceState";
 import useSshState from "@core/states/sshState";
 import useTerminalState from "@core/states/terminalState";
-import { withDatabaseModule } from "@core/databases";
+import { describeConnection } from "@core/databases";
 import { featureOn } from "@core/helpers/features";
 import { ConnectionProfile, SshHost } from "@core/types";
 import EmptyState from "@core/components/EmptyState/EmptyState";
@@ -98,7 +98,7 @@ function RecentPanel(props: PanelProps) {
       }
       const profile = connections.find(recent.id);
       if (!featureOn("database") || !profile || (needle && !profile.name.toLowerCase().includes(needle))) return [];
-      const target = withDatabaseModule(profile, (module, options) => module.describeTarget(options));
+      const target = describeConnection(profile);
       return [{ kind: "database", profile, target, openedAt: recent.openedAt }];
     });
   });

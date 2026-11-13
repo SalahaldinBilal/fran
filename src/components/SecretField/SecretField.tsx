@@ -1,9 +1,11 @@
 import styles from "./SecretField.module.scss";
 import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import useLockState from "@core/states/lockState";
-import { Eye, EyeOff, KeyRound, Undo2 } from "@core/icons";
+import { Eye, EyeOff, KeyRound, Link2, Undo2 } from "@core/icons";
 import Input from "../Input/Input";
 import Button from "../Button/Button";
+import { SecretChip } from "../SecretInput/SecretInput";
+import { SLOT_PREFIX, pickSecret } from "@core/helpers/secretRefs";
 import { SecretEditor } from "@core/databases/types";
 import { SHOW_FOR_MS, revealSecret } from "@core/helpers/revealSecret";
 import useToastState from "@core/states/toastState";
@@ -55,53 +57,85 @@ function SecretField(props: SecretFieldProps) {
     }
   }
 
+  const refKey = createMemo(() => SLOT_PREFIX + props.slot);
+  const secretId = createMemo(() => props.secrets.refs?.get(refKey()));
+  const canUseSecret = createMemo(() => props.secrets.refs !== undefined);
+  const showsTools = createMemo(() => stored() && pending() === undefined);
+  const showsSecretButton = createMemo(() => canUseSecret() && !showsTools());
+
+  // The slot's own saved value stays in the vault, unused, until the secret is taken off again.
+  function useSecret(event: MouseEvent) {
+    pickSecret(event, id => {
+      hide();
+      props.secrets.setPending(props.slot, undefined);
+      props.secrets.refs?.set(refKey(), id);
+    });
+  }
+
   return (
     <Show
-      when={pending() !== null}
-      fallback={
-        <div class={styles.Removed}>
-          <span>Removed from the vault on save</span>
-          <Button size="sm" onClick={() => props.secrets.setPending(props.slot, undefined)}>
-            <Undo2 size={14} />
-            Undo
-          </Button>
-        </div>
-      }
+      when={!secretId()}
+      fallback={<SecretChip secretId={secretId() ?? ""} onClear={() => props.secrets.refs?.set(refKey(), null)} />}
     >
-      <Input
-        type={inputType()}
-        value={value()}
-        onValue={next => {
-          hide();
-          props.secrets.setPending(props.slot, next === "" ? undefined : next);
-        }}
-        placeholder={placeholder()}
-        before={<KeyRound size={14} class={iconClass()} />}
-        style={{ "padding-right": padding() }}
-        after={
-          <Show when={stored() && pending() === undefined}>
-            <span class={styles.Tools}>
-              <Show when={canShow()}>
-                <Show
-                  when={shown() === null}
-                  fallback={
-                    <Button icon size="sm" tooltip="Hide" onClick={hide}>
-                      <EyeOff size={14} />
-                    </Button>
-                  }
-                >
-                  <Button icon size="sm" tooltip="Show" disabled={revealing()} onClick={show}>
-                    <Eye size={14} />
-                  </Button>
-                </Show>
-              </Show>
-              <Button size="sm" variant="danger" onClick={() => props.secrets.setPending(props.slot, null)}>
-                Remove
-              </Button>
-            </span>
-          </Show>
+      <Show
+        when={pending() !== null}
+        fallback={
+          <div class={styles.Removed}>
+            <span>Removed from the vault on save</span>
+            <Button size="sm" onClick={() => props.secrets.setPending(props.slot, undefined)}>
+              <Undo2 size={14} />
+              Undo
+            </Button>
+          </div>
         }
-      />
+      >
+        <Input
+          type={inputType()}
+          value={value()}
+          onValue={next => {
+            hide();
+            props.secrets.setPending(props.slot, next === "" ? undefined : next);
+          }}
+          placeholder={placeholder()}
+          before={<KeyRound size={14} class={iconClass()} />}
+          style={{ "padding-right": padding() }}
+          after={
+            <>
+              <Show when={showsSecretButton()}>
+                <Button icon size="sm" style={{ "margin-right": "-7px" }} tooltip="Use a secret" onClick={useSecret}>
+                  <Link2 size={13} />
+                </Button>
+              </Show>
+              <Show when={showsTools()}>
+                <span class={styles.Tools}>
+                  <Show when={canShow()}>
+                    <Show
+                      when={shown() === null}
+                      fallback={
+                        <Button icon size="sm" tooltip="Hide" onClick={hide}>
+                          <EyeOff size={14} />
+                        </Button>
+                      }
+                    >
+                      <Button icon size="sm" tooltip="Show" disabled={revealing()} onClick={show}>
+                        <Eye size={14} />
+                      </Button>
+                    </Show>
+                  </Show>
+                  <Show when={canUseSecret()}>
+                    <Button icon size="sm" tooltip="Use a secret instead" onClick={useSecret}>
+                      <Link2 size={14} />
+                    </Button>
+                  </Show>
+                  <Button size="sm" variant="danger" onClick={() => props.secrets.setPending(props.slot, null)}>
+                    Remove
+                  </Button>
+                </span>
+              </Show>
+            </>
+          }
+        />
+      </Show>
     </Show>
   );
 }

@@ -402,26 +402,32 @@ impl AgentHost {
         // A VPN that needs a code or an unsaved password only opens for agents once someone signed in to it in Fran.
         let missing = |slots: &[crate::connections::SecretSlot]| match slots.iter().find(|slot| matches!(&slot.store, Some(store) if matches!(store.owner, crate::connections::SecretOwner::Vpn(_))) || slot.one_time) {
             Some(slot) => AppError::general(format!("{} is needed for {name}. Connect to it once in Fran, then try again.", slot.label)),
+            None if slots.iter().any(|slot| matches!(&slot.store, Some(store) if matches!(store.owner, crate::connections::SecretOwner::Secret(_)))) => {
+                AppError::general(format!("A secret that {name} uses has no value on this computer. Set it in Fran's Secrets page, then try again."))
+            }
             None => AppError::general(format!(
                 "Fran has no saved password for {name}. Save it in the connection's settings so agents can connect."
             )),
         };
-        let prepared = prepare_connect(&profile.driver, Some(&profile.id), profile.vpn_id.as_deref(), HashMap::new(), &self.vault, &self.ssh_store)
+        let prepared = prepare_connect(profile, HashMap::new(), &self.vault, &self.ssh_store)
             .map_err(|error| match &error.detail {
                 ErrorDetail::SecretsRequired { slots } => missing(slots),
                 _ => error,
             })?;
         let access = prepared.access(&self.known_hosts);
 
-        profile.driver.connect(&prepared.secrets, &access).await.map_err(|error| match &error.detail {
-            ErrorDetail::SecretsRequired { slots } => missing(slots),
-            ErrorDetail::UnknownHostKey { .. } => AppError::general(format!(
-                "Fran doesn't know the SSH host key for {name} yet. Connect to it once in Fran and trust the key."
-            )),
-            ErrorDetail::HostKeyChanged { .. } => AppError::general(format!(
-                "The SSH host key for {name} changed. Connect to it in Fran to check the new key."
-            )),
-            _ => error,
+        prepared.profile.driver.connect(&prepared.secrets, &access).await.map_err(|error| {
+            let error = prepared.scrub(error);
+            match &error.detail {
+                ErrorDetail::SecretsRequired { slots } => missing(slots),
+                ErrorDetail::UnknownHostKey { .. } => AppError::general(format!(
+                    "Fran doesn't know the SSH host key for {name} yet. Connect to it once in Fran and trust the key."
+                )),
+                ErrorDetail::HostKeyChanged { .. } => AppError::general(format!(
+                    "The SSH host key for {name} changed. Connect to it in Fran to check the new key."
+                )),
+                _ => error,
+            }
         })
     }
 

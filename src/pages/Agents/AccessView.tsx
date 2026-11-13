@@ -2,7 +2,7 @@ import styles from "./Agents.module.scss";
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { Info, Plus, ShieldAlert, X } from "@core/icons";
 import { AgentAccess, AgentMode, ConnectionProfile } from "@core/types";
-import { withDatabaseModule } from "@core/databases";
+import { describeConnection, withDatabaseModule } from "@core/databases";
 import useAgentState from "@core/states/agentState";
 import useConnectionsState from "@core/states/connectionsState";
 import useToastState from "@core/states/toastState";
@@ -81,7 +81,7 @@ function AccessRow(props: { profile: ConnectionProfile }) {
   const { pushError } = useToastState;
 
   const details = createMemo(() =>
-    withDatabaseModule(props.profile, (module, options) => ({ kind: module.label, target: module.describeTarget(options) })),
+    withDatabaseModule(props.profile, module => ({ kind: module.label, target: describeConnection(props.profile) })),
   );
   const initial = createMemo(() => props.profile.name.trim().charAt(0).toUpperCase() || "?");
 

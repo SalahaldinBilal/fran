@@ -3,6 +3,7 @@ import { SQLDialect } from "@codemirror/lang-sql";
 import { DatabaseKind, IndexKind, OptionsByKind, SecretOwner } from "@core/types";
 import { DefaultKind } from "@core/helpers/defaultValues";
 import type { SqlFormatter } from "./shared/format";
+import type { SecretRefsEditor } from "@core/helpers/secretRefs";
 
 // undefined means untouched, null means remove from the vault on save.
 export type PendingSecret = string | null | undefined;
@@ -16,12 +17,16 @@ export type SecretEditor = {
   setPending: (slot: string, value: PendingSecret) => void,
   // Whose secrets these are, for Show. Null until the owner is saved.
   owner?: () => SecretOwner | null,
+  // Set where a password slot can use a named secret, under the key `slot:<slot>`.
+  refs?: SecretRefsEditor,
 };
 
 export type ConnectionFormProps<Options> = {
   options: Options,
   update: (mutate: (options: Options) => void) => void,
   secrets: SecretEditor,
+  // Named secrets for the form's fields, by their path in `options`.
+  refs?: SecretRefsEditor,
   // True when the text was a connection string the editor took over, so the paste shouldn't land in the field.
   onConnectionString?: (text: string) => boolean,
 };

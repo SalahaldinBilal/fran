@@ -2,8 +2,10 @@ pub mod commands;
 
 use serde::{Deserialize, Serialize};
 
+use crate::connections::PASSWORD_SLOT;
 use crate::error::{AppError, AppResult};
 use crate::json_store::JsonStore;
+use crate::secrets::{SecretRefs, fill::RefRules};
 
 pub const SSH_FILE_VERSION: u32 = 1;
 
@@ -30,7 +32,13 @@ pub struct SshHost {
     pub clipboard_write: bool,
     /// Typed at the prompt after login, without pressing Enter.
     pub startup_snippet_id: Option<String>,
+    #[serde(skip_serializing_if = "SecretRefs::is_empty")]
+    pub secret_refs: SecretRefs,
 }
+
+pub const HOST_SECRET_RULES: RefRules = RefRules { field: |path| matches!(path, "host" | "port"), slot: |_| false };
+pub const IDENTITY_SECRET_RULES: RefRules = RefRules { field: |path| path == "user", slot: |slot| slot == PASSWORD_SLOT };
+pub const PROXY_SECRET_RULES: RefRules = RefRules { field: |path| matches!(path, "host" | "port" | "user"), slot: |slot| slot == PASSWORD_SLOT };
 
 impl Default for SshHost {
     fn default() -> Self {
@@ -49,6 +57,7 @@ impl Default for SshHost {
             agent_forwarding: false,
             clipboard_write: false,
             startup_snippet_id: None,
+            secret_refs: SecretRefs::new(),
         }
     }
 }
@@ -116,6 +125,8 @@ pub struct Identity {
     pub label: String,
     pub user: String,
     pub auth: IdentityAuth,
+    #[serde(default, skip_serializing_if = "SecretRefs::is_empty")]
+    pub secret_refs: SecretRefs,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -160,6 +171,8 @@ pub struct Proxy {
     /// Empty means the proxy takes no login.
     #[serde(default)]
     pub user: String,
+    #[serde(default, skip_serializing_if = "SecretRefs::is_empty")]
+    pub secret_refs: SecretRefs,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

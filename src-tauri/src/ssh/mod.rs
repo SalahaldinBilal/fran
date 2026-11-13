@@ -525,10 +525,12 @@ pub async fn connect_saved_host(
     policy: Arc<ChannelPolicy>,
     timeout: Duration,
 ) -> AppResult<SshConnection> {
-    let plan = route::RoutePlan::for_host(host_id, ssh_store)?;
-    let secrets = crate::connections::resolve_secrets(vault, None, provided, &plan.required_secrets(), &plan.optional_secrets())?;
+    let filler = crate::secrets::fill::Filler::new(vault, &provided)?;
+    let plan = route::RoutePlan::for_host(host_id, ssh_store, &filler)?;
+    let secrets =
+        crate::connections::prepare::resolve_slots(&filler, vault, None, ssh_store, provided, plan.required_secrets(), plan.optional_secrets())?;
     let route = plan.resolve(&secrets, vault)?;
-    SshConnection::open_with(&route, known_hosts, timeout, policy).await
+    SshConnection::open_with(&route, known_hosts, timeout, policy).await.map_err(|error| filler.scrub(error))
 }
 
 /// A local port forwarded through SSH to `target_host:target_port`. Dropping it stops the forward.

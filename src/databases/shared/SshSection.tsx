@@ -6,6 +6,8 @@ import { IdentityAuth, SshAuthMethod, SshOptions } from "@core/types";
 import { SecretEditor } from "../types";
 import Field, { FieldRow, FieldSection } from "@core/components/Field/Field";
 import Input from "@core/components/Input/Input";
+import SecretInput from "@core/components/SecretInput/SecretInput";
+import { SecretRefsEditor } from "@core/helpers/secretRefs";
 import Select, { SelectItem } from "@core/components/Select/Select";
 import Button from "@core/components/Button/Button";
 import SegmentedControl from "@core/components/SegmentedControl/SegmentedControl";
@@ -39,6 +41,8 @@ export type SshSectionProps = {
   // The database as the SSH server sees it, shown at the end of the route.
   databaseTarget: string,
   secrets: SecretEditor,
+  // Named secrets for the inline fields, by their path in the SSH options.
+  refs?: SecretRefsEditor,
   update: (mutate: (ssh: SshOptions) => void) => void,
 };
 
@@ -80,6 +84,10 @@ function SshSection(props: SshSectionProps) {
   // Moves the typed SSH secrets from this connection to the new identity and key.
   async function saveAsHost() {
     const ssh = unwrap(props.ssh);
+    if (["host", "port", "user"].some(path => props.refs?.get(path))) {
+      pushError(new Error("Take the secrets off the SSH host, port and user first. A saved host picks its own."));
+      return;
+    }
     if (!ssh.host.trim() || !ssh.user.trim()) {
       pushError(new Error("Enter the SSH host and user first"));
       return;
@@ -185,14 +193,18 @@ function SshSection(props: SshSectionProps) {
         <Match when={source() === "inline"}>
           <FieldRow>
             <Field label="SSH host" grow>
-              <Input
+              <SecretInput
+                path="host"
+                refs={props.refs}
                 value={props.ssh.host}
                 onValue={value => props.update(ssh => { ssh.host = value; })}
                 placeholder="bastion.example.com"
               />
             </Field>
             <Field label="Port" width={96}>
-              <Input
+              <SecretInput
+                path="port"
+                refs={props.refs}
                 type="number"
                 value={props.ssh.port}
                 onValue={value => props.update(ssh => { ssh.port = toPort(value); })}
@@ -201,7 +213,9 @@ function SshSection(props: SshSectionProps) {
           </FieldRow>
           <FieldRow>
             <Field label="SSH user" grow>
-              <Input
+              <SecretInput
+                path="user"
+                refs={props.refs}
                 value={props.ssh.user}
                 onValue={value => props.update(ssh => { ssh.user = value; })}
               />

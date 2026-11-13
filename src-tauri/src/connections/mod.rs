@@ -10,6 +10,7 @@ use crate::agent::access::AgentAccess;
 use crate::db::DriverOptions;
 use crate::error::{AppError, AppResult};
 use crate::json_store::JsonStore;
+use crate::secrets::{SecretRefs, VALUE_SLOT, fill::RefRules};
 use crate::vault::Vault;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,9 +32,17 @@ pub struct ConnectionProfile {
     /// Reaches the database server, or the SSH server with inline SSH. Saved hosts bring their own.
     #[serde(default)]
     pub vpn_id: Option<String>,
+    /// Fields and password slots filled from named secrets. Field paths start at `options`.
+    #[serde(default, skip_serializing_if = "SecretRefs::is_empty")]
+    pub secret_refs: SecretRefs,
     #[serde(flatten)]
     pub driver: DriverOptions,
 }
+
+pub const SECRET_RULES: RefRules = RefRules {
+    field: |path| path.starts_with("options."),
+    slot: |slot| SecretOwner::Connection(String::new()).accepts(slot),
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -66,6 +75,8 @@ pub enum SecretOwner {
     Key(String),
     Proxy(String),
     Vpn(String),
+    /// A named secret (`secrets/`), which any field can use.
+    Secret(String),
 }
 
 impl SecretOwner {
@@ -76,6 +87,7 @@ impl SecretOwner {
             Self::Key(id) => ("key", id),
             Self::Proxy(id) => ("proxy", id),
             Self::Vpn(id) => ("vpn", id),
+            Self::Secret(id) => ("secret", id),
         };
         format!("{kind}:{id}:")
     }
@@ -90,6 +102,7 @@ impl SecretOwner {
             Self::Connection(_) => !slot.is_empty() && slot.chars().all(|character| character.is_ascii_alphanumeric()),
             Self::Identity(_) | Self::Proxy(_) | Self::Vpn(_) => slot == PASSWORD_SLOT,
             Self::Key(_) => slot == PASSPHRASE_SLOT,
+            Self::Secret(_) => slot == VALUE_SLOT,
         }
     }
 

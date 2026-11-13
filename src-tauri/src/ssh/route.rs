@@ -7,6 +7,7 @@ use super::proxy::ProxyTarget;
 use super::{SSH_PASSPHRASE_SLOT, SSH_PASSWORD_SLOT, SshAuthMethod, SshOptions};
 use crate::connections::{PASSPHRASE_SLOT, PASSWORD_SLOT, PRIVATE_KEY_SLOT, SecretBag, SecretOwner, SecretSlot};
 use crate::error::{AppError, AppResult};
+use crate::secrets::fill::Filler;
 use crate::ssh_store::{Identity, IdentityAuth, KeyMeta, KeyStorage, Proxy, SshFile, SshHost, SshStore};
 use crate::vault::Vault;
 use crate::vpn::manager::{VpnLeg, VpnPlan};
@@ -124,21 +125,22 @@ pub enum RoutePlan {
 
 impl RoutePlan {
     /// `connection_vpn` only applies to inline SSH. A saved host brings its own VPN.
-    pub fn for_options(options: &SshOptions, store: &SshStore, connection_vpn: Option<&str>) -> AppResult<Self> {
+    pub fn for_options(options: &SshOptions, store: &SshStore, connection_vpn: Option<&str>, filler: &Filler) -> AppResult<Self> {
         match options.host_id.as_deref() {
             Some("") => Err(AppError::general("Pick a saved SSH host for this connection")),
-            Some(host_id) => Self::for_host(host_id, store),
+            Some(host_id) => Self::for_host(host_id, store, filler),
             None => Ok(Self::Inline {
                 options: options.clone(),
-                vpn: connection_vpn.map(VpnPlan::for_profile).transpose()?,
+                vpn: connection_vpn.map(|id| VpnPlan::for_profile(id, filler)).transpose()?,
             }),
         }
     }
 
-    pub fn for_host(host_id: &str, store: &SshStore) -> AppResult<Self> {
+    /// Hosts, identities and the proxy come out with their fields already filled from secrets.
+    pub fn for_host(host_id: &str, store: &SshStore, filler: &Filler) -> AppResult<Self> {
         let file = store.snapshot()?;
         let (hosts, proxy_id) = chain(&file, host_id)?;
-        let vpn = route_vpn(&file, host_id).map(VpnPlan::for_profile).transpose()?;
+        let vpn = route_vpn(&file, host_id).map(|id| VpnPlan::for_profile(id, filler)).transpose()?;
 
         let mut hops = Vec::with_capacity(hosts.len());
         for host in hosts {
@@ -147,6 +149,8 @@ impl RoutePlan {
                 .as_deref()
                 .and_then(|id| file.identity(id))
                 .ok_or_else(|| AppError::general(format!("{} has no login. Pick an identity in its settings.", host.label)))?;
+            let host = &filler.fill(host, &host.secret_refs, &host.label)?;
+            let identity = &filler.fill(identity, &identity.secret_refs, &format!("the identity {}", identity.label))?;
             let key = match &identity.auth {
                 IdentityAuth::Key { key_id } => Some(file.key(key_id).cloned().ok_or_else(|| {
                     AppError::not_found(format!("The key used by {} was deleted", identity.label))
@@ -161,7 +165,10 @@ impl RoutePlan {
         }
 
         let proxy = match proxy_id {
-            Some(id) => Some(file.proxy(id).cloned().ok_or_else(|| AppError::not_found("The proxy for this route was deleted"))?),
+            Some(id) => {
+                let proxy = file.proxy(id).ok_or_else(|| AppError::not_found("The proxy for this route was deleted"))?;
+                Some(filler.fill(proxy, &proxy.secret_refs, &format!("the proxy {}", proxy.label))?)
+            }
             None => None,
         };
         Ok(Self::Saved { hops, proxy, vpn })
@@ -464,6 +471,7 @@ mod tests {
             host: "127.0.0.1".to_string(),
             port: 1080,
             user: "me".to_string(),
+            secret_refs: Default::default(),
         });
         assert_eq!(slot.id, "proxy:p1:password");
         assert_eq!(SecretOwner::Identity("i1".to_string()).secret_id(PASSWORD_SLOT), "identity:i1:password");
