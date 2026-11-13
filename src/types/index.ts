@@ -5,6 +5,7 @@ export * from "./connection";
 export * from "./db";
 export * from "./errors";
 export * from "./ssh";
+export * from "./sync";
 export * from "./vpn";
 
 declare module "solid-js" {

@@ -10,6 +10,8 @@ export type ErrorDetail =
   // Linux: polkit doesn't know Fran yet. canInstall says whether pkexec can register it.
   | { kind: "osAuthSetup", canInstall: boolean }
   | { kind: "ssh" }
+  | { kind: "syncSignedOut" }
+  | { kind: "syncCodeRequired" }
   | { kind: "database", code: number | null, sqlState: string | null }
   | { kind: "secretsRequired", slots: SecretSlot[] }
   | { kind: "unknownHostKey", key: HostKeyInfo, hop: HopPosition | null, opensshTrusted: boolean }
@@ -25,4 +27,6 @@ export type ErrorDetail =
 export type AppError = {
   message: string,
   detail: ErrorDetail,
+  // The failed connect used a secret whose value lives in a cloud.
+  linkedSecret?: boolean,
 };

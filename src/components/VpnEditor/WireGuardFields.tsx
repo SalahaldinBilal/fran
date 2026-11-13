@@ -7,9 +7,11 @@ import { VpnProfile } from "@core/types";
 import { PendingSecret } from "@core/databases/types";
 import { copyText } from "@core/helpers/clipboard";
 import { toPort } from "@core/databases/shared/fields";
+import { SecretRefsEditor } from "@core/helpers/secretRefs";
 import Button from "../Button/Button";
 import Field, { FieldRow } from "../Field/Field";
 import Input from "../Input/Input";
+import SecretInput from "../SecretInput/SecretInput";
 
 export const WIREGUARD_PORT = 51820;
 
@@ -18,6 +20,7 @@ export type WireGuardFieldsProps = {
   setDraft: SetStoreFunction<VpnProfile>,
   pending: Record<string, PendingSecret>,
   setPending: SetStoreFunction<Record<string, PendingSecret>>,
+  refs?: SecretRefsEditor,
   stored: string[],
   generate: boolean,
   setGenerate: (generate: boolean) => void,
@@ -59,7 +62,6 @@ function WireGuardFields(props: WireGuardFieldsProps) {
   const presharedStored = createMemo(() => props.stored.includes("presharedKey"));
   const presharedText = createMemo(() => (typeof props.pending.presharedKey === "string" ? props.pending.presharedKey : ""));
   const presharedPlaceholder = createMemo(() => (presharedStored() ? "Saved in the vault. Paste a new one to replace it." : "Optional"));
-  const presharedPadding = createMemo(() => (presharedStored() ? "3px" : undefined));
 
   function setRemote(change: Partial<VpnProfile["remotes"][number]>) {
     props.setDraft("remotes", [{ ...remote(), ...change, proto: "udp" }]);
@@ -87,8 +89,8 @@ function WireGuardFields(props: WireGuardFieldsProps) {
       <section class={hostStyles.Section}>
         <h3><Server size={14} />Server</h3>
         <div class={styles.Remote}>
-          <Input class={hostStyles.Grow} value={remote().host} onValue={host => setRemote({ host })} placeholder="vpn.example.com" />
-          <Input class={styles.Port} type="number" value={remote().port} onValue={value => setRemote({ port: toPort(value) })} />
+          <SecretInput path="remotes.0.host" refs={props.refs} class={hostStyles.Grow} value={remote().host} onValue={host => setRemote({ host })} placeholder="vpn.example.com" />
+          <SecretInput path="remotes.0.port" refs={props.refs} class={styles.Port} type="number" value={remote().port} onValue={value => setRemote({ port: toPort(value) })} />
         </div>
         <Field label="Server's public key">
           <Input value={props.draft.wireGuard.peerPublicKey} onValue={value => props.setDraft("wireGuard", "peerPublicKey", value)} mono />
@@ -125,7 +127,6 @@ function WireGuardFields(props: WireGuardFieldsProps) {
                     <Button size="sm" variant="danger" onClick={() => props.setPending("presharedKey", null)}>Remove</Button>
                   </Show>
                 }
-                style={{ "padding-right": presharedPadding() }}
               />
             </Show>
           </Field>
@@ -162,7 +163,6 @@ function WireGuardFields(props: WireGuardFieldsProps) {
                 value={key()}
                 readOnly
                 mono
-                style={{ "padding-right": "3px" }}
                 after={
                   <Button icon size="sm" tooltip="Copy" onClick={() => void copyText(key(), "Public key")}>
                     <Copy size={14} />

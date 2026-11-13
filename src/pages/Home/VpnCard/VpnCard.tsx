@@ -8,6 +8,8 @@ import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
 import useSettingsState from "@core/states/settingsState";
 import { vpnBackendLabel, vpnRunning, vpnServer, vpnStateLabel } from "@core/helpers/vpn";
 import { disconnectVpn, setVpnOnComputer } from "@core/helpers/vpnActions";
+import { syncMenu } from "@core/helpers/syncTargets";
+import { itemKey } from "@core/states/syncState";
 import { VpnAuth, VpnProfile } from "@core/types";
 import Button from "@core/components/Button/Button";
 import Toggle from "@core/components/Switch/Switch";
@@ -26,6 +28,7 @@ export function vpnMenuItems(profile: VpnProfile): MenuItem[] {
       ? { label: "Turn off for this computer", icon: Monitor, onSelect: () => void setVpnOnComputer(profile, false) }
       : { label: "Turn on for this computer", icon: Monitor, disabled: vpn.turningOn(profile.id), onSelect: () => void setVpnOnComputer(profile, true) },
     ...(ownRunning ? [{ label: "Disconnect", icon: Unplug, onSelect: () => void disconnectVpn(profile) }] : []),
+    ...syncMenu(itemKey("vpn", profile.id), profile.label, "vpnProfiles"),
   ];
 }
 

@@ -28,9 +28,16 @@ pub struct JsonStore<T> {
     path: PathBuf,
     data: RwLock<T>,
     load_error: Option<String>,
+    watched: bool,
 }
 
 impl<T: Serialize + DeserializeOwned + Default + Clone> JsonStore<T> {
+    /// Every save tells cloud sync that something may need pushing.
+    pub fn watched(mut self) -> Self {
+        self.watched = true;
+        self
+    }
+
     pub fn load(path: PathBuf) -> Self {
         let (data, load_error) = match fs::read(&path) {
             Ok(bytes) => match serde_json::from_slice(&bytes) {
@@ -51,6 +58,7 @@ impl<T: Serialize + DeserializeOwned + Default + Clone> JsonStore<T> {
             path,
             data: RwLock::new(data),
             load_error,
+            watched: false,
         }
     }
 
@@ -75,6 +83,10 @@ impl<T: Serialize + DeserializeOwned + Default + Clone> JsonStore<T> {
         let bytes = serde_json::to_vec_pretty(&draft)?;
         write_atomic(&self.path, &bytes)?;
         *data = draft;
+        drop(data);
+        if self.watched {
+            crate::sync::notify::changed();
+        }
         Ok(result)
     }
 }

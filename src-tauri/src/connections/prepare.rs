@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{ConnectionProfile, SecretBag, SecretSlot, resolve_secrets};
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, ErrorDetail};
 use crate::secrets::fill::{Filler, SlotSources, slot_sources};
 use crate::secrets::SecretRefs;
 use crate::ssh::SshAccess;
@@ -42,7 +42,7 @@ pub fn sources(connection: Option<(&str, &SecretRefs)>, ssh_store: &SshStore) ->
     Ok(slot_sources(connection, &ssh_store.snapshot()?, &vpn))
 }
 
-/// Slots that use a secret are pointed at it, then everything is read in one go so one prompt covers what's missing.
+/// One prompt for every missing password and secret value. Every connect path calls it after its fills, before connecting.
 pub fn resolve_slots(
     filler: &Filler,
     vault: &Vault,
@@ -56,7 +56,15 @@ pub fn resolve_slots(
     let connection_id = connection.map(|(id, _)| id).filter(|id| !id.is_empty());
     filler.redirect(&mut required, connection_id, &sources)?;
     filler.redirect(&mut optional, connection_id, &sources)?;
-    resolve_secrets(vault, connection_id, provided, &required, &optional)
+    let missing = filler.take_missing();
+    match resolve_secrets(vault, connection_id, provided, &required, &optional) {
+        Ok(_) if !missing.is_empty() => Err(AppError::secrets_required(missing)),
+        Err(AppError { detail: ErrorDetail::SecretsRequired { slots }, .. }) if !missing.is_empty() => {
+            let extra: Vec<SecretSlot> = slots.into_iter().filter(|slot| !missing.iter().any(|known| known.id == slot.id)).collect();
+            Err(AppError::secrets_required(missing.into_iter().chain(extra).collect()))
+        }
+        other => other,
+    }
 }
 
 /// One prompt covers the database password, the VPN login and every hop of the route.
@@ -67,7 +75,7 @@ pub fn prepare_connect<'a>(
     ssh_store: &SshStore,
 ) -> AppResult<Prepared<'a>> {
     let filler = Filler::new(vault, &provided)?;
-    let filled = filler.fill(profile, &profile.secret_refs, &profile.name)?;
+    let filled = filler.fill(profile, &profile.live_refs(), &profile.name)?;
     let driver = &filled.driver;
 
     let vpn_id = filled.vpn_id.as_deref().map(str::trim).filter(|id| !id.is_empty());

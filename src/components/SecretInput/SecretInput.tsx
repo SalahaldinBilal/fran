@@ -53,7 +53,6 @@ function SecretInput(props: SecretInputProps) {
                 <Button
                   icon
                   size="sm"
-                  class={styles.Pick}
                   tooltip="Use a secret"
                   onClick={event => pickSecret(event, id => own.refs?.set(own.path, id))}
                 >

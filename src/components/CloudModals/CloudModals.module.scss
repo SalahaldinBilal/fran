@@ -1,0 +1,119 @@
+.Title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -6px;
+
+  &:not(:has(button)) {
+    margin-left: 0;
+  }
+}
+
+.Kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.Kind {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-sunken);
+  cursor: pointer;
+  transition: var(--transition-colors);
+
+  &:hover {
+    border-color: var(--border-strong);
+    background-color: var(--surface-hover);
+
+    .KindArrow {
+      color: var(--text-strong);
+      transform: translateX(2px);
+    }
+  }
+
+  &:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.KindIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-lg);
+  background-color: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.KindText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    color: var(--text-strong);
+    font-weight: 550;
+  }
+
+  span {
+    color: var(--text-muted);
+    font-size: var(--font-sm);
+    line-height: 1.45;
+  }
+}
+
+.KindArrow {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: var(--transition-colors), transform var(--duration-fast) var(--ease);
+}
+
+.Recovery {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.Lead {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.Key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-sunken);
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--font-lg);
+  letter-spacing: .04em;
+  text-align: center;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.Check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-size: var(--font-sm);
+}

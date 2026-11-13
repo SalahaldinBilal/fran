@@ -82,6 +82,15 @@ impl DriverOptions {
         }
     }
 
+    /// Whether a connect reads this option, by its path inside the options. A field the chosen method skips is false.
+    pub fn uses_field(&self, path: &str) -> bool {
+        match self {
+            Self::Mysql(options) => options.uses_field(path),
+            Self::Postgres(options) => options.uses_field(path),
+            Self::Sqlite(_) | Self::D1(_) => true,
+        }
+    }
+
     /// The SSH settings whether or not the tunnel method is picked, so a saved host still in use is found.
     pub fn ssh_options(&self) -> Option<&SshOptions> {
         match self {

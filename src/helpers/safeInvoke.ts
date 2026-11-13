@@ -3,13 +3,16 @@ import {
   AgentApproval, AgentConfig, AgentHistoryEntry, AgentServerStatus, AgentSessionInfo,
   BatchOutcome, CatalogColumn, ColumnChoices, ColumnMeta, ConflictChoice, ConnectionProfile, Crumb, DatabaseInfo, DatabaseKind, DatabaseSize,
   SftpEvent,
-  DesignOptions, FileEntry, HostKeyInfo, Identity, ImportOutcome, ImportPreview, KeyAlgorithm, KeyMeta, KubeContexts, Listing, ObjectInfo,
+  DesignOptions, FileEntry, HostKeyInfo, Identity, ImportOutcome, ImportPreview, KeyAlgorithm, KeyMeta, KubeContexts, Listing, ObjectInfo, SecretRefs,
   ObjectKind, ForwardRule, ObjectStructure, PortForwardInfo, Proxy, RowChange, RuleForwardInfo, SavedQuery, SecretOwner, ServerInfo,
   SessionInfo, SftpInfo, Snippet, SqlTemplate, SshFile, SshHost, StatementOutcome, StatementRange, TableDesign, TerminalEvent,
   TerminalInfo, TerminalLogSession, TransferDirection, TransferEvent, TreeCount, VaultStatus,
   VpnCertificates, VpnFile, VpnProfile, VpnStatus, SavedSecret, RevealOptions, OpenVpnCheck, TrayItem,
   SystemBackend, VpnServiceAccess, VpnServiceStatus, OpenVpnInstallHelp,
   HistoryOrder, QueryHistory, RunningQueries, NamedSecret, SecretInfo,
+  FranServerAccount, FranServerDevice, FranServerInfo, FranServerLogin, FranServerTotp, FranServerTotpAction,
+  AdminInvite, AdminLogEntry, AdminOverview, AdminUserDetail, AdminUsersPage, CreatedInvite, ServerRole, ServerSettings, UpdateServerSettings,
+  MoveCandidate, SyncCategory, SyncTarget, SyncView, DopplerTokenInfo,
 } from "@core/types";
 
 export async function safeInvoke<T extends keyof Commands>(
@@ -35,7 +38,7 @@ type Commands = {
   "lock_app": Command<undefined, VaultStatus>,
   "list_saved_secrets": Command<undefined, SavedSecret[]>,
   "list_secrets": Command<undefined, SecretInfo[]>,
-  "save_secret": Command<{ secret: NamedSecret, value: string | null }, NamedSecret>,
+  "save_secret": Command<{ secret: NamedSecret, value: string | null, copyFrom?: { owner: SecretOwner, slot: string } }, NamedSecret>,
   "delete_secret": Command<{ id: string }>,
   "reveal_secret": Command<{ owner: SecretOwner, slot: string, options: RevealOptions }, string>,
   "copy_secret": Command<{ owner: SecretOwner, slot: string, options: RevealOptions }>,
@@ -48,6 +51,63 @@ type Commands = {
   // True when the account has no password, PIN or biometrics.
   "get_os_auth_status": Command<undefined, boolean>,
   "unlock_app": Command<{ password: string }, VaultStatus>,
+
+  "sync_get": Command<undefined, SyncView>,
+  // Null syncs every cloud.
+  "sync_now": Command<{ cloudId: string | null }>,
+  "sync_remove_cloud": Command<{ cloudId: string }>,
+  "sync_rename_cloud": Command<{ cloudId: string, name: string }>,
+  // A null target is "Don't sync" on a category, and "follow the group or category" on a group or item.
+  "sync_set_category_route": Command<{ category: SyncCategory, target: SyncTarget | null }>,
+  "sync_use_for_everything": Command<{ cloudId: string }>,
+  "sync_set_group_route": Command<{ group: string, target: SyncTarget | null }>,
+  "sync_set_item_routes": Command<{ keys: string[], target: SyncTarget | null }>,
+  "sync_move_candidates": Command<{ key: string, cloudId: string }, MoveCandidate[]>,
+  "sync_restore_replaced": Command<{ id: string }>,
+  // Null drops the whole list.
+  "sync_discard_replaced": Command<{ id: string | null }>,
+  "sync_settle_duplicates": Command<{ ids: string[] | null, merge: boolean }>,
+  "fran_server_info": Command<{ url: string }, FranServerInfo>,
+  // The recovery key comes back once, to be shown. It isn't stored anywhere.
+  "fran_server_create_account": Command<{ login: FranServerLogin, invite: string | null }, { cloudId: string, recoveryKey: string }>,
+  "fran_server_sign_in": Command<{ login: FranServerLogin, code: string | null }, string>,
+  // `login.password` is the new password.
+  "fran_server_recover": Command<{ login: FranServerLogin, recoveryKey: string }, string>,
+  "fran_server_sign_out": Command<{ cloudId: string }>,
+  "fran_server_account": Command<{ cloudId: string }, FranServerAccount>,
+  "fran_server_devices": Command<{ cloudId: string }, FranServerDevice[]>,
+  "fran_server_revoke_device": Command<{ cloudId: string, sessionId: string }>,
+  "fran_server_change_password": Command<{ cloudId: string, current: string, next: string }>,
+  "fran_server_new_recovery_key": Command<{ cloudId: string, password: string }, string>,
+  "fran_server_totp": Command<{ cloudId: string, action: FranServerTotpAction }, FranServerTotp>,
+  "fran_server_delete_account": Command<{ cloudId: string, password: string, typedEmail: string }>,
+  "fran_server_admin_claim": Command<{ cloudId: string, code: string }>,
+  "fran_server_admin_overview": Command<{ cloudId: string }, AdminOverview>,
+  "fran_server_admin_users": Command<{ cloudId: string, search: string, offset: number }, AdminUsersPage>,
+  "fran_server_admin_user": Command<{ cloudId: string, userId: string }, AdminUserDetail>,
+  // 0 puts the account back on the server's default.
+  "fran_server_admin_set_quota": Command<{ cloudId: string, userId: string, quotaBytes: number }>,
+  "fran_server_admin_set_role": Command<{ cloudId: string, userId: string, role: ServerRole }>,
+  "fran_server_admin_sign_out_user": Command<{ cloudId: string, userId: string }>,
+  // `password` is the admin's own.
+  "fran_server_admin_delete_user": Command<{ cloudId: string, userId: string, password: string }>,
+  "fran_server_admin_transfer": Command<{ cloudId: string, userId: string, password: string }>,
+  "fran_server_admin_invites": Command<{ cloudId: string }, AdminInvite[]>,
+  // The code comes back once, to be shown and copied.
+  "fran_server_admin_create_invite": Command<{ cloudId: string, email: string, expiresInDays: number }, CreatedInvite>,
+  "fran_server_admin_delete_invite": Command<{ cloudId: string, inviteId: string }>,
+  "fran_server_admin_settings": Command<{ cloudId: string }, ServerSettings>,
+  "fran_server_admin_update_settings": Command<{ cloudId: string, update: UpdateServerSettings }, ServerSettings>,
+  "fran_server_admin_log": Command<{ cloudId: string }, AdminLogEntry[]>,
+  // Pulls the clouds that hold linked secrets. True when a value changed, so a failed connect is worth one more try.
+  "sync_refresh_linked": Command<undefined, boolean>,
+  "doppler_check_token": Command<{ token: string }, DopplerTokenInfo>,
+  "doppler_configs": Command<{ token: string, project: string }, string[]>,
+  "doppler_add": Command<{ token: string, project: string, config: string, name: string }, string>,
+  "doppler_set_token": Command<{ cloudId: string, token: string }>,
+  // Names only. Values never reach the frontend.
+  "doppler_names": Command<{ cloudId: string }, string[]>,
+  "doppler_delete_secret": Command<{ cloudId: string, name: string }>,
 
   "list_connections": Command<undefined, { connections: ConnectionProfile[], groupOrder: string[] }>,
   "save_connection": Command<{ profile: ConnectionProfile }, ConnectionProfile>,
@@ -81,6 +141,7 @@ type Commands = {
   // The pasted key goes straight to the vault. Only the metadata comes back.
   "import_key_text": Command<{ text: string, label: string, passphrase: string | null }, KeyMeta>,
   "rename_key": Command<{ id: string, label: string }, KeyMeta>,
+  "set_key_secret_refs": Command<{ id: string, secretRefs: SecretRefs }, KeyMeta>,
   "export_key": Command<{ id: string, path: string, passphrase: string, options: RevealOptions }>,
   "delete_key": Command<{ id: string }>,
   "preview_ssh_config_import": Command<undefined, ImportPreview>,

@@ -141,7 +141,60 @@ jobs:
           server-url: https://niks3.kirsi.dev
 
       - name: Build
-        run: nix build --print-build-logs
+        run: nix build --print-build-logs . .#fran-sync-server
+
+  server:
+    name: Sync server image (${{ matrix.arch }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Image name and version
+        run: |
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/fran-sync-server" >> "$GITHUB_ENV"
+          echo "VERSION=$(grep -m1 '^version = ' server/Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: docker build --file server/Dockerfile --tag "$IMAGE:$VERSION-${{ matrix.arch }}" .
+
+      - name: The image starts
+        run: docker run --rm "$IMAGE:$VERSION-${{ matrix.arch }}" --version
+
+      - name: Push
+        if: github.ref_type == 'tag'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE:$VERSION-${{ matrix.arch }}"
+
+  server-image:
+    name: Sync server image (both)
+    needs: server
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: One tag for both architectures
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/fran-sync-server"
+          version=$(grep -m1 '^version = ' server/Cargo.toml | cut -d'"' -f2)
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+          docker buildx imagetools create --tag "$image:$version" --tag "$image:latest" "$image:$version-amd64" "$image:$version-arm64"
 
   stable:
     name: Move stable branch

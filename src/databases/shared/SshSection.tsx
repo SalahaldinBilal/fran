@@ -2,10 +2,10 @@ import styles from "./ConnectionForm.module.scss";
 import { Match, Show, Switch, createMemo, createSignal } from "solid-js";
 import { unwrap } from "solid-js/store";
 import { Pencil, Plus, Save, Server } from "@core/icons";
-import { IdentityAuth, SshAuthMethod, SshOptions } from "@core/types";
+import { IdentityAuth, SecretRefs, SshAuthMethod, SshOptions } from "@core/types";
+import useSecretsState from "@core/states/secretsState";
 import { SecretEditor } from "../types";
 import Field, { FieldRow, FieldSection } from "@core/components/Field/Field";
-import Input from "@core/components/Input/Input";
 import SecretInput from "@core/components/SecretInput/SecretInput";
 import { SecretRefsEditor } from "@core/helpers/secretRefs";
 import Select, { SelectItem } from "@core/components/Select/Select";
@@ -81,14 +81,33 @@ function SshSection(props: SshSectionProps) {
     return key.id;
   }
 
-  // Moves the typed SSH secrets from this connection to the new identity and key.
+  function refsFor(paths: Record<string, string>): SecretRefs {
+    const refs: SecretRefs = {};
+    for (const [from, to] of Object.entries(paths)) {
+      const secretId = props.refs?.get(from);
+      if (secretId) refs[to] = secretId;
+    }
+    return refs;
+  }
+
+  // What a field shows: what was typed, or the name of the secret that fills it.
+  function shown(text: string, secretId: string | undefined): string {
+    return text.trim() || (secretId ? useSecretsState.find(secretId)?.name ?? "" : "");
+  }
+
+  // Moves the typed SSH secrets from this connection to the new host, identity and key, named secrets included.
   async function saveAsHost() {
     const ssh = unwrap(props.ssh);
-    if (["host", "port", "user"].some(path => props.refs?.get(path))) {
-      pushError(new Error("Take the secrets off the SSH host, port and user first. A saved host picks its own."));
+    if (["keyFile", "agentSocket"].some(path => props.refs?.get(path))) {
+      pushError(new Error("A saved host needs the key file or agent socket typed in. Take the secret off it first."));
       return;
     }
-    if (!ssh.host.trim() || !ssh.user.trim()) {
+    const hostRefs = refsFor({ host: "host", port: "port" });
+    const identityRefs = refsFor({ user: "user", "slot:sshPassword": "slot:password" });
+    const keyRefs = refsFor({ "slot:sshKeyPassphrase": "slot:passphrase" });
+    const hostText = shown(ssh.host, hostRefs.host);
+    const userText = shown(ssh.user, identityRefs.user);
+    if (!hostText || !userText) {
       pushError(new Error("Enter the SSH host and user first"));
       return;
     }
@@ -107,19 +126,23 @@ function SshSection(props: SshSectionProps) {
           break;
       }
 
-      const identity = await sshState.saveIdentity({ id: "", label: `${ssh.user.trim()} (${ssh.host.trim()})`, user: ssh.user, auth });
+      if (auth.kind !== "password") delete identityRefs["slot:password"];
+      const identity = await sshState.saveIdentity({ id: "", label: `${userText} (${hostText})`, user: ssh.user, auth, secretRefs: identityRefs });
       const password = props.secrets.pending("sshPassword");
-      if (auth.kind === "password" && typeof password === "string") {
+      if (auth.kind === "password" && typeof password === "string" && !identityRefs["slot:password"]) {
         await safeInvoke("set_owner_secret", { owner: { kind: "identity", id: identity.id }, slot: "password", value: password });
       }
       const passphrase = props.secrets.pending("sshKeyPassphrase");
-      if (auth.kind === "key" && typeof passphrase === "string") {
+      if (auth.kind === "key" && keyRefs["slot:passphrase"]) {
+        await sshState.setKeySecretRefs(auth.keyId, keyRefs);
+      } else if (auth.kind === "key" && typeof passphrase === "string") {
         await safeInvoke("set_owner_secret", { owner: { kind: "key", id: auth.keyId }, slot: "passphrase", value: passphrase });
       }
 
       const host = await sshState.saveHost({
         id: "",
-        label: ssh.host.trim(),
+        secretRefs: hostRefs,
+        label: hostText,
         group: null,
         color: null,
         host: ssh.host,
@@ -135,6 +158,7 @@ function SshSection(props: SshSectionProps) {
       });
       props.secrets.setPending("sshPassword", undefined);
       props.secrets.setPending("sshKeyPassphrase", undefined);
+      for (const path of ["host", "port", "user", "slot:sshPassword", "slot:sshKeyPassphrase"]) props.refs?.set(path, null);
       props.update(options => { options.hostId = host.id; });
       pushToast(`Saved ${host.label} as an SSH host`, "success", 3000);
     } catch (error) {
@@ -237,6 +261,8 @@ function SshSection(props: SshSectionProps) {
             <Match when={props.ssh.auth === "publicKey"}>
               <Field label="Private key file">
                 <FilePathInput
+                  path="keyFile"
+                  refs={props.refs}
                   value={props.ssh.keyFile}
                   onValue={value => props.update(ssh => { ssh.keyFile = value; })}
                   placeholder="~/.ssh/id_ed25519"
@@ -249,7 +275,9 @@ function SshSection(props: SshSectionProps) {
             </Match>
             <Match when={props.ssh.auth === "agent"}>
               <Field label="Agent socket" hint={AGENT_SOCKET_HINT}>
-                <Input
+                <SecretInput
+                  path="agentSocket"
+                  refs={props.refs}
                   value={props.ssh.agentSocket}
                   onValue={value => props.update(ssh => { ssh.agentSocket = value; })}
                   placeholder={AGENT_SOCKET_PLACEHOLDER}

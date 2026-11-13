@@ -99,6 +99,8 @@ export type AppSettings = {
   keepInTray: boolean,
   // The one-time notice that Fran is still running after the window closed.
   trayNoticeShown: boolean,
+  // The identity of the cloud new secrets start in. Empty is this computer.
+  newSecretsStoredIn: string,
 };
 
 // Database connections and SSH hosts, newest first.
@@ -157,6 +159,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   compactVpns: false,
   keepInTray: true,
   trayNoticeShown: false,
+  newSecretsStoredIn: "",
 };
 
 function oneOf<T>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -249,6 +252,7 @@ function fromStored(stored: unknown): AppSettings {
     compactVpns: typeof values.compactVpns === "boolean" ? values.compactVpns : DEFAULT_SETTINGS.compactVpns,
     keepInTray: typeof values.keepInTray === "boolean" ? values.keepInTray : DEFAULT_SETTINGS.keepInTray,
     trayNoticeShown: typeof values.trayNoticeShown === "boolean" ? values.trayNoticeShown : DEFAULT_SETTINGS.trayNoticeShown,
+    newSecretsStoredIn: typeof values.newSecretsStoredIn === "string" ? values.newSecretsStoredIn : DEFAULT_SETTINGS.newSecretsStoredIn,
   };
 }
 

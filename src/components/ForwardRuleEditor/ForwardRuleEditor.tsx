@@ -17,6 +17,8 @@ import Select, { SelectItem } from "../Select/Select";
 import SegmentedControl from "../SegmentedControl/SegmentedControl";
 import Switch from "../Switch/Switch";
 import Note from "../Note/Note";
+import SyncField from "../SyncTarget/SyncField";
+import { itemKey } from "@core/states/syncState";
 
 const NOTES: Record<ForwardKind, string> = {
   local: "Connections to the port on this computer go through the host to the destination.",
@@ -53,6 +55,7 @@ function ForwardRuleEditor() {
   const title = createMemo(() => (editing() ? `Edit ${editing()?.label}` : "New port forward"));
   const saveLabel = createMemo(() => (saving() ? "Saving" : editing() ? "Save" : "Add forward"));
   const running = createMemo(() => (editing() ? rules.status(editing()!.id) !== undefined : false));
+  const syncKey = createMemo(() => (draft.id ? itemKey("forward", draft.id) : null));
   const hostItems = createMemo<SelectItem<string>[]>(() => ssh.file.hosts.map(host => ({ value: host.id, label: `${host.label} (${host.host})` })));
   const hostHint = createMemo(() => (hostItems().length === 0 ? "Add an SSH host first." : undefined));
   const remoteShared = createMemo(() => draft.kind === "remote" && !["localhost", "127.0.0.1", "::1"].includes(draft.remoteBind.trim()));
@@ -190,6 +193,7 @@ function ForwardRuleEditor() {
         <Show when={remoteShared()}>
           <Note tone="warning">Other machines that reach the server can use this port, if the server's GatewayPorts setting allows it.</Note>
         </Show>
+        <SyncField itemKey={syncKey()} label={draft.label} category="forwards" />
       </div>
     </Modal>
   );

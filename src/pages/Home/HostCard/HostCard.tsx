@@ -9,6 +9,8 @@ import useForwardRulesState from "@core/states/forwardRulesState";
 import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
 import useSettingsState from "@core/states/settingsState";
 import { featureOn } from "@core/helpers/features";
+import { groupSyncMenu, syncMenu } from "@core/helpers/syncTargets";
+import { groupKey, itemKey } from "@core/states/syncState";
 import { SshHost } from "@core/types";
 import Button from "@core/components/Button/Button";
 import { tooltip } from "@core/components/Tooltip/Tooltip";
@@ -30,6 +32,8 @@ export function hostMenuItems(host: SshHost): MenuItem[] {
       : []),
     { label: "Edit", icon: Pencil, onSelect: () => useHostEditorState.open(host) },
     { label: "New port forward", icon: ArrowLeftRight, onSelect: () => useForwardRulesState.openEditor(null, host.id) },
+    ...syncMenu(itemKey("sshHost", host.id), host.label, "sshHosts"),
+    ...(host.group ? groupSyncMenu(groupKey("sshHost", host.group), "sshHosts") : []),
   ];
 }
 

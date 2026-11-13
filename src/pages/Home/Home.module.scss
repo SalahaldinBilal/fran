@@ -35,6 +35,8 @@
 }
 
 .Kbd {
+  // The input drops its right padding for anything at its end, which suits buttons but not this hint.
+  margin-right: 5px;
   padding: 1px 5px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);

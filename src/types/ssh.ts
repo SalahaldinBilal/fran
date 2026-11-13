@@ -16,9 +16,13 @@ export type NamedSecret = {
   id: string,
   name: string,
   note: string,
+  // Set when the value lives in a cloud under its own name there. `cloud` is the cloud's identity, not its id.
+  link?: SecretLink | null,
 };
 
-export type SecretUserKind = "connection" | "sshHost" | "identity" | "proxy" | "vpn";
+export type SecretLink = { cloud: string, name: string };
+
+export type SecretUserKind = "connection" | "sshHost" | "identity" | "proxy" | "key" | "vpn";
 
 export type SecretUse = {
   kind: SecretUserKind,
@@ -186,6 +190,8 @@ export type KeyMeta = {
   fingerprint: string,
   storage: KeyStorage,
   created: number,
+  // Only `slot:passphrase`, for a key kept as a file.
+  secretRefs?: SecretRefs,
 };
 
 export type KeyAlgorithm = "ed25519" | "ecdsaP256" | "rsa4096";

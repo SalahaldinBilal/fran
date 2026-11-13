@@ -1,7 +1,7 @@
 import styles from "./Onboarding.module.scss";
 import { For, Match, Show, Switch, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { createStore } from "solid-js/store";
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Database, FileX, LucideIcon, Shield, ShieldCheck, SquareTerminal } from "@core/icons";
+import { ArrowLeft, ArrowRight, Check, CircleAlert, Cloud, CloudCheck, Database, FileX, LucideIcon, Shield, ShieldCheck, SquareTerminal } from "@core/icons";
 import useSettingsState, { Features } from "@core/states/settingsState";
 import useToastState from "@core/states/toastState";
 import { createSshImport } from "@core/helpers/sshImport";
@@ -12,12 +12,13 @@ import useConnectionsState from "@core/states/connectionsState";
 import useOnboardingState from "@core/states/onboardingState";
 import useVaultState from "@core/states/vaultState";
 import useModalState from "@core/states/modalState";
+import useSyncState from "@core/states/syncState";
 import { IS_MAC, IS_WINDOWS } from "@core/helpers/platform";
 import Button from "@core/components/Button/Button";
 import Spinner from "@core/components/Spinner/Spinner";
 import VpnSystemSetup from "@core/components/VpnSystemSetup/VpnSystemSetup";
 
-type Step = "pick" | "vpn" | "import" | "secrets";
+type Step = "pick" | "vpn" | "import" | "sync" | "secrets";
 
 type Choice = {
   feature: keyof Features,
@@ -68,6 +69,7 @@ function Onboarding() {
     "pick",
     ...(picks.vpn ? ["vpn" as const] : []),
     ...(picks.ssh ? ["import" as const] : []),
+    "sync",
     "secrets",
   ]);
   const stepIndex = createMemo(() => steps().indexOf(step()));
@@ -78,6 +80,8 @@ function Onboarding() {
     if (names.length === 0) return null;
     return names.length === 1 ? `${names[0]} is` : `${names.join(" and ")} are`;
   });
+
+  const clouds = createMemo(() => useSyncState.view.clouds.map(cloud => cloud.name).join(", "));
 
   onMount(() => onCleanup(useModalState.track()));
 
@@ -246,6 +250,51 @@ function Onboarding() {
               <Button variant="ghost" onClick={next}>Skip</Button>
               <Button variant="primary" disabled={importing() || importer.picked().size === 0} onClick={runImport}>
                 {importLabel()}
+                <ArrowRight size={14} />
+              </Button>
+            </div>
+          </Match>
+
+          <Match when={step() === "sync"}>
+            <div>
+              <h1 class={styles.Title}>The same setup on every computer</h1>
+              <p class={styles.Lead}>
+                Sync keeps your connections, SSH hosts, VPNs, snippets and settings in a cloud you choose, and brings them to your other
+                computers. Everything is encrypted here first, so the server can't read it. Passwords and keys only sync if you turn them on.
+              </p>
+            </div>
+
+            <Show
+              when={clouds()}
+              fallback={
+                <div class={styles.Note}>
+                  <Cloud size={15} />
+                  <span class={styles.NoteText}>Already syncing on another computer? Sign in to bring everything here.</span>
+                  <Button variant="subtle" size="sm" onClick={() => useSyncState.openAdd()}>Add a cloud</Button>
+                </div>
+              }
+            >
+              {names => (
+                <div class={`${styles.Note} ${styles.Ok}`}>
+                  <CloudCheck size={15} />
+                  <span>Syncing with {names()}. Pick what goes where on the Sync page.</span>
+                </div>
+              )}
+            </Show>
+
+            <p class={styles.Hint}>Skipping changes nothing. You can add a cloud later from the cloud button in the title bar.</p>
+
+            <div class={styles.Footer}>
+              <Button variant="ghost" onClick={back}>
+                <ArrowLeft size={14} />
+                Back
+              </Button>
+              <div class={styles.Spacer} />
+              <Show when={!clouds()}>
+                <Button variant="ghost" onClick={next}>Skip</Button>
+              </Show>
+              <Button variant="primary" onClick={next}>
+                Continue
                 <ArrowRight size={14} />
               </Button>
             </div>

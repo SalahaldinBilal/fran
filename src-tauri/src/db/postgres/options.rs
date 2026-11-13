@@ -106,4 +106,18 @@ impl PostgresOptions {
             _ => None,
         }
     }
+
+    /// Whether the chosen method reads this option, by its path here (`ssh.host`, `socketPath`). The port also names a socket file.
+    pub fn uses_field(&self, path: &str) -> bool {
+        use PostgresConnectMethod::{Kubernetes, Socket, SshTunnel};
+        let (head, rest) = path.split_once('.').map_or((path, ""), |(head, rest)| (head, rest));
+        match head {
+            "ssh" => self.method == SshTunnel && self.ssh.uses_field(rest),
+            "kube" => self.method == Kubernetes,
+            "socketPath" => self.method == Socket,
+            "host" => !matches!(self.method, Socket | Kubernetes),
+            "ssl" => self.method != Socket && self.ssl.mode != PostgresSslMode::Disable,
+            _ => true,
+        }
+    }
 }

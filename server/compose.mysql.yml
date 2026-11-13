@@ -1,0 +1,44 @@
+# Fran sync server with MySQL.
+#
+#   printf 'SERVER_KEY=%s\nMYSQL_PASSWORD=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 16)" > .env
+#   docker compose -f compose.mysql.yml up -d
+#
+# Keep .env. The key has to stay the same for as long as the database lives.
+#
+# It listens on 127.0.0.1:8787 for a reverse proxy on this host that does https.
+
+services:
+  fran-sync:
+    image: ghcr.io/salahaldinbilal/fran-sync-server:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SERVER_KEY: ${SERVER_KEY:?Set SERVER_KEY in .env}
+      # The password goes into a URL, so keep it to letters and digits.
+      DATABASE_URL: mysql://fran:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}@db:3306/fran_sync
+      SIGNUP: closed
+      # Counts sign-in attempts per address from X-Forwarded-For. Only right behind a proxy that sets it.
+      TRUST_PROXY: "true"
+    ports:
+      - "127.0.0.1:8787:8787"
+
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: fran_sync
+      MYSQL_USER: fran
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - fran-sync-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping --host 127.0.0.1 --user fran --password=$$MYSQL_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  fran-sync-mysql:

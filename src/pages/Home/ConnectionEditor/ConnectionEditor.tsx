@@ -22,6 +22,8 @@ import useSshState from "@core/states/sshState";
 import useVpnState from "@core/states/vpnState";
 import useVpnEditorState from "@core/states/vpnEditorState";
 import SuggestInput from "@core/components/SuggestInput/SuggestInput";
+import SyncField from "@core/components/SyncTarget/SyncField";
+import { itemKey } from "@core/states/syncState";
 import Spinner from "@core/components/Spinner/Spinner";
 import ColorSwatches from "@core/components/ColorSwatches/ColorSwatches";
 import { tooltip } from "@core/components/Tooltip/Tooltip";
@@ -66,6 +68,7 @@ function ConnectionEditor(props: ConnectionEditorProps) {
   const [testResult, setTestResult] = createSignal<TestResult | null>(null);
 
   const isNew = createMemo(() => !draft.id);
+  const syncKey = createMemo(() => (draft.id ? itemKey("connection", draft.id) : null));
   const target = createMemo(() => describeConnection(draft));
   const suggestedName = createMemo(() => withDatabaseModule(draft, (module, options) => module.suggestName(options)));
   const vpnLeg = createMemo(() => withDatabaseModule(draft, (module, options) => module.vpnLeg(options)));
@@ -74,12 +77,6 @@ function ConnectionEditor(props: ConnectionEditorProps) {
     ...useVpnState.file.profiles.map(profile => ({ value: profile.id, label: profile.label })),
     { value: IMPORT_VPN, label: "Import a VPN…" },
   ]);
-  const vpnHint = createMemo(() => {
-    if (!draft.vpnId) return undefined;
-    return vpnLeg()?.kind === "ssh"
-      ? "Fran opens its own tunnel to reach the SSH server. Nothing else on this computer uses it."
-      : "Fran opens its own tunnel to reach the database. Nothing else on this computer uses it.";
-  });
   const hostVpnText = createMemo(() => {
     const leg = vpnLeg();
     if (leg?.kind !== "savedHost") return "";
@@ -380,18 +377,21 @@ function ConnectionEditor(props: ConnectionEditorProps) {
           <module.ConnectionForm options={options} update={updateOptions} secrets={secretEditor} refs={optionRefs} onConnectionString={pastedIntoHost} />
         ))}
 
-        <Switch>
-          <Match when={vpnLeg()?.kind === "savedHost"}>
-            <Field label="Through VPN">
-              <span class={styles.ParseHint}>{hostVpnText()}</span>
-            </Field>
-          </Match>
-          <Match when={vpnLeg()}>
-            <Field label="Through VPN" hint={vpnHint()}>
-              <Select value={draft.vpnId} items={vpnItems()} onChange={pickVpn} />
-            </Field>
-          </Match>
-        </Switch>
+        <FieldRow>
+          <Switch>
+            <Match when={vpnLeg()?.kind === "savedHost"}>
+              <Field label="Through VPN" grow>
+                <span class={styles.ParseHint}>{hostVpnText()}</span>
+              </Field>
+            </Match>
+            <Match when={vpnLeg()}>
+              <Field label="Through VPN" grow>
+                <Select value={draft.vpnId} items={vpnItems()} onChange={pickVpn} />
+              </Field>
+            </Match>
+          </Switch>
+          <SyncField itemKey={syncKey()} label={draft.name} category="connections" />
+        </FieldRow>
       </div>
     </Modal>
   );

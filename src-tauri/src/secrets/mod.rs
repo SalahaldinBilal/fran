@@ -27,6 +27,17 @@ pub struct NamedSecret {
     pub id: String,
     pub name: String,
     pub note: String,
+    /// Set when the value lives in a cloud under a name of its own, instead of only on this computer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<SecretLink>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretLink {
+    /// The cloud's identity, the same on every computer.
+    pub cloud: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,14 +1,18 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "@core/icons";
-import Input from "../Input/Input";
+import SecretInput from "../SecretInput/SecretInput";
 import Button from "../Button/Button";
 import useToastState from "@core/states/toastState";
+import { SecretRefsEditor } from "@core/helpers/secretRefs";
 
 export type FilePathInputProps = {
   value: string,
   onValue: (value: string) => void,
   placeholder?: string,
   dialogTitle?: string,
+  // The field's path in the saved item, for items that can take it from a secret.
+  path?: string,
+  refs?: SecretRefsEditor,
 };
 
 function FilePathInput(props: FilePathInputProps) {
@@ -24,12 +28,13 @@ function FilePathInput(props: FilePathInputProps) {
   }
 
   return (
-    <Input
+    <SecretInput
+      path={props.path ?? ""}
+      refs={props.path ? props.refs : undefined}
       value={props.value}
       onValue={props.onValue}
       placeholder={props.placeholder}
       mono
-      style={{ "padding-right": "3px" }}
       after={
         <Button icon size="sm" tooltip="Browse" onClick={browse}>
           <FolderOpen size={14} />

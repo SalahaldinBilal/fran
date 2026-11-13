@@ -2,6 +2,7 @@ import { safeInvoke } from "./safeInvoke";
 import { isAppError } from "./errors";
 import usePromptState from "@core/states/promptState";
 import useSshState from "@core/states/sshState";
+import useSecretsState from "@core/states/secretsState";
 import { SecretSlot } from "@core/types";
 
 export type ConnectTarget = {
@@ -12,6 +13,8 @@ export type ConnectTarget = {
 async function saveSecret(target: ConnectTarget, slot: SecretSlot, value: string) {
   if (slot.store) {
     await safeInvoke("set_owner_secret", { owner: slot.store.owner, slot: slot.store.slot, value });
+    // The Secrets view shows whether each secret has a value.
+    if (slot.store.owner.kind === "secret") void useSecretsState.load().catch(() => undefined);
   } else if (target.connectionId) {
     await safeInvoke("set_connection_secret", { connectionId: target.connectionId, slot: slot.id, value });
   }
@@ -25,6 +28,7 @@ export async function withConnectPrompts<T>(
 ): Promise<T | null> {
   const { askForSecrets, askToTrustHostKey, askToReplaceHostKey } = usePromptState;
   const secrets = { ...initialSecrets };
+  let refreshed = false;
 
   for (;;) {
     try {
@@ -63,6 +67,12 @@ export async function withConnectPrompts<T>(
         await safeInvoke("replace_host_key", { key: detail.key, typedHost });
         void useSshState.loadKnownHosts().catch(() => undefined);
         continue;
+      }
+
+      // A password rotated in a cloud that holds linked secrets: fetch them once and try again if one changed.
+      if (!refreshed && error.linkedSecret) {
+        refreshed = true;
+        if (await safeInvoke("sync_refresh_linked").catch(() => false)) continue;
       }
 
       throw error;

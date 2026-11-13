@@ -21,6 +21,8 @@ import { SecretRefsEditor } from "@core/helpers/secretRefs";
 import Select, { SelectItem } from "@core/components/Select/Select";
 import SegmentedControl from "@core/components/SegmentedControl/SegmentedControl";
 import SuggestInput from "@core/components/SuggestInput/SuggestInput";
+import SyncField from "@core/components/SyncTarget/SyncField";
+import { itemKey } from "@core/states/syncState";
 import ColorSwatches from "@core/components/ColorSwatches/ColorSwatches";
 import RoutePreview from "@core/components/RoutePreview/RoutePreview";
 import Toggle from "@core/components/Switch/Switch";
@@ -93,6 +95,7 @@ function HostEditor() {
   };
 
   const isNew = createMemo(() => !draft.id);
+  const syncKey = createMemo(() => (draft.id ? itemKey("sshHost", draft.id) : null));
   const title = createMemo(() => (isNew() ? "New SSH host": `Edit ${editor.request()?.host?.label ?? ""}`));
   const saveLabel = createMemo(() => (saving() ? "Saving" : isNew() ? "Add host" : "Save"));
   const customLogin = createMemo(() => (draft.identityId ?? CUSTOM_LOGIN) === CUSTOM_LOGIN);
@@ -276,6 +279,7 @@ function HostEditor() {
         <Field label="Color">
           <ColorSwatches value={draft.color} onChange={color => setDraft("color", color)} />
         </Field>
+        <SyncField itemKey={syncKey()} label={draft.label} category="sshHosts" />
 
         <section class={styles.Section}>
           <h3><User size={14} />Login</h3>

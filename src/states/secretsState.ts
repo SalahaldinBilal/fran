@@ -1,10 +1,13 @@
 import { createRoot, createSignal } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import { safeInvoke } from "@core/helpers/safeInvoke";
-import { NamedSecret, SecretInfo } from "@core/types";
+import { NamedSecret, SecretInfo, SecretOwner } from "@core/types";
+
+// A saved password a new secret takes its value from. Rust copies it, the value never comes here.
+export type CopyFrom = { owner: SecretOwner, slot: string };
 
 // `onSaved` lets a field that opened the editor for a new secret start using it.
-type SecretEditorRequest = { secret: SecretInfo | null, onSaved?: (secret: NamedSecret) => void };
+type SecretEditorRequest = { secret: SecretInfo | null, onSaved?: (secret: NamedSecret) => void, copyFrom?: CopyFrom };
 
 // Named secrets, without their values. Those only leave the vault through the Show and Copy checks.
 function useSecretsStateInner() {
@@ -12,6 +15,8 @@ function useSecretsStateInner() {
   const [loaded, setLoaded] = createSignal(false);
   const [loadError, setLoadError] = createSignal<unknown>(null);
   const [editorRequest, setEditorRequest] = createSignal<SecretEditorRequest | null>(null);
+  // The identity of the cloud whose names are being linked.
+  const [linkRequest, setLinkRequest] = createSignal<string | null>(null);
 
   async function load() {
     try {
@@ -28,8 +33,8 @@ function useSecretsStateInner() {
     return id ? secrets.find(secret => secret.id === id) : undefined;
   }
 
-  async function save(next: NamedSecret, value: string | null): Promise<NamedSecret> {
-    const saved = await safeInvoke("save_secret", { secret: next, value });
+  async function save(next: NamedSecret, value: string | null, copyFrom?: CopyFrom): Promise<NamedSecret> {
+    const saved = await safeInvoke("save_secret", { secret: next, value: copyFrom ? null : value, copyFrom });
     await load();
     return saved;
   }
@@ -48,8 +53,11 @@ function useSecretsStateInner() {
     save,
     remove,
     editorRequest,
-    openEditor: (secret: SecretInfo | null, onSaved?: (secret: NamedSecret) => void) => setEditorRequest({ secret, onSaved }),
+    openEditor: (secret: SecretInfo | null, onSaved?: (secret: NamedSecret) => void, copyFrom?: CopyFrom) => setEditorRequest({ secret, onSaved, copyFrom }),
     closeEditor: () => setEditorRequest(null),
+    linkRequest,
+    openLink: (identity: string) => setLinkRequest(identity),
+    closeLink: () => setLinkRequest(null),
   };
 }
 

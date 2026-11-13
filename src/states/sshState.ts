@@ -2,7 +2,7 @@ import { createRoot, createSignal } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { shownField } from "@core/helpers/secretRefs";
-import { ForwardRule, HostKeyInfo, Identity, KeyMeta, Proxy, SshFile, SshHost } from "@core/types";
+import { ForwardRule, HostKeyInfo, Identity, KeyMeta, Proxy, SecretRefs, SshFile, SshHost } from "@core/types";
 
 const EMPTY: SshFile = { version: 1, hosts: [], identities: [], keys: [], proxies: [], forwards: [], groupOrder: [] };
 
@@ -142,6 +142,10 @@ function useSshStateInner() {
     addKey(await safeInvoke("rename_key", { id, label }));
   }
 
+  async function setKeySecretRefs(id: string, secretRefs: SecretRefs) {
+    addKey(await safeInvoke("set_key_secret_refs", { id, secretRefs }));
+  }
+
   async function deleteKey(id: string) {
     await safeInvoke("delete_key", { id });
     setFile("keys", items => items.filter(item => item.id !== id));
@@ -192,6 +196,7 @@ function useSshStateInner() {
     deleteProxy,
     addKey,
     renameKey,
+    setKeySecretRefs,
     deleteKey,
     forward,
     saveForward,

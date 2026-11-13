@@ -1,0 +1,67 @@
+// Shaped like a Select, so it lines up with the controls next to it.
+.Line {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: var(--control-height);
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-raised);
+  box-shadow: var(--highlight), var(--shadow-control);
+  cursor: pointer;
+  transition: var(--transition-colors);
+
+  &:hover {
+    border-color: var(--control-border-hover);
+    background-color: var(--surface-active);
+  }
+
+  &:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.Icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-faint);
+
+  &.On {
+    color: var(--accent-strong);
+  }
+}
+
+.Text {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+
+  strong {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: var(--font-md);
+    font-weight: 400;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+  }
+}
+
+.Why {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  line-height: 1;
+}
+
+.Arrow {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}

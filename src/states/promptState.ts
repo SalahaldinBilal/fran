@@ -35,7 +35,8 @@ export type ConfirmOptions = {
   danger?: boolean,
 };
 
-type ConfirmRequest = ConfirmOptions & { resolve: (confirmed: boolean) => void };
+// `option` is the label of a switch in the confirm, off until the user turns it on.
+type ConfirmRequest = ConfirmOptions & { option?: string, resolve: (confirmed: boolean, option: boolean) => void };
 
 export type TextPromptOptions = {
   title: string,
@@ -72,6 +73,19 @@ function usePromptStateInner() {
         resolve: confirmed => {
           setConfirmRequest(null);
           resolve(confirmed);
+        },
+      });
+    });
+  }
+
+  // Null when cancelled, else whether the switch was on.
+  function confirmWithOption(options: ConfirmOptions & { option: string }): Promise<{ option: boolean } | null> {
+    return new Promise(resolve => {
+      setConfirmRequest({
+        ...options,
+        resolve: (confirmed, option) => {
+          setConfirmRequest(null);
+          resolve(confirmed ? { option } : null);
         },
       });
     });
@@ -127,6 +141,7 @@ function usePromptStateInner() {
     askToTrustHostKey,
     askToReplaceHostKey,
     confirm,
+    confirmWithOption,
     askForText,
   };
 }

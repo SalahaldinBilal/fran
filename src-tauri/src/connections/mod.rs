@@ -39,8 +39,17 @@ pub struct ConnectionProfile {
     pub driver: DriverOptions,
 }
 
+impl ConnectionProfile {
+    /// The refs a connect reads. One left on a field the method skips, like the SSH host after switching to TCP, is left out.
+    pub fn live_refs(&self) -> SecretRefs {
+        let live = |key: &str| key.strip_prefix("options.").is_none_or(|path| self.driver.uses_field(path));
+        self.secret_refs.iter().filter(|(key, _)| live(key)).map(|(key, secret)| (key.clone(), secret.clone())).collect()
+    }
+}
+
 pub const SECRET_RULES: RefRules = RefRules {
-    field: |path| path.starts_with("options."),
+    // A program path from a cloud would let that cloud pick what Fran runs.
+    field: |path| path.starts_with("options.") && !path.ends_with(".kubectlPath"),
     slot: |slot| SecretOwner::Connection(String::new()).accepts(slot),
 };
 
@@ -241,4 +250,44 @@ pub fn resolve_secrets(
     }
 
     Ok(SecretBag { values })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mysql(method: &str, ssh: serde_json::Value) -> ConnectionProfile {
+        serde_json::from_value(serde_json::json!({
+            "id": "c1",
+            "name": "Prod",
+            "kind": "mysql",
+            "options": { "method": method, "ssh": ssh, "ssl": { "mode": "disabled" } },
+            "secretRefs": {
+                "options.host": "s-host",
+                "options.ssh.host": "s-ssh",
+                "options.ssh.keyFile": "s-key",
+                "options.ssl.caFile": "s-ca",
+                "slot:password": "s-pass",
+            },
+        }))
+        .unwrap()
+    }
+
+    fn live(profile: &ConnectionProfile) -> Vec<String> {
+        profile.live_refs().into_keys().collect()
+    }
+
+    #[test]
+    fn a_secret_left_on_a_field_the_method_skips_is_not_read_on_connect() {
+        // Switched from an SSH tunnel to TCP, with the tunnel's secrets still on the item.
+        let tcp = mysql("tcp", serde_json::json!({ "auth": "publicKey" }));
+        assert_eq!(live(&tcp), ["options.host", "slot:password"]);
+
+        let tunnel = mysql("sshTunnel", serde_json::json!({ "auth": "publicKey" }));
+        assert_eq!(live(&tunnel), ["options.host", "options.ssh.host", "options.ssh.keyFile", "slot:password"]);
+
+        // A saved host brings its own login, so nothing typed for the inline one is read.
+        let saved = mysql("sshTunnel", serde_json::json!({ "hostId": "h1", "auth": "password" }));
+        assert_eq!(live(&saved), ["options.host", "slot:password"]);
+    }
 }

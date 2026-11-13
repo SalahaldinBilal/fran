@@ -54,7 +54,6 @@ function Input(props: InputProps) {
     <div
       class={`${styles.Input} ${props.class ?? ""}`}
       classList={{
-        [styles.Clearing]: canClear(),
         [styles.Focused]: focused(),
         [styles.Disabled]: props.disabled ?? false,
         [styles.Mono]: props.mono ?? false,

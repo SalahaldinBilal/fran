@@ -17,6 +17,8 @@ import Switch from "@core/components/Switch/Switch";
 import SegmentedControl from "@core/components/SegmentedControl/SegmentedControl";
 import SecretField from "@core/components/SecretField/SecretField";
 import EmptyState from "@core/components/EmptyState/EmptyState";
+import SyncField from "@core/components/SyncTarget/SyncField";
+import { itemKey } from "@core/states/syncState";
 
 const COLUMNS = "minmax(180px, 1.4fr) 110px minmax(140px, 1.4fr) minmax(100px, 1fr) 70px";
 
@@ -52,6 +54,8 @@ function ProxyModal(props: { proxy: Proxy | null, show: boolean, onClose: () => 
   const title = createMemo(() => (props.proxy ? `Edit ${props.proxy.label}` : "New proxy"));
   const saveLabel = createMemo(() => (props.proxy ? "Save" : "Add proxy"));
   const namePlaceholder = createMemo(() => host() || "office proxy");
+  const syncKey = createMemo(() => (props.proxy ? itemKey("proxy", props.proxy.id) : null));
+  const syncLabel = createMemo(() => label() || props.proxy?.label || "");
 
   async function save() {
     setBusy(true);
@@ -124,6 +128,7 @@ function ProxyModal(props: { proxy: Proxy | null, show: boolean, onClose: () => 
         <Show when={kind() === "httpConnect" && login()}>
           <p class={styles.FormNote}>The proxy only sees the encrypted SSH stream, but its own login is sent in the clear unless the proxy runs on this computer.</p>
         </Show>
+        <SyncField itemKey={syncKey()} label={syncLabel()} category="proxies" />
       </div>
     </Modal>
   );

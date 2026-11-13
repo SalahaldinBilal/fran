@@ -1,6 +1,9 @@
 use std::{
-    collections::HashMap,
-    sync::Mutex,
+    collections::{HashMap, HashSet},
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use serde::{Serialize, de::DeserializeOwned};
@@ -131,18 +134,27 @@ pub fn slot_sources(connection: Option<(&str, &SecretRefs)>, ssh: &SshFile, vpn:
     for proxy in &ssh.proxies {
         add_sources(&mut sources, SecretOwner::Proxy(proxy.id.clone()), &proxy.secret_refs);
     }
+    for key in &ssh.keys {
+        add_sources(&mut sources, SecretOwner::Key(key.id.clone()), &key.secret_refs);
+    }
     for profile in &vpn.profiles {
         add_sources(&mut sources, SecretOwner::Vpn(profile.id.clone()), &profile.secret_refs);
     }
     sources
 }
 
+/// Reads a vault id.
+type Lookup<'a> = Box<dyn Fn(&str) -> Option<Zeroizing<String>> + Send + Sync + 'a>;
+
 /// Fills fields from secrets for one connect. The filled items stay in Rust.
 pub struct Filler<'a> {
-    stored: Box<dyn Fn(&str) -> Option<Zeroizing<String>> + Send + Sync + 'a>,
+    stored: Lookup<'a>,
     names: HashMap<String, String>,
+    linked: HashSet<String>,
     typed: HashMap<String, Zeroizing<String>>,
     used: Mutex<Vec<(Zeroizing<String>, String)>>,
+    used_linked: AtomicBool,
+    missing: Mutex<Vec<SecretSlot>>,
 }
 
 impl<'a> Filler<'a> {
@@ -161,12 +173,29 @@ impl<'a> Filler<'a> {
         Self {
             stored: Box::new(stored),
             names: secrets.secrets.iter().map(|secret| (secret.id.clone(), secret.name.clone())).collect(),
+            linked: secrets.secrets.iter().filter(|secret| secret.link.is_some()).map(|secret| secret.id.clone()).collect(),
             typed: provided
                 .iter()
                 .filter(|(slot, _)| slot.starts_with("secret:"))
                 .map(|(slot, value)| (slot.clone(), Zeroizing::new(value.clone())))
                 .collect(),
             used: Mutex::new(Vec::new()),
+            used_linked: AtomicBool::new(false),
+            missing: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// The secrets fills found without a value, all at once, so one prompt asks for them with the passwords.
+    pub fn take_missing(&self) -> Vec<SecretSlot> {
+        let mut missing = self.missing.lock().map(|mut missing| std::mem::take(&mut *missing)).unwrap_or_default();
+        let mut seen = HashSet::new();
+        missing.retain(|slot| seen.insert(slot.id.clone()));
+        missing
+    }
+
+    fn note_use(&self, secret: &str) {
+        if self.linked.contains(secret) {
+            self.used_linked.store(true, Ordering::Relaxed);
         }
     }
 
@@ -184,23 +213,24 @@ impl<'a> Filler<'a> {
             .ok_or_else(|| self.slot(id, name))
     }
 
-    /// A copy of `item` with every field in `refs` taken from its secret. Secrets without a value come back
-    /// as `secretsRequired`, all of them at once.
+    /// A copy of `item` with its fields taken from secrets. One without a value is left as saved and noted for `take_missing`.
     pub fn fill<T: Serialize + DeserializeOwned + Clone>(&self, item: &T, refs: &SecretRefs, what: &str) -> AppResult<T> {
         if field_paths(refs).next().is_none() {
             return Ok(item.clone());
         }
         let mut json = serde_json::to_value(item)?;
-        let mut missing = Vec::new();
         for (path, secret) in field_paths(refs) {
             let name = self.names.get(secret).ok_or_else(|| super::deleted(what))?;
             let Some(target) = leaf_mut(&mut json, path) else {
                 continue;
             };
+            self.note_use(secret);
             let value = match self.value(secret, name) {
                 Ok(value) => value,
                 Err(slot) => {
-                    missing.push(slot);
+                    if let Ok(mut missing) = self.missing.lock() {
+                        missing.push(slot);
+                    }
                     continue;
                 }
             };
@@ -221,11 +251,6 @@ impl<'a> Filler<'a> {
                 used.push((value, name.clone()));
             }
         }
-        if !missing.is_empty() {
-            let mut seen = std::collections::HashSet::new();
-            missing.retain(|slot| seen.insert(slot.id.clone()));
-            return Err(AppError::secrets_required(missing));
-        }
         serde_json::from_value(json).map_err(|error| AppError::general(format!("A secret doesn't fit a field of {what}: {error}")))
     }
 
@@ -240,6 +265,7 @@ impl<'a> Filler<'a> {
                 continue;
             };
             let name = self.names.get(secret).ok_or_else(|| super::deleted(&slot.label))?;
+            self.note_use(secret);
             slot.label = format!("{} (secret {name})", slot.label);
             slot.store = Some(SecretRef { owner: owner(secret), slot: VALUE_SLOT.to_string() });
         }
@@ -251,6 +277,7 @@ impl<'a> Filler<'a> {
         if matches!(error.detail, ErrorDetail::SecretsRequired { .. }) {
             return error;
         }
+        error.linked_secret |= self.used_linked.load(Ordering::Relaxed);
         if let Ok(used) = self.used.lock() {
             for (value, name) in used.iter().filter(|(value, _)| value.len() >= SCRUB_MIN_LEN) {
                 error.message = error.message.replace(value.as_str(), &format!("[secret {name}]"));
@@ -269,8 +296,8 @@ mod tests {
     fn secrets() -> SecretsFile {
         SecretsFile {
             secrets: vec![
-                NamedSecret { id: "s1".to_string(), name: "PROD_HOST".to_string(), note: String::new() },
-                NamedSecret { id: "s2".to_string(), name: "PROD_PORT".to_string(), note: String::new() },
+                NamedSecret { id: "s1".to_string(), name: "PROD_HOST".to_string(), ..NamedSecret::default() },
+                NamedSecret { id: "s2".to_string(), name: "PROD_PORT".to_string(), ..NamedSecret::default() },
             ],
             ..Default::default()
         }
@@ -323,15 +350,34 @@ mod tests {
     }
 
     #[test]
-    fn secrets_without_a_value_are_asked_for_together() {
+    fn secrets_without_a_value_are_asked_for_together_with_the_passwords() {
         let filler = filler(&secrets(), &HashMap::new());
         let proxy = proxy();
-        let error = filler.fill(&proxy, &proxy.secret_refs, "the proxy office").unwrap_err();
+        let filled = filler.fill(&proxy, &proxy.secret_refs, "the proxy office").unwrap();
+        assert_eq!(filled.host, "", "nothing may be made up for a value that isn't there");
+
+        // What resolve_slots does with them: one prompt for the secrets and the proxy's password.
+        let mut ssh = SshFile::default();
+        ssh.proxies.push(proxy.clone());
+        let store_dir = std::env::temp_dir().join(format!("fran-fill-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&store_dir).unwrap();
+        let store = crate::ssh_store::SshStore::load(store_dir.join("ssh.json"));
+        store.update(|file| {
+            *file = ssh.clone();
+            Ok(())
+        }).unwrap();
+        let vault = Vault::for_tests(store_dir.join("secrets.vault"));
+        let slot = crate::ssh::route::proxy_password_slot(&proxy);
+        let resolved = crate::connections::prepare::resolve_slots(&filler, &vault, None, &store, HashMap::new(), vec![slot], Vec::new());
+        let _ = std::fs::remove_dir_all(&store_dir);
+        let Err(error) = resolved else {
+            panic!("a missing value has to stop the connect");
+        };
         let ErrorDetail::SecretsRequired { slots } = error.detail else {
             panic!("{}", error.message);
         };
         let ids: Vec<&str> = slots.iter().map(|slot| slot.id.as_str()).collect();
-        assert_eq!(ids, ["secret:s1:value", "secret:s2:value"]);
+        assert_eq!(ids, ["secret:s1:value", "secret:s2:value", "proxy:p1:password"]);
         assert_eq!(slots[0].label, "Secret PROD_HOST");
     }
 
@@ -399,5 +445,62 @@ mod tests {
         let stored: Vec<Option<String>> = slots.iter().map(|slot| slot.store.as_ref().map(|store| store.owner.secret_id(&store.slot))).collect();
         assert_eq!(stored, [Some("secret:s2:value".to_string()), None, Some("secret:s1:value".to_string())]);
         assert_eq!(slots[0].id, "password");
+    }
+
+    #[test]
+    fn a_key_files_passphrase_reads_from_its_secret_and_only_the_passphrase_can_use_one() {
+        let filler = filler(&secrets(), &HashMap::new());
+        let key: crate::ssh_store::KeyMeta = serde_json::from_value(serde_json::json!({
+            "id": "k1",
+            "label": "deploy",
+            "algorithm": "Ed25519",
+            "publicKey": "",
+            "fingerprint": "",
+            "storage": { "kind": "file", "path": "~/.ssh/id_ed25519" },
+            "created": 0,
+            "secretRefs": { "slot:passphrase": "s1" },
+        }))
+        .unwrap();
+        let mut ssh = SshFile::default();
+        ssh.keys.push(key.clone());
+        let sources = slot_sources(None, &ssh, &VpnFile::default());
+
+        let mut slots = vec![crate::ssh::route::key_passphrase_slot(&key)];
+        filler.redirect(&mut slots, None, &sources).unwrap();
+        let stored = slots[0].store.as_ref().map(|store| store.owner.secret_id(&store.slot));
+        assert_eq!(stored.as_deref(), Some("secret:s1:value"));
+
+        let rules = crate::ssh_store::KEY_SECRET_RULES;
+        assert!(check_refs(&key, &refs(&[("slot:passphrase", "s1")]), &rules, &secrets()).is_ok());
+        for bad in ["slot:private", "label", "storage.path"] {
+            assert!(check_refs(&key, &refs(&[(bad, "s1")]), &rules, &secrets()).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn only_a_connect_that_used_a_cloud_secret_is_worth_fetching_again() {
+        let mut linked = secrets();
+        linked.secrets.push(NamedSecret {
+            id: "s3".to_string(),
+            name: "DB_PASSWORD".to_string(),
+            link: Some(crate::secrets::SecretLink { cloud: "doppler:app:prd".to_string(), name: "DB_PASSWORD".to_string() }),
+            ..NamedSecret::default()
+        });
+        let provided = typed(&[("s1", "db.internal.example"), ("s2", "9050")]);
+        let refused = || AppError::general("password authentication failed");
+
+        let filler = filler(&linked, &provided);
+        let proxy = proxy();
+        filler.fill(&proxy, &proxy.secret_refs, "the proxy office").unwrap();
+        assert!(!filler.scrub(refused()).linked_secret);
+
+        let mut ssh = SshFile::default();
+        let mut with_slot = proxy.clone();
+        with_slot.secret_refs = refs(&[("slot:password", "s3")]);
+        ssh.proxies.push(with_slot.clone());
+        let sources = slot_sources(None, &ssh, &VpnFile::default());
+        let mut slots = vec![crate::ssh::route::proxy_password_slot(&with_slot)];
+        filler.redirect(&mut slots, None, &sources).unwrap();
+        assert!(filler.scrub(refused()).linked_secret);
     }
 }

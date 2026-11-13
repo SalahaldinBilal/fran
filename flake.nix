@@ -109,6 +109,28 @@
           }
         );
 
+        # Outside the Cargo workspace, with its own lockfile.
+        fran-sync-server = pkgs.rustPlatform.buildRustPackage {
+          pname = "fran-sync-server";
+          version = (lib.importTOML ./server/Cargo.toml).package.version;
+          src = lib.fileset.toSource {
+            root = ./.;
+            fileset = lib.fileset.unions [
+              (lib.fileset.difference ./server (lib.fileset.maybeMissing ./server/target))
+              ./crates/sync-proto
+            ];
+          };
+          sourceRoot = "source/server";
+          cargoLock.lockFile = ./server/Cargo.lock;
+          doCheck = false;
+          meta = {
+            description = "Fran's sync server, storing end-to-end encrypted records";
+            license = lib.licenses.gpl3Plus;
+            mainProgram = "fran-sync-server";
+            platforms = lib.platforms.linux;
+          };
+        };
+
         desktopItem = pkgs.makeDesktopItem {
           name = "fran";
           desktopName = "Fran";
@@ -119,6 +141,7 @@
         };
       in {
         packages.default = fran;
+        packages.fran-sync-server = fran-sync-server;
 
         devShells.default = craneLib.devShell {
           inputsFrom = [fran];
@@ -192,6 +215,72 @@
             };
           })
         ];
+      };
+
+      nixosModules.fran-sync = {
+        config,
+        lib,
+        pkgs,
+        ...
+      }: let
+        cfg = config.services.fran-sync;
+      in {
+        options.services.fran-sync = {
+          enable = lib.mkEnableOption "Fran's sync server";
+          package = lib.mkOption {
+            type = lib.types.package;
+            default = self.packages.${pkgs.stdenv.hostPlatform.system}.fran-sync-server;
+            description = "The fran-sync-server package to run.";
+          };
+          environment = lib.mkOption {
+            type = lib.types.attrsOf lib.types.str;
+            default = {};
+            example = {
+              BIND = "127.0.0.1:8787";
+              SIGNUP = "closed";
+            };
+            description = ''
+              The server's settings, as environment variables. server/README.md lists them. Without DATABASE_URL
+              the database is /var/lib/fran-sync/fran-sync.db. SERVER_KEY doesn't belong here, since this ends
+              up in the Nix store.
+            '';
+          };
+          environmentFile = lib.mkOption {
+            type = lib.types.nullOr lib.types.path;
+            default = null;
+            description = "A file outside the Nix store with SERVER_KEY=<64 hex characters>, from `openssl rand -hex 32`.";
+          };
+        };
+        config = lib.mkIf cfg.enable {
+          environment.systemPackages = [cfg.package];
+          users.groups.fran-sync = {};
+          users.users.fran-sync = {
+            isSystemUser = true;
+            group = "fran-sync";
+          };
+          systemd.services.fran-sync = {
+            description = "Fran sync server";
+            after = ["network.target"];
+            wantedBy = ["multi-user.target"];
+            environment = cfg.environment;
+            serviceConfig = {
+              ExecStart = lib.getExe cfg.package;
+              EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
+              User = "fran-sync";
+              Group = "fran-sync";
+              StateDirectory = "fran-sync";
+              StateDirectoryMode = "0700";
+              WorkingDirectory = "/var/lib/fran-sync";
+              Restart = "on-failure";
+              # The server stops on Ctrl+C.
+              KillSignal = "SIGINT";
+              NoNewPrivileges = true;
+              PrivateTmp = true;
+              ProtectHome = true;
+              ProtectSystem = "strict";
+            };
+          };
+        };
       };
     };
 }

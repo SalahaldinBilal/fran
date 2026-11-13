@@ -90,6 +90,16 @@ impl SshOptions {
         self.host_id.is_some()
     }
 
+    /// Whether a connect reads this field, like `keyFile` only with key login. A saved host reads none of them.
+    pub fn uses_field(&self, path: &str) -> bool {
+        match path {
+            _ if self.uses_saved_host() => false,
+            "keyFile" => self.auth == SshAuthMethod::PublicKey,
+            "agentSocket" => self.auth == SshAuthMethod::Agent,
+            _ => true,
+        }
+    }
+
     /// A saved host's secrets belong to its identity, key and proxy, so the connection asks for none.
     pub fn required_secrets(&self) -> Vec<SecretSlot> {
         match self.auth {

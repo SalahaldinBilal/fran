@@ -212,6 +212,11 @@
   font-size: var(--font-sm);
 }
 
+.NoteText {
+  flex: 1;
+  min-width: 0;
+}
+
 .Footer {
   display: flex;
   align-items: center;

@@ -99,7 +99,19 @@ impl Vault {
         let key = lock::unwrap(&file, password)?;
         let secrets = self.read_secrets(&key)?;
         *self.lock_state()? = Some(Unlocked { key, secrets });
+        // Sync couldn't read passwords or its own keys while locked.
+        crate::sync::notify::changed();
         Ok(())
+    }
+
+    /// A vault with its own random key that never touches the OS keychain.
+    #[cfg(test)]
+    pub fn for_tests(path: PathBuf) -> Self {
+        let vault = Self::new(path);
+        let mut key = Zeroizing::new(vec![0u8; KEY_LEN]);
+        getrandom::fill(&mut key).unwrap();
+        *vault.state.lock().unwrap() = Some(Unlocked { key, secrets: Secrets { version: 1, entries: BTreeMap::new() } });
+        vault
     }
 
     /// Forgets the key and every secret held in memory. Only with the app lock on, otherwise it would just reopen.
@@ -281,7 +293,7 @@ impl Vault {
 
     fn modify(&self, change: impl FnOnce(&mut Secrets)) -> AppResult<()> {
         let path = self.path.clone();
-        self.with_unlocked(|unlocked| {
+        let changed = self.with_unlocked(|unlocked| {
             let backup = unlocked.secrets.entries.clone();
             change(&mut unlocked.secrets);
 
@@ -298,7 +310,11 @@ impl Vault {
                 }
             }
             result
-        })
+        });
+        if changed.is_ok() {
+            crate::sync::notify::changed();
+        }
+        changed
     }
 
     fn unlock(&self) -> AppResult<Unlocked> {

@@ -4,9 +4,10 @@ use serde::Serialize;
 use tauri::State;
 
 use super::{
-    HOST_SECRET_RULES, IDENTITY_SECRET_RULES, Identity, IdentityAuth, KeyMeta, KeyStorage, PROXY_SECRET_RULES, Proxy, SshFile, SshHost,
-    SshStore, now_millis,
+    HOST_SECRET_RULES, IDENTITY_SECRET_RULES, Identity, IdentityAuth, KEY_SECRET_RULES, KeyMeta, KeyStorage, PROXY_SECRET_RULES, Proxy,
+    SshFile, SshHost, SshStore, now_millis,
 };
+use crate::secrets::SecretRefs;
 use crate::secrets::fill::{blanked, check_refs};
 use crate::connections::{ConnectionStore, PASSWORD_SLOT, PRIVATE_KEY_SLOT, SecretOwner};
 use crate::error::{AppError, AppResult};
@@ -301,6 +302,7 @@ fn key_meta(label: String, public: &russh::keys::PublicKey, storage: KeyStorage)
         fingerprint: info.fingerprint,
         storage,
         created: now_millis(),
+        secret_refs: SecretRefs::new(),
     })
 }
 
@@ -432,6 +434,22 @@ pub async fn rename_key(store: State<'_, Arc<SshStore>>, id: String, label: Stri
     store.update(move |file| {
         let key = file.keys.iter_mut().find(|key| key.id == id).ok_or_else(|| AppError::not_found("That key was deleted"))?;
         key.label = label;
+        Ok(key.clone())
+    })
+}
+
+/// Which secret a key file's passphrase comes from, if any. Keys in the vault have no passphrase to fill.
+#[tauri::command]
+pub async fn set_key_secret_refs(store: State<'_, Arc<SshStore>>, id: String, secret_refs: SecretRefs) -> AppResult<KeyMeta> {
+    let file = store.snapshot()?;
+    let key = file.key(&id).ok_or_else(|| AppError::not_found("That key was deleted"))?;
+    if !secret_refs.is_empty() && key.storage == KeyStorage::Vault {
+        return Err(AppError::general("A key in the vault has no passphrase"));
+    }
+    check_refs(key, &secret_refs, &KEY_SECRET_RULES, &crate::secrets::snapshot()?)?;
+    store.update(move |file| {
+        let key = file.keys.iter_mut().find(|key| key.id == id).ok_or_else(|| AppError::not_found("That key was deleted"))?;
+        key.secret_refs = secret_refs;
         Ok(key.clone())
     })
 }

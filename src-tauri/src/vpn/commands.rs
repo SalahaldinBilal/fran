@@ -17,11 +17,11 @@ use crate::secrets::fill::Filler;
 use crate::ssh_store::SshStore;
 use crate::vault::Vault;
 
-fn planned(vault: &Vault, ssh_store: &SshStore, profile_id: &str, secrets: HashMap<String, String>) -> AppResult<(VpnPlan, SecretBag)> {
+fn planned<'a>(vault: &'a Vault, ssh_store: &SshStore, profile_id: &str, secrets: HashMap<String, String>) -> AppResult<(VpnPlan, SecretBag, Filler<'a>)> {
     let filler = Filler::new(vault, &secrets)?;
     let plan = VpnPlan::for_profile(profile_id, &filler)?;
     let bag = resolve_slots(&filler, vault, None, ssh_store, secrets, plan.login_slots(), Vec::new())?;
-    Ok((plan, bag))
+    Ok((plan, bag, filler))
 }
 
 #[tauri::command]
@@ -54,14 +54,18 @@ pub async fn turn_on_vpn_system(
     program: Option<String>,
     with: SystemBackend,
 ) -> AppResult<()> {
-    let (plan, bag) = planned(&vault, &ssh_store, &profile_id, secrets)?;
+    let (plan, bag, filler) = planned(&vault, &ssh_store, &profile_id, secrets)?;
     let leg = plan.resolve(&bag);
     let use_service = leg.is_wireguard() || (with == SystemBackend::Fran && !leg.needs_installed());
     if use_service && !setup::usable_service().await? {
         return Err(AppError::general(format!("Set up Fran's VPN service in Settings > VPN to turn VPN {} on for this computer", leg.label)));
     }
-    let start = if use_service { ComputerStart::Fran(leg.service_start()?) } else { ComputerStart::Installed(leg.system_start(program)?) };
-    manager.turn_on_system(&profile_id, start).await
+    let start = if use_service { leg.service_start().map(ComputerStart::Fran) } else { leg.system_start(program).map(ComputerStart::Installed) };
+    match start {
+        Ok(start) => manager.turn_on_system(&profile_id, start).await,
+        Err(error) => Err(error),
+    }
+    .map_err(|error| filler.scrub(error))
 }
 
 #[tauri::command]
@@ -116,8 +120,8 @@ pub async fn open_vpn_tunnel(
     profile_id: String,
     secrets: HashMap<String, String>,
 ) -> AppResult<()> {
-    let (plan, bag) = planned(&vault, &ssh_store, &profile_id, secrets)?;
-    manager.open_own(&plan.resolve(&bag)).await
+    let (plan, bag, filler) = planned(&vault, &ssh_store, &profile_id, secrets)?;
+    manager.open_own(&plan.resolve(&bag)).await.map_err(|error| filler.scrub(error))
 }
 
 #[tauri::command]

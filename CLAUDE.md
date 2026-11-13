@@ -8,11 +8,12 @@ Fran (formerly Fran DB) is a desktop database, SSH and VPN client built with Tau
 
 Details live next to the code, in CLAUDE.md files that load when you work in that folder:
 
-- `src-tauri/CLAUDE.md`: Rust tests, transports, secrets, vault and app lock, app data files
+- `src-tauri/CLAUDE.md`: Rust tests, transports, secrets, vault and app lock, cloud sync, app data files
 - `src-tauri/src/db/CLAUDE.md`: drivers, sessions and contexts, generated SQL and DDL
 - `src-tauri/src/ssh/CLAUDE.md`: SSH logins, host keys, routes, terminals, forwards, SFTP
 - `src-tauri/src/agent/CLAUDE.md`: the MCP server for agents
 - `src/CLAUDE.md`: frontend state, UI rules, Home, settings, editor, row editing
+- `server/CLAUDE.md`: the sync server, its database rules and tests
 - `.github/CLAUDE.md`: the release pipeline
 
 ## Commands
@@ -21,6 +22,7 @@ Details live next to the code, in CLAUDE.md files that load when you work in tha
 - `npm run dev` runs the frontend alone (Tauri APIs unavailable)
 - `npm run tauri build` makes a release bundle
 - The repo is a Cargo workspace: `src-tauri` (the app), `crates/vpn-proto` (frames shared with the VPN worker) and `crates/vpn-worker` (the `fran-vpn` sidecar, the only crate that builds OpenVPN 3). `target/` and `Cargo.lock` are at the root.
+- `crates/sync-proto` (API types shared with the sync server) is in the workspace too. `server/` (the sync server) is not: it has its own `Cargo.lock` and `target/`, so its cargo commands run from `server/`.
 - `cargo check` / `cargo test` compile or test the Rust side, `cargo build -p vpn-worker` builds the sidecar into the same `target/` folder, where the app finds it in dev. The e2e tests are in `src-tauri/CLAUDE.md`.
 
 No frontend tests or linters are configured.
@@ -29,7 +31,8 @@ No frontend tests or linters are configured.
 
 - User-facing changes go under `## [Unreleased]` in `CHANGELOG.md` (Keep a Changelog, `### Added` / `### Changed` / `### Fixed` with `- ` bullets). Those notes are shown in the app's update panel.
 - Never branch on database kind in generic code. Rust goes through `DatabaseSession` and the `match` arms in `db/mod.rs`, the frontend through `withDatabaseModule`.
-- Secrets go from the frontend to Rust and never back. The one exception is `vault/reveal.rs`: `reveal_secret` returns a password after the OS confirms the user, and `reveal_all_secrets` returns all of them while the Passwords page is unlocked (5 minutes after one confirm). Private keys and TLS keys never come back, they're only exported to a file after the same check.
+- Secrets go from the frontend to Rust and never back. The one exception is `vault/reveal.rs`: `reveal_secret` returns a password after the OS confirms the user, and `reveal_all_secrets` returns all of them while the Passwords page is unlocked (5 minutes after one confirm). Private keys and TLS keys never come back, they're only exported to a file after the same check. A sync account's recovery key is returned once, by `fran_server_create_account` and `fran_server_new_recovery_key`, to be shown, and is never stored.
+- Never branch on cloud kind in generic code. Rust goes through the `Provider` trait and `sync::providers::opener`, the frontend through `withCloudModule` (`src/clouds/`).
 - Every backend call goes through `safeInvoke`. A new or changed `#[tauri::command]` is registered in `lib.rs` and in the `Commands` map in `src/helpers/safeInvoke.ts`.
 - The desktop app never creates or alters schema in any datastore on its own. Schema changes only happen as SQL the user reviews and runs. This doesn't apply to the sync server, which runs its own migrations.
 

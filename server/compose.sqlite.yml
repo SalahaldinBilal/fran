@@ -1,0 +1,25 @@
+# Fran sync server with SQLite. One container, the database is a file in the volume.
+#
+#   echo "SERVER_KEY=$(openssl rand -hex 32)" > .env
+#   docker compose -f compose.sqlite.yml up -d
+#
+# Keep .env. The key has to stay the same for as long as the database lives.
+#
+# It listens on 127.0.0.1:8787 for a reverse proxy on this host that does https.
+
+services:
+  fran-sync:
+    image: ghcr.io/salahaldinbilal/fran-sync-server:latest
+    restart: unless-stopped
+    environment:
+      SERVER_KEY: ${SERVER_KEY:?Set SERVER_KEY in .env}
+      SIGNUP: closed
+      # Counts sign-in attempts per address from X-Forwarded-For. Only right behind a proxy that sets it.
+      TRUST_PROXY: "true"
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - fran-sync-data:/data
+
+volumes:
+  fran-sync-data:

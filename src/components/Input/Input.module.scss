@@ -61,8 +61,9 @@
     font-size: var(--font-sm);
   }
 
-  &.Clearing {
-    padding-right: 5px;
+  // Whatever comes after the text goes right to the edge, only the text itself keeps the padding.
+  &:not(:has(> input:last-child)) {
+    padding-right: 0;
   }
 }
 

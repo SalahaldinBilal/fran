@@ -10,6 +10,9 @@ use crate::ssh::{HopPosition, HostKeyInfo};
 pub struct AppError {
     pub message: String,
     pub detail: ErrorDetail,
+    /// The failed connect used a secret whose value lives in a cloud, so fetching it again may help.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub linked_secret: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -28,6 +31,10 @@ pub enum ErrorDetail {
     #[serde(rename_all = "camelCase")]
     OsAuthSetup { can_install: bool },
     Ssh,
+    /// A cloud no longer accepts this computer's session.
+    SyncSignedOut,
+    /// The cloud account has two-step sign-in on and wants a code.
+    SyncCodeRequired,
     #[serde(rename_all = "camelCase")]
     Database {
         code: Option<u16>,
@@ -58,6 +65,7 @@ impl AppError {
         Self {
             message: message.into(),
             detail,
+            linked_secret: false,
         }
     }
 

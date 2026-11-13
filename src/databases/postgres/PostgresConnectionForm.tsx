@@ -82,6 +82,7 @@ function PostgresConnectionForm(props: ConnectionFormProps<PostgresOptions>) {
               <KubeSection
                 kube={props.options.kube}
                 description="kubectl port-forward opens first, then Postgres is reached through it."
+                refs={scopedRefs(props.refs, "kube.")}
                 update={mutate => props.update(options => mutate(options.kube))}
               />
             </Show>
@@ -180,6 +181,7 @@ function PostgresConnectionForm(props: ConnectionFormProps<PostgresOptions>) {
             <SslFileFields
               files={props.options.ssl}
               caHint="PEM file. Leave empty to trust the system's root certificates."
+              refs={scopedRefs(props.refs, "ssl.")}
               update={mutate => props.update(options => mutate(options.ssl))}
             />
           </div>

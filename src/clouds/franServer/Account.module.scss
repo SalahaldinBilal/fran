@@ -1,0 +1,329 @@
+.Account {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.Summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.Avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--surface-active);
+  color: var(--text-strong);
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+
+.SummaryText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-weight: 550;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.SummaryLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
+.Mono {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.InsecureTag {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background-color: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--font-xs);
+  font-weight: 550;
+}
+
+.Usage {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  width: 160px;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}
+
+.Meter {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--surface-active);
+}
+
+.MeterFill {
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--accent);
+}
+
+.SignedOut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background-color: var(--danger-soft);
+  color: var(--text);
+  font-size: var(--font-sm);
+}
+
+.Section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.SectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.SectionNote {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.Group {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface);
+}
+
+.Row + .Row,
+.Device + .Device {
+  border-top: 1px solid var(--border);
+}
+
+.RowHead,
+.Device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 12px 10px 14px;
+}
+
+.RowIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  background-color: var(--surface-active);
+  color: var(--text-muted);
+}
+
+.RowText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.RowTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-strong);
+  font-weight: 550;
+}
+
+.RowDetail {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  line-height: 1.45;
+}
+
+.Badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background-color: var(--surface-active);
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  font-weight: 500;
+
+  &.On {
+    background-color: color-mix(in srgb, var(--success) 16%, transparent);
+    color: var(--success);
+  }
+}
+
+.DangerRow {
+  .RowIcon {
+    background-color: var(--danger-soft);
+    color: var(--danger);
+  }
+}
+
+.Loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  color: var(--text-faint);
+}
+
+.Form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 12px 12px 56px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-sunken);
+}
+
+.Lead {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+}
+
+.Pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.Rules {
+  display: flex;
+  gap: 16px;
+  margin: -4px 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    color: var(--text-faint);
+    font-size: var(--font-xs);
+    transition: var(--transition-colors);
+
+    &::before {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      margin-right: 6px;
+      border-radius: 50%;
+      background-color: currentColor;
+      vertical-align: 1px;
+    }
+  }
+
+  .Met {
+    color: var(--success);
+  }
+}
+
+.TwoStep {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.TwoStepText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.Step {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}
+
+.Secret {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface);
+
+  span {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-strong);
+    font-family: var(--font-mono);
+    font-size: var(--font-xs);
+    letter-spacing: .04em;
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+}
+
+.Problem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background-color: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--font-sm);
+
+  svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+}
+
+.Actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}

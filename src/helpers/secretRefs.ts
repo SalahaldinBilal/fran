@@ -2,7 +2,7 @@ import { createStore, produce, reconcile, unwrap } from "solid-js/store";
 import { KeyRound, Plus } from "@core/icons";
 import { SecretRefs } from "@core/types";
 import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
-import useSecretsState from "@core/states/secretsState";
+import useSecretsState, { CopyFrom } from "@core/states/secretsState";
 
 export const SLOT_PREFIX = "slot:";
 
@@ -71,8 +71,8 @@ export function withSecretNames<T extends { secretRefs?: SecretRefs }>(item: T):
   return copy;
 }
 
-// A menu of the named secrets under the button that was clicked, with a way to make a new one.
-export function pickSecret(event: MouseEvent, onPick: (secretId: string) => void) {
+// The named secrets, with a way to make a new one. With `copyFrom`, the saved password can also become a new secret.
+export function secretMenuItems(onPick: (secretId: string) => void, copyFrom?: CopyFrom): MenuItem[] {
   const secrets = useSecretsState;
   const items: MenuItem[] = secrets.secrets.map(secret => ({
     label: secret.name,
@@ -80,6 +80,14 @@ export function pickSecret(event: MouseEvent, onPick: (secretId: string) => void
     onSelect: () => onPick(secret.id),
   }));
   if (items.length > 0) items.push({ separator: true });
+  if (copyFrom) {
+    items.push({ label: "Make the saved password a secret…", icon: Plus, onSelect: () => secrets.openEditor(null, saved => onPick(saved.id), copyFrom) });
+  }
   items.push({ label: "New secret…", icon: Plus, onSelect: () => secrets.openEditor(null, saved => onPick(saved.id)) });
-  useContextMenuState.openContextMenu(event, items);
+  return items;
+}
+
+// That menu, under the button that was clicked.
+export function pickSecret(event: MouseEvent, onPick: (secretId: string) => void, copyFrom?: CopyFrom) {
+  useContextMenuState.openContextMenu(event, secretMenuItems(onPick, copyFrom));
 }

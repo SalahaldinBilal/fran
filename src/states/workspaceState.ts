@@ -14,12 +14,14 @@ export const HOME_TAB_ID = "home";
 export const AGENTS_TAB_ID = "agents";
 export const SETTINGS_TAB_ID = "settings";
 export const SECRETS_TAB_ID = "secrets";
+export const SYNC_TAB_ID = "sync";
 
 export type GlobalTab =
   | { id: typeof HOME_TAB_ID, kind: "home" }
   | { id: typeof AGENTS_TAB_ID, kind: "agents" }
   | { id: typeof SETTINGS_TAB_ID, kind: "settings" }
   | { id: typeof SECRETS_TAB_ID, kind: "secrets" }
+  | { id: typeof SYNC_TAB_ID, kind: "sync" }
   | { id: string, kind: "session", sessionId: string }
   | { id: string, kind: "terminal" }
   | { id: string, kind: "sftp" };
@@ -435,6 +437,13 @@ function useWorkspaceStateInner() {
     }));
   }
 
+  function openSync() {
+    setStore(produce(state => {
+      if (!state.globalTabs.some(tab => tab.kind === "sync")) state.globalTabs.push({ id: SYNC_TAB_ID, kind: "sync" });
+      state.activeGlobalTabId = SYNC_TAB_ID;
+    }));
+  }
+
   function removeGlobalTab(id: string) {
     setStore(produce(state => {
       const index = state.globalTabs.findIndex(tab => tab.id === id);
@@ -757,6 +766,7 @@ function useWorkspaceStateInner() {
     openAgents,
     openSettings,
     openSecrets,
+    openSync,
     addGlobalTab,
     closeGlobalTab,
     rememberRecent,

@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Secrets: values with a name that any field can use. Add them on the Secrets page, then press the key button in a field to fill it from one, like a host, a port, a user or a database name. The field only saves the secret's name, and the value is read from the vault when you connect, so changing a secret changes it for everything that uses it. They work in database connections (inline SSH included), SSH hosts, identities, proxies, and a VPN's servers and user name.
 - A password field can use a secret too, so several connections can share one password. The link button in the field picks one.
 - A secret that has no value on this computer is asked for when you connect, and can be saved from that prompt.
+- Secrets also work in file paths, SSL files, Kubernetes fields, WireGuard endpoints and SSH key passphrases.
+- New: Sync. Keep your connections, SSH hosts, VPNs, snippets, saved queries, secrets and settings the same on every computer, end-to-end encrypted, with one cloud or several.
+- New: Doppler support. Keep secrets in Doppler, and a password rotated there is picked up on the next connect.
+- New: host your own sync server with Docker or NixOS, and manage its accounts, invites and limits from Fran.
 
 ## [0.2.0] - 2026-11-10
 

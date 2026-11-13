@@ -88,6 +88,16 @@ nix.settings = {
 - Connections and SSH hosts that use a VPN get their own tunnel inside Fran, with no admin rights, and nothing else on the computer uses it
 - A VPN can also be turned on for the whole computer through Fran's VPN service, set up once with admin rights
 
+**Secrets**
+- Named values any field can use, like a host, a user or a password, so one change updates every connection that uses it
+- Values can live in Doppler, and a password rotated there is picked up on the next connect
+
+**Sync**
+- Keeps connections, SSH hosts, VPNs, snippets, saved queries, secrets and settings the same on every computer
+- End-to-end encrypted, so the server only stores data it can't read. Passwords and keys only sync if you turn them on
+- One cloud or several, like a personal one and a work one, with a choice per kind of item, per group or per item
+- The sync server can be self-hosted with Docker or on NixOS, see [server/README.md](server/README.md)
+
 ## Your data
 
 Everything is stored in the app data folder:
@@ -96,7 +106,7 @@ Everything is stored in the app data folder:
 - macOS: `~/Library/Application Support/com.fran.app`
 - Linux: `~/.local/share/com.fran.app`
 
-Connection profiles, SSH hosts, VPN profiles, saved queries, open tabs and settings are JSON files there. Passwords and keys only go in `secrets.vault`, which can't be read without the key in the OS keychain.
+Connection profiles, SSH hosts, VPN profiles, saved queries, secret names, sync state, open tabs and settings are JSON files there. Passwords, keys and secret values only go in `secrets.vault`, which can't be read without the key in the OS keychain.
 
 Fran used to be called Fran DB, which kept its data in `com.frandb.app`. On its first start Fran copies that folder and the vault key, and leaves Fran DB's own copy alone.
 
@@ -123,6 +133,8 @@ cargo test --features e2e --test e2e    # end-to-end tests against real database
 ```
 
 The end-to-end tests start MySQL and PostgreSQL in Docker, run every test against each, and remove the containers afterwards. Add a filter to run part of them, like `-- postgres_17`.
+
+The sync server isn't part of the Cargo workspace, so its tests run from `server/` with `cargo test`. Build it there first and the app's sync tests use it too. Without it they print "skipped".
 
 On Windows without Docker Desktop, Docker can run inside WSL instead. Have dockerd also listen on `tcp://127.0.0.1:2375` and set `DOCKER_HOST=tcp://127.0.0.1:2375`. The tests start the WSL distro if it isn't running. To use a database you already have instead of a container, set `FRAN_E2E_<SERVER_ID>=host:port:user:password`, for example `FRAN_E2E_POSTGRES_17`.
 

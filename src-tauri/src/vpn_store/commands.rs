@@ -351,6 +351,14 @@ pub async fn export_vpn_profile(
         return Err(AppError::general("Choose where to save the profile"));
     }
     confirm_user(&window, &vault, &format!("export the VPN {} with its keys", profile.label), &options).await?;
+    // The file has to work elsewhere, so fields kept in secrets are written with their values, like the keys.
+    let filler = crate::secrets::fill::Filler::new(&vault, &std::collections::HashMap::new())?;
+    let profile = filler.fill(&profile, &profile.secret_refs, &format!("VPN {}", profile.label))?;
+    let missing = filler.take_missing();
+    if !missing.is_empty() {
+        let names: Vec<&str> = missing.iter().map(|slot| slot.label.as_str()).collect();
+        return Err(AppError::general(format!("No value on this computer for: {}", names.join(", "))));
+    }
     let owner = owner(&id);
     let key = vault.get(&owner.secret_id(PRIVATE_KEY_SLOT))?;
     if profile.is_wireguard() {

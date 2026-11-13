@@ -621,7 +621,7 @@ pub async fn explain_missing_function(conn: &dyn SqliteConnection, error: AppErr
              function, so make the change there.",
             users.join(", ")
         ),
-        detail: error.detail,
+        ..error
     }
 }
 

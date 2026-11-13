@@ -1,0 +1,513 @@
+.Page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background-color: var(--bg);
+}
+
+.Wrap {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 26px 28px 48px;
+}
+
+.Head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 22px;
+
+  h1 {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: var(--font-xl);
+    font-weight: 600;
+    letter-spacing: -.01em;
+  }
+}
+
+.HeadText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+
+  .Status {
+    font-size: var(--font-sm);
+  }
+}
+
+.Section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 22px;
+
+  h3 {
+    margin: 0;
+    color: var(--text-faint);
+    font-size: var(--font-xs);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+}
+
+.Clouds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.Cloud {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-sunken);
+
+  &.CloudFailed {
+    border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  }
+}
+
+.CloudHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.CloudIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-lg);
+  background-color: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.CloudText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.CloudNameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 22px;
+}
+
+.Rename {
+  all: unset;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: var(--transition-colors), opacity var(--duration-fast) var(--ease);
+
+  &:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-strong);
+  }
+
+  &:focus-visible {
+    opacity: 1;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.Cloud:hover .Rename {
+  opacity: 1;
+}
+
+.NameInput {
+  box-sizing: border-box;
+  width: min(280px, 100%);
+  height: 22px;
+  margin: 0 0 0 -6px;
+  padding: 0 6px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background-color: var(--surface);
+  box-shadow: var(--focus-ring);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: var(--font-md);
+  font-weight: 550;
+}
+
+.CloudName {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: var(--font-md);
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.CloudDetail {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.Status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+
+  &.Failed {
+    color: var(--danger);
+  }
+}
+
+.Dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--text-faint);
+
+  &.Good {
+    background-color: var(--success);
+  }
+
+  &.Bad {
+    background-color: var(--danger);
+  }
+}
+
+.Tools {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.Pill {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 10px 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--transition-colors);
+
+  &:hover {
+    border-color: var(--border-strong);
+    background-color: var(--surface-hover);
+    color: var(--text-strong);
+
+    .PillDot {
+      opacity: 0;
+    }
+
+    .PillHover {
+      opacity: 1;
+    }
+  }
+
+  &:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+
+  &.PillGood .PillDot {
+    background-color: var(--success);
+  }
+
+  &.PillBusy {
+    color: var(--accent-strong);
+
+    .PillHover {
+      display: none;
+    }
+  }
+
+  &.PillBad {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+    color: var(--danger);
+
+    .PillDot {
+      background-color: var(--danger);
+    }
+  }
+}
+
+.PillMark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+}
+
+.PillDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--text-faint);
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.PillHover {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.Spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.Drawer {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: -8px;
+  transition: grid-template-rows var(--duration) var(--ease), margin-top var(--duration) var(--ease);
+
+  &.DrawerOpen {
+    grid-template-rows: 1fr;
+    margin-top: 0;
+  }
+}
+
+.DrawerInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.Manage {
+  margin-top: 4px;
+  padding: 16px 0 6px;
+  border-top: 1px solid var(--border);
+}
+
+.DrawerBar {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  margin: 4px -16px -14px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  transition: var(--transition-colors);
+
+  &:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-strong);
+  }
+
+  &:focus-visible {
+    box-shadow: inset var(--focus-ring);
+  }
+
+  &.DrawerOpen .DrawerChevron {
+    transform: rotate(180deg);
+  }
+}
+
+.DrawerChevron {
+  flex-shrink: 0;
+  transition: transform var(--duration) var(--ease);
+}
+
+.Welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 520px;
+  margin: 6vh auto 0;
+  text-align: center;
+
+  h1 {
+    margin: 16px 0 0;
+    color: var(--text-strong);
+    font-size: var(--font-xl);
+    font-weight: 600;
+    letter-spacing: -.01em;
+  }
+
+  > p {
+    margin: 8px 0 0;
+    color: var(--text-muted);
+    line-height: 1.55;
+  }
+}
+
+.WelcomeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background-color: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.Choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 24px;
+}
+
+.Choice {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-sunken);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-colors);
+
+  &:hover {
+    border-color: var(--border-strong);
+    background-color: var(--surface-hover);
+
+    .ChoiceArrow {
+      color: var(--text-strong);
+      transform: translateX(2px);
+    }
+  }
+
+  &:focus-visible {
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.ChoiceIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-lg);
+  background-color: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.ChoiceText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    color: var(--text-strong);
+    font-weight: 550;
+  }
+
+  span {
+    color: var(--text-muted);
+    font-size: var(--font-sm);
+    line-height: 1.45;
+  }
+}
+
+.ChoiceArrow {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: var(--transition-colors), transform var(--duration-fast) var(--ease);
+}
+
+.WelcomeNote {
+  margin: 18px 0 0;
+  color: var(--text-faint);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+}
+
+.After {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.List {
+  display: flex;
+  flex-direction: column;
+}
+
+.Entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+
+  & + & {
+    border-top: 1px solid var(--border);
+  }
+}
+
+.EntryText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+
+  strong {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-weight: 550;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    color: var(--text-muted);
+    font-size: var(--font-xs);
+  }
+}

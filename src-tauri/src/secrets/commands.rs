@@ -4,8 +4,8 @@ use serde::Serialize;
 use tauri::State;
 use zeroize::Zeroizing;
 
-use super::{NamedSecret, SLOT_PREFIX, SecretRefs, SecretsStore, owner, vault_id};
-use crate::connections::{ConnectionStore, ConnectionsFile};
+use super::{NamedSecret, SLOT_PREFIX, SecretLink, SecretRefs, SecretsStore, owner, vault_id};
+use crate::connections::{ConnectionStore, ConnectionsFile, SecretOwner, SecretRef};
 use crate::error::{AppError, AppResult};
 use crate::ssh_store::{SshFile, SshStore};
 use crate::vault::Vault;
@@ -18,6 +18,7 @@ pub enum SecretUserKind {
     SshHost,
     Identity,
     Proxy,
+    Key,
     Vpn,
 }
 
@@ -39,6 +40,7 @@ pub struct SecretInfo {
     pub id: String,
     pub name: String,
     pub note: String,
+    pub link: Option<SecretLink>,
     pub has_value: bool,
     pub used_by: Vec<SecretUse>,
 }
@@ -70,6 +72,9 @@ pub fn uses(secret: &str, connections: &ConnectionsFile, ssh: &SshFile, vpn: &Vp
     for proxy in &ssh.proxies {
         uses_in(&mut found, secret, SecretUserKind::Proxy, &proxy.id, &proxy.label, &proxy.secret_refs);
     }
+    for key in &ssh.keys {
+        uses_in(&mut found, secret, SecretUserKind::Key, &key.id, &key.label, &key.secret_refs);
+    }
     for profile in &vpn.profiles {
         uses_in(&mut found, secret, SecretUserKind::Vpn, &profile.id, &profile.label, &profile.secret_refs);
     }
@@ -100,26 +105,53 @@ pub async fn list_secrets(
             id: secret.id,
             name: secret.name,
             note: secret.note,
+            link: secret.link,
         })
         .collect())
 }
 
 /// `value` is only written when given, so renaming a secret doesn't need its value again.
+/// `copy_from` takes the value from a saved password instead, so it never has to reach the frontend.
 #[tauri::command]
 pub async fn save_secret(
     store: State<'_, Arc<SecretsStore>>,
     vault: State<'_, Arc<Vault>>,
-    mut secret: NamedSecret,
+    secret: NamedSecret,
     value: Option<String>,
+    copy_from: Option<SecretRef>,
 ) -> AppResult<NamedSecret> {
-    let value = value.map(Zeroizing::new);
+    let value = match copy_from {
+        Some(from) => Some(copied(&vault, &from)?),
+        None => value.map(Zeroizing::new),
+    };
+    save(&store, &vault, secret, value)
+}
+
+fn copied(vault: &Vault, from: &SecretRef) -> AppResult<Zeroizing<String>> {
+    if matches!(from.owner, SecretOwner::Secret(_)) || !from.owner.revealable(&from.slot) {
+        return Err(AppError::general("Only a saved password can be made into a secret"));
+    }
+    vault.get(&from.owner.secret_id(&from.slot))?.ok_or_else(|| AppError::not_found("Nothing is saved there"))
+}
+
+fn save(store: &SecretsStore, vault: &Vault, mut secret: NamedSecret, value: Option<Zeroizing<String>>) -> AppResult<NamedSecret> {
     secret.name = secret.name.trim().to_string();
     secret.note = secret.note.trim().to_string();
     if secret.name.is_empty() {
         return Err(AppError::general("A secret needs a name"));
     }
+    if let Some(link) = &mut secret.link {
+        link.name = link.name.trim().to_string();
+        if link.name.is_empty() || link.cloud.is_empty() {
+            return Err(AppError::general("Enter the name the secret has in the cloud it's stored in"));
+        }
+        if link.name.contains(',') || link.name.chars().any(char::is_control) {
+            return Err(AppError::general("A secret's name in a cloud can't hold commas or line breaks"));
+        }
+    }
     let is_new = secret.id.is_empty();
-    if is_new && value.is_none() {
+    // A linked secret gets its value from the cloud on the next sync.
+    if is_new && value.is_none() && secret.link.is_none() {
         return Err(AppError::general("Enter the secret's value"));
     }
     if is_new {
@@ -164,6 +196,33 @@ pub async fn delete_secret(store: State<'_, Arc<SecretsStore>>, vault: State<'_,
 mod tests {
     use super::*;
     use crate::ssh_store::{Identity, IdentityAuth, SshHost};
+
+    #[test]
+    fn a_saved_password_becomes_a_secret_but_keys_never_do() {
+        let dir = std::env::temp_dir().join(format!("fran-secrets-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = SecretsStore::load(dir.join("secrets.json"));
+        let vault = Vault::for_tests(dir.join("secrets.vault"));
+        let password = SecretOwner::Connection("c1".to_string());
+        vault.set(&password.secret_id("password"), &Zeroizing::new("hunter2-prod".to_string())).unwrap();
+        let key = SecretOwner::Key("k1".to_string());
+        vault.set(&key.secret_id("private"), &Zeroizing::new("-----BEGIN OPENSSH PRIVATE KEY-----".to_string())).unwrap();
+        let vpn = SecretOwner::Vpn("v1".to_string());
+        vault.set(&vpn.secret_id("tlsKey"), &Zeroizing::new("tls".to_string())).unwrap();
+
+        let new = |name: &str| NamedSecret { id: String::new(), name: name.to_string(), note: String::new(), link: None };
+        let from = SecretRef { owner: password.clone(), slot: "password".to_string() };
+        let saved = save(&store, &vault, new("PROD_DB_PASSWORD"), Some(copied(&vault, &from).unwrap())).unwrap();
+        assert_eq!(vault.get(&vault_id(&saved.id)).unwrap().as_deref().map(String::as_str), Some("hunter2-prod"));
+        assert!(vault.get(&password.secret_id("password")).unwrap().is_some());
+
+        for (owner, slot) in [(key, "private"), (vpn, "tlsKey")] {
+            assert!(copied(&vault, &SecretRef { owner, slot: slot.to_string() }).is_err());
+        }
+        let empty = SecretRef { owner: SecretOwner::Identity("i1".to_string()), slot: "password".to_string() };
+        assert!(copied(&vault, &empty).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn uses_list_fields_and_slots_of_every_owner() {

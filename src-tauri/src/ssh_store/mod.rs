@@ -2,7 +2,7 @@ pub mod commands;
 
 use serde::{Deserialize, Serialize};
 
-use crate::connections::PASSWORD_SLOT;
+use crate::connections::{PASSPHRASE_SLOT, PASSWORD_SLOT};
 use crate::error::{AppError, AppResult};
 use crate::json_store::JsonStore;
 use crate::secrets::{SecretRefs, fill::RefRules};
@@ -39,6 +39,7 @@ pub struct SshHost {
 pub const HOST_SECRET_RULES: RefRules = RefRules { field: |path| matches!(path, "host" | "port"), slot: |_| false };
 pub const IDENTITY_SECRET_RULES: RefRules = RefRules { field: |path| path == "user", slot: |slot| slot == PASSWORD_SLOT };
 pub const PROXY_SECRET_RULES: RefRules = RefRules { field: |path| matches!(path, "host" | "port" | "user"), slot: |slot| slot == PASSWORD_SLOT };
+pub const KEY_SECRET_RULES: RefRules = RefRules { field: |_| false, slot: |slot| slot == PASSPHRASE_SLOT };
 
 impl Default for SshHost {
     fn default() -> Self {
@@ -150,6 +151,8 @@ pub struct KeyMeta {
     pub storage: KeyStorage,
     /// Unix milliseconds.
     pub created: i64,
+    #[serde(default, skip_serializing_if = "SecretRefs::is_empty")]
+    pub secret_refs: SecretRefs,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

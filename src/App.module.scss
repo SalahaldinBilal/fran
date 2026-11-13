@@ -30,6 +30,10 @@
   color: var(--success);
 }
 
+.SyncFailed {
+  color: var(--danger);
+}
+
 .VpnCount {
   position: absolute;
   top: -3px;

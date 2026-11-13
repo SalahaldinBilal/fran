@@ -1,12 +1,17 @@
 import styles from "./Secrets.module.scss";
 import { For, Show, createMemo, createSignal } from "solid-js";
-import { Copy, KeyRound, Pencil, Plus, Trash2, TriangleAlert } from "@core/icons";
+import { Copy, KeyRound, Link2, Pencil, Plus, Trash2, TriangleAlert } from "@core/icons";
+import { cloudModule } from "@core/clouds";
 import useSecretsState from "@core/states/secretsState";
+import useSyncState from "@core/states/syncState";
 import useToastState from "@core/states/toastState";
 import { errorMessage } from "@core/helpers/errors";
 import { copySecret } from "@core/helpers/revealSecret";
 import { SecretInfo } from "@core/types";
-import { confirmDeleteSecret, usedByText } from "@core/components/SecretEditor/SecretEditor";
+import { syncMenu } from "@core/helpers/syncTargets";
+import { itemKey } from "@core/states/syncState";
+import useContextMenuState from "@core/states/contextMenuState";
+import { deleteSecret, usedByText } from "@core/components/SecretEditor/SecretEditor";
 import Button from "@core/components/Button/Button";
 import EmptyState from "@core/components/EmptyState/EmptyState";
 
@@ -27,12 +32,17 @@ function SecretRow(props: { secret: SecretInfo }) {
   }
 
   async function remove() {
-    if (!await confirmDeleteSecret(props.secret)) return;
-    await secrets.remove(props.secret.id).catch(useToastState.pushError);
+    await deleteSecret(props.secret).catch(useToastState.pushError);
   }
 
   return (
-    <div class={styles.ListRow}>
+    <div
+      class={styles.ListRow}
+      onContextMenu={event => {
+        const items = syncMenu(itemKey("secret", props.secret.id), props.secret.name, "secrets");
+        if (items.length > 0) useContextMenuState.openContextMenu(event, items);
+      }}
+    >
       <div class={styles.Name}>
         <span class={styles.ItemIcon}><KeyRound size={15} /></span>
         <span class={styles.NameText}>
@@ -57,15 +67,26 @@ function SecretRow(props: { secret: SecretInfo }) {
 
 function NamedSecretsView() {
   const secrets = useSecretsState;
+  const stores = createMemo(() => useSyncState.view.clouds.filter(cloud => cloudModule(cloud.kind).secretStore));
 
   return (
     <>
       <div class={styles.Head}>
         <h2>Secrets</h2>
-        <Button variant="primary" onClick={() => secrets.openEditor(null)}>
-          <Plus size={14} />
-          New secret
-        </Button>
+        <div class={styles.HeadTools}>
+          <For each={stores()}>
+            {cloud => (
+              <Button variant="subtle" onClick={() => secrets.openLink(cloud.identity)}>
+                <Link2 size={14} />
+                Link from {cloud.name}
+              </Button>
+            )}
+          </For>
+          <Button variant="primary" onClick={() => secrets.openEditor(null)}>
+            <Plus size={14} />
+            New secret
+          </Button>
+        </div>
       </div>
       <p class={styles.Description}>
         A value with a name that any field of a connection, SSH host, identity, proxy or VPN can use, like a host, a user or a password.

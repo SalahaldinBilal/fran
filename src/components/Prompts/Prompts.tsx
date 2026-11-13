@@ -216,19 +216,24 @@ function ChangedKeyPrompt() {
 
 function ConfirmPrompt() {
   const { confirmRequest } = usePromptState;
+  const [option, setOption] = createSignal(false);
+
+  createEffect(() => {
+    if (confirmRequest()) setOption(false);
+  });
 
   return (
     <Modal
       show={confirmRequest() !== null}
-      onHide={() => confirmRequest()?.resolve(false)}
+      onHide={() => confirmRequest()?.resolve(false, false)}
       title={confirmRequest()?.title}
       width={420}
       footer={
         <>
-          <Button variant="subtle" onClick={() => confirmRequest()?.resolve(false)}>Cancel</Button>
+          <Button variant="subtle" onClick={() => confirmRequest()?.resolve(false, false)}>Cancel</Button>
           <Button
             variant={confirmRequest()?.danger ? "danger" : "primary"}
-            onClick={() => confirmRequest()?.resolve(true)}
+            onClick={() => confirmRequest()?.resolve(true, option())}
           >
             {confirmRequest()?.confirmLabel}
           </Button>
@@ -236,6 +241,9 @@ function ConfirmPrompt() {
       }
     >
       <p class={styles.Message}>{confirmRequest()?.message}</p>
+      <Show when={confirmRequest()?.option}>
+        {label => <Switch checked={option()} onChange={setOption} label={label()} />}
+      </Show>
     </Modal>
   );
 }

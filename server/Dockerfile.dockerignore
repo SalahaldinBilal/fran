@@ -1,0 +1,7 @@
+*
+!server
+!crates/sync-proto
+server/target
+server/*.db
+server/*.db-*
+server/server.toml

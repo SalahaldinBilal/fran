@@ -1,6 +1,6 @@
 import styles from "./Secrets.module.scss";
 import formStyles from "@core/databases/shared/ConnectionForm.module.scss";
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
 import { save } from "@tauri-apps/plugin-dialog";
 import { Copy, Download, FileKey, Info, KeyRound, Lock, Pencil, Plus, Trash2, Upload } from "@core/icons";
 import useSshState from "@core/states/sshState";
@@ -9,6 +9,8 @@ import useToastState from "@core/states/toastState";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { copyText } from "@core/helpers/clipboard";
 import { withUserCheck } from "@core/helpers/revealSecret";
+import { createOwnerSecrets } from "@core/helpers/ownerSecrets";
+import SecretField from "@core/components/SecretField/SecretField";
 import { KeyAlgorithm, KeyMeta } from "@core/types";
 import Modal from "@core/components/Modal/Modal";
 import Button from "@core/components/Button/Button";
@@ -290,6 +292,55 @@ function ExportKeyModal(props: { keyMeta: KeyMeta | null, onClose: () => void })
   );
 }
 
+// A key file's passphrase: saved in the vault, taken from a secret, or asked for on connect.
+function PassphraseModal(props: { keyMeta: KeyMeta | null, onClose: () => void }) {
+  const ssh = useSshState;
+  const { pushError } = useToastState;
+  const secrets = createOwnerSecrets();
+  const [busy, setBusy] = createSignal(false);
+  const title = createMemo(() => `Passphrase for ${props.keyMeta?.label ?? ""}`);
+
+  createEffect(on(() => props.keyMeta, key => {
+    if (key) void secrets.reset({ kind: "key", id: key.id }, key.secretRefs);
+  }));
+
+  async function save() {
+    const key = props.keyMeta;
+    if (!key) return;
+    setBusy(true);
+    try {
+      await ssh.setKeySecretRefs(key.id, secrets.refs.snapshot());
+      await secrets.apply({ kind: "key", id: key.id });
+      props.onClose();
+    } catch (error) {
+      pushError(error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      show={props.keyMeta !== null}
+      onHide={props.onClose}
+      title={title()}
+      width={440}
+      footer={
+        <>
+          <Button variant="subtle" onClick={props.onClose}>Cancel</Button>
+          <Button variant="primary" disabled={busy()} onClick={save}>Save</Button>
+        </>
+      }
+    >
+      <div class={styles.Form}>
+        <Field label="Passphrase" hint="Left empty, it's asked for when you connect.">
+          <SecretField slot="passphrase" secrets={secrets.editor} />
+        </Field>
+      </div>
+    </Modal>
+  );
+}
+
 function KeysView() {
   const ssh = useSshState;
   const { confirm, askForText } = usePromptState;
@@ -298,6 +349,7 @@ function KeysView() {
   const [importing, setImporting] = createSignal(false);
   const [ready, setReady] = createSignal<KeyMeta | null>(null);
   const [exporting, setExporting] = createSignal<KeyMeta | null>(null);
+  const [passphraseFor, setPassphraseFor] = createSignal<KeyMeta | null>(null);
 
   const hasRsa = createMemo(() => ssh.file.keys.filter(key => key.algorithm === "RSA").map(key => key.label));
 
@@ -370,7 +422,10 @@ function KeysView() {
                   <div class={styles.Tools}>
                     <Button icon size="sm" tooltip="Copy public key" onClick={() => copyText(key.publicKey, "the public key")}><Copy size={14} /></Button>
                     <Button icon size="sm" tooltip="Rename" onClick={() => rename(key)}><Pencil size={14} /></Button>
-                    <Show when={key.storage.kind === "vault"}>
+                    <Show
+                      when={key.storage.kind === "vault"}
+                      fallback={<Button icon size="sm" tooltip="Passphrase" onClick={() => setPassphraseFor(key)}><Lock size={14} /></Button>}
+                    >
                       <Button icon size="sm" tooltip="Export private key" onClick={() => setExporting(key)}><Download size={14} /></Button>
                     </Show>
                     <Button icon size="sm" tooltip="Delete" onClick={() => remove(key)}><Trash2 size={14} /></Button>
@@ -403,6 +458,7 @@ function KeysView() {
       <KeyReadyModal keyMeta={ready()} onClose={() => setReady(null)} />
       <ImportKeyModal show={importing()} onClose={() => setImporting(false)} />
       <ExportKeyModal keyMeta={exporting()} onClose={() => setExporting(null)} />
+      <PassphraseModal keyMeta={passphraseFor()} onClose={() => setPassphraseFor(null)} />
     </>
   );
 }

@@ -89,7 +89,6 @@ function VpnSettings() {
                     }}
                     placeholder="Found automatically"
                     mono
-                    style={{ "padding-right": "3px" }}
                     after={
                       <Button icon size="sm" tooltip="Browse" onClick={() => void browse()}>
                         <FolderOpen size={14} />

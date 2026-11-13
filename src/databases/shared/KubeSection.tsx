@@ -3,17 +3,20 @@ import { Show, createMemo, createResource } from "solid-js";
 import { RefreshCw } from "@core/icons";
 import { KubeOptions } from "@core/types";
 import Field, { FieldRow, FieldSection } from "@core/components/Field/Field";
-import Input from "@core/components/Input/Input";
+import SecretInput from "@core/components/SecretInput/SecretInput";
 import Select, { SelectItem } from "@core/components/Select/Select";
 import Button from "@core/components/Button/Button";
 import FilePathInput from "@core/components/FilePathInput/FilePathInput";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage } from "@core/helpers/errors";
+import { SecretRefsEditor } from "@core/helpers/secretRefs";
 
 export type KubeSectionProps = {
   kube: KubeOptions,
   description: string,
   update: (mutate: (kube: KubeOptions) => void) => void,
+  // Scoped to the kube options. Rust refuses one on the kubectl path.
+  refs?: SecretRefsEditor,
 };
 
 function KubeSection(props: KubeSectionProps) {
@@ -57,14 +60,18 @@ function KubeSection(props: KubeSectionProps) {
       </Show>
       <FieldRow>
         <Field label="Namespace" hint="Empty uses the context's namespace." grow>
-          <Input
+          <SecretInput
+            path="namespace"
+            refs={props.refs}
             value={props.kube.namespace}
             onValue={value => props.update(kube => { kube.namespace = value; })}
             placeholder="default"
           />
         </Field>
         <Field label="Pod or service" hint="As kubectl port-forward takes it." grow>
-          <Input
+          <SecretInput
+            path="resource"
+            refs={props.refs}
             mono
             value={props.kube.resource}
             onValue={value => props.update(kube => { kube.resource = value; })}

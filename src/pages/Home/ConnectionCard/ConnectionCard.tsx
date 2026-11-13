@@ -13,6 +13,8 @@ import useSettingsState from "@core/states/settingsState";
 import useVpnState from "@core/states/vpnState";
 import { connectionVpnId } from "@core/helpers/vpnActions";
 import { vpnWaitLabel } from "@core/helpers/vpn";
+import { groupSyncMenu, syncMenu } from "@core/helpers/syncTargets";
+import { groupKey, itemKey } from "@core/states/syncState";
 import Button from "@core/components/Button/Button";
 import Spinner from "@core/components/Spinner/Spinner";
 import { tooltip } from "@core/components/Tooltip/Tooltip";
@@ -87,6 +89,8 @@ function ConnectionCard(props: ConnectionCardProps) {
       { label: "Edit", icon: Pencil, onSelect: props.onEdit },
       { label: "Duplicate", icon: Copy, onSelect: duplicate },
       ...(details().forwardable ? [{ label: "Port forward…", icon: Cable, onSelect: () => forwards.openDialog(props.profile) }] : []),
+      ...syncMenu(itemKey("connection", props.profile.id), props.profile.name, "connections"),
+      ...(props.profile.group ? groupSyncMenu(groupKey("connection", props.profile.group), "connections") : []),
       { separator: true },
       { label: "Delete", icon: Trash2, danger: true, onSelect: remove },
     ];

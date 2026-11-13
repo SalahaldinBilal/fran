@@ -19,6 +19,10 @@ path = "tests/e2e/main.rs"
 harness = false
 required-features = ["e2e"]
 
+[lints.clippy]
+# AppError carries what the window needs to show (host keys, prompt slots), so it's large on purpose.
+result_large_err = "allow"
+
 [build-dependencies]
 tauri-build = { version = "2.7.4", features = [] }
 
@@ -66,6 +70,9 @@ axum = { version = "0.8.9", default-features = false, features = ["tokio", "http
 tokio-util = "0.7.20"
 tauri-plugin-opener = "2.7.2"
 vpn-proto = { path = "../crates/vpn-proto", features = ["async"] }
+sync-proto = { path = "../crates/sync-proto" }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "handshake", "rustls-tls-webpki-roots"] }
+futures-util = { version = "0.3", default-features = false }
 smoltcp = { version = "0.14.0", default-features = false, features = ["std", "async", "medium-ip", "proto-ipv4", "proto-ipv6", "socket-tcp", "socket-udp"] }
 
 [target.'cfg(windows)'.dependencies]

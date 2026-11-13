@@ -1,6 +1,13 @@
 import styles from "./App.module.scss";
 import { For, Show, createMemo, onMount } from "solid-js";
-import { Bot, Database, FolderOpen, House, KeyRound, Lock, Settings, Shield, ShieldCheck, SquareTerminal, X } from "@core/icons";
+import { Dynamic } from "solid-js/web";
+import {
+  Bot, Cloud as CloudIcon, CloudAlert, CloudCheck, CloudSync, Database, FolderOpen, House, KeyRound, Lock, LucideIcon, Settings, Shield,
+  ShieldCheck, SquareTerminal, X,
+} from "@core/icons";
+import useSyncState, { OverallSync } from "./states/syncState";
+import AddCloudModal from "./components/CloudModals/AddCloudModal";
+import RecoveryKeyModal from "./components/CloudModals/RecoveryKeyModal";
 import { setVpnOnComputer, watchVpnPrompts } from "./helpers/vpnActions";
 import { vpnBackendLabel } from "./helpers/vpn";
 import { startTray } from "./helpers/tray";
@@ -28,16 +35,18 @@ import useTerminalState from "./states/terminalState";
 import useSnippetsState from "./states/snippetsState";
 import useSecretsState from "./states/secretsState";
 import SecretEditor from "./components/SecretEditor/SecretEditor";
+import LinkSecretsModal from "./components/SecretEditor/LinkSecretsModal";
 import AgentApprovalModal from "./components/AgentApprovalModal/AgentApprovalModal";
 import useAgentState from "./states/agentState";
 import Home from "./pages/Home/Home";
 import Workspace from "./pages/Workspace/Workspace";
 import Agents from "./pages/Agents/Agents";
 import SettingsPage from "./pages/Settings/Settings";
+import SyncPage from "./pages/Sync/Sync";
 import Onboarding from "./pages/Onboarding/Onboarding";
 import useOnboardingState from "./states/onboardingState";
 import { featureOn } from "./helpers/features";
-import useWorkspaceState, { AGENTS_TAB_ID, HOME_TAB_ID, SECRETS_TAB_ID, SETTINGS_TAB_ID } from "./states/workspaceState";
+import useWorkspaceState, { AGENTS_TAB_ID, HOME_TAB_ID, SECRETS_TAB_ID, SETTINGS_TAB_ID, SYNC_TAB_ID } from "./states/workspaceState";
 import useContextMenuState from "./states/contextMenuState";
 import useConnectionsState from "./states/connectionsState";
 import useVaultState from "./states/vaultState";
@@ -51,6 +60,16 @@ import { installGlobalContextMenu } from "./helpers/globalContextMenu";
 import { IS_MAC } from "./helpers/platform";
 import { safeInvoke } from "./helpers/safeInvoke";
 import { keepOrder, plural } from "./helpers";
+
+const SYNC_ICONS: Record<OverallSync, LucideIcon> = { off: CloudIcon, waiting: CloudIcon, syncing: CloudSync, upToDate: CloudCheck, error: CloudAlert };
+
+const SYNC_TOOLTIPS: Record<OverallSync, string> = {
+  off: "Sync, not set up",
+  waiting: "Sync, starting",
+  syncing: "Syncing",
+  upToDate: "Sync, up to date",
+  error: "Sync failed",
+};
 
 function App() {
   const workspace = useWorkspaceState;
@@ -67,6 +86,10 @@ function App() {
   const vpnsOnComputer = createMemo(() => useVpnState.onComputerCount());
   const vpnButtonClass = createMemo(() => (vpnsOnComputer() > 0 ? `${styles.AgentsButton} ${styles.VpnOn}` : styles.AgentsButton));
   const vpnTooltip = createMemo(() => (vpnsOnComputer() > 0 ? `VPN, ${plural(vpnsOnComputer(), "VPN")} on for this computer` : "VPN"));
+  const syncOpen = createMemo(() => workspace.store.globalTabs.some(tab => tab.kind === "sync"));
+  const syncIcon = createMemo(() => SYNC_ICONS[useSyncState.overall()]);
+  const syncTooltip = createMemo(() => SYNC_TOOLTIPS[useSyncState.overall()]);
+  const syncButtonClass = createMemo(() => (useSyncState.overall() === "error" ? `${styles.AgentsButton} ${styles.SyncFailed}` : styles.AgentsButton));
 
   function openVpnMenu(event: MouseEvent) {
     const profiles = useVpnState.file.profiles;
@@ -99,6 +122,9 @@ function App() {
       }
       if (tab.kind === "secrets") {
         return { id: tab.id, label: "Secrets", icon: KeyRound, closable: true, movable: true };
+      }
+      if (tab.kind === "sync") {
+        return { id: tab.id, label: "Sync", icon: CloudSync, closable: true, movable: true };
       }
       if (tab.kind === "sftp") {
         const current = useSftpState.tab(tab.id);
@@ -190,6 +216,7 @@ function App() {
     useSavedQueriesState.load();
     useVaultState.refresh();
     useAgentState.load();
+    useSyncState.start();
   });
 
   return (
@@ -223,6 +250,16 @@ function App() {
                   <Lock size={15} />
                 </Button>
               </Show>
+              <Button
+                icon
+                size="sm"
+                class={syncButtonClass()}
+                active={workspace.store.activeGlobalTabId === SYNC_TAB_ID}
+                tooltip={syncTooltip()}
+                onClick={workspace.openSync}
+              >
+                <Dynamic component={syncIcon()} size={16} />
+              </Button>
               <Button
                 icon
                 size="sm"
@@ -269,7 +306,7 @@ function App() {
                 size="sm"
                 active={workspace.store.activeGlobalTabId === SETTINGS_TAB_ID}
                 tooltip="Settings"
-                onClick={workspace.openSettings}
+                onClick={() => workspace.openSettings()}
               >
                 <Settings size={16} />
               </Button>
@@ -320,6 +357,11 @@ function App() {
             <Secrets />
           </div>
         </Show>
+        <Show when={syncOpen()}>
+          <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== SYNC_TAB_ID }}>
+            <SyncPage />
+          </div>
+        </Show>
         <Show when={useOnboardingState.shown()}>
           <Onboarding />
         </Show>
@@ -334,6 +376,9 @@ function App() {
       <VpnEditor />
       <SnippetEditor />
       <SecretEditor />
+      <LinkSecretsModal />
+      <AddCloudModal />
+      <RecoveryKeyModal />
       <ForwardRuleEditor />
       <SshImportModal />
       <ContextMenuHost />

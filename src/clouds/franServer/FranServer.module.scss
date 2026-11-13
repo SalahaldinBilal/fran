@@ -1,0 +1,294 @@
+.Form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.Lead {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+}
+
+.InputState {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: var(--text-faint);
+
+  &.Good {
+    color: var(--success);
+  }
+
+  &.Bad {
+    color: var(--danger);
+  }
+}
+
+.ServerIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background-color: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.ServerCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-sunken);
+}
+
+.ServerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-family: var(--font-mono);
+    font-size: var(--font-sm);
+    font-weight: 550;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    color: var(--text-muted);
+    font-size: var(--font-xs);
+  }
+}
+
+.ServerBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-sunken);
+
+  .ServerIcon {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+.ServerBarText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.Unowned {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--border));
+  border-radius: var(--radius-lg);
+  background-color: color-mix(in srgb, var(--warning) 7%, var(--bg-sunken));
+  color: var(--text);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+
+  svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--warning);
+  }
+
+  strong {
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+}
+
+.RecoverHead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+
+  span {
+    color: var(--text-muted);
+    font-size: var(--font-sm);
+    line-height: 1.5;
+  }
+}
+
+.Link {
+  all: unset;
+  align-self: flex-start;
+  margin-top: -6px;
+  color: var(--accent-strong);
+  font-size: var(--font-sm);
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    border-radius: var(--radius-sm);
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.Rules {
+  display: flex;
+  gap: 16px;
+  margin: -6px 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-faint);
+    font-size: var(--font-xs);
+    transition: var(--transition-colors);
+  }
+
+  .Met {
+    color: var(--success);
+  }
+}
+
+.Problem,
+.Warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+
+  svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+}
+
+.Problem {
+  background-color: var(--danger-soft);
+  color: var(--danger);
+}
+
+.Warning {
+  border: 1px solid var(--border);
+  background-color: var(--bg-sunken);
+  color: var(--text);
+
+  svg {
+    color: var(--warning);
+  }
+}
+
+.Insecure {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  border-radius: var(--radius-lg);
+  background-color: var(--danger-soft);
+
+  p {
+    margin: 0;
+    color: var(--text);
+    font-size: var(--font-sm);
+    line-height: 1.55;
+  }
+}
+
+.InsecureHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--danger);
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  strong {
+    font-size: var(--font-md);
+    font-weight: 600;
+  }
+}
+
+.InsecureTag {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background-color: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--font-xs);
+  font-weight: 550;
+}
+
+.Error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--font-sm);
+}
+
+.Actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.Grow {
+  flex: 1;
+}
+
+.Working {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  white-space: nowrap;
+
+  svg {
+    flex-shrink: 0;
+    color: var(--accent-strong);
+  }
+}
+
+.Hint {
+  margin: -4px 0 0;
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  text-align: right;
+}
+

@@ -7,6 +7,8 @@ import useContextMenuState from "@core/states/contextMenuState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";
 import { SavedQuery } from "@core/types";
+import { syncMenu } from "@core/helpers/syncTargets";
+import { itemKey } from "@core/states/syncState";
 import Input from "@core/components/Input/Input";
 import Button from "@core/components/Button/Button";
 import EmptyState from "@core/components/EmptyState/EmptyState";
@@ -69,6 +71,7 @@ function SavedQueriesPanel(props: { sessionId: string }) {
           { label: "Open in new tab", icon: SquarePen, onSelect: () => workspace.openSavedQuery(props.sessionId, rowProps.query) },
           { label: "Edit", icon: Pencil, onSelect: () => setEditing({ query: rowProps.query }) },
           { label: "Rename", icon: TextCursorInput, onSelect: () => rename(rowProps.query) },
+          ...syncMenu(itemKey("savedQuery", rowProps.query.id), rowProps.query.name, "savedQueries"),
           { separator: true },
           { label: "Delete", icon: Trash2, danger: true, onSelect: () => remove(rowProps.query) },
         ])}

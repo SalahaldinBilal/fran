@@ -33,6 +33,8 @@ function SqliteConnectionForm(props: ConnectionFormProps<SqliteOptions>) {
             <FieldSection title="SQLite">
               <Field label="Database file">
                 <FilePathInput
+                  path="path"
+                  refs={props.refs}
                   value={props.options.path}
                   onValue={value => props.update(options => { options.path = value; })}
                   placeholder="/path/to/database.db"

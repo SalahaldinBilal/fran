@@ -1,3 +1,5 @@
 [workspace]
-members = ["src-tauri", "crates/vpn-proto", "crates/vpn-worker"]
+members = ["src-tauri", "crates/vpn-proto", "crates/vpn-worker", "crates/sync-proto"]
+# sqlx's SQLite driver and the app's rusqlite need different libsqlite3-sys versions
+exclude = ["server"]
 resolver = "3"

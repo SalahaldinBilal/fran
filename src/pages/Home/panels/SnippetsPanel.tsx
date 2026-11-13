@@ -7,6 +7,8 @@ import useSshState from "@core/states/sshState";
 import useWorkspaceState from "@core/states/workspaceState";
 import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
 import { Snippet } from "@core/types";
+import { syncMenu } from "@core/helpers/syncTargets";
+import { itemKey } from "@core/states/syncState";
 import Button from "@core/components/Button/Button";
 import EmptyState from "@core/components/EmptyState/EmptyState";
 import { ItemBadge, ItemIcon } from "@core/components/ItemParts/ItemParts";
@@ -45,6 +47,10 @@ function SnippetRow(props: { snippet: Snippet }) {
       onClick={() => snippets.openEditor(props.snippet)}
       onKeyDown={event => {
         if (event.key === "Enter") snippets.openEditor(props.snippet);
+      }}
+      onContextMenu={event => {
+        const items = syncMenu(itemKey("snippet", props.snippet.id), props.snippet.label, "snippets");
+        if (items.length > 0) useContextMenuState.openContextMenu(event, items);
       }}
     >
       <ItemIcon color="var(--text-muted)"><CodeXml size={15} /></ItemIcon>

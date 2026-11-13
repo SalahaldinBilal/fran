@@ -14,6 +14,7 @@ pub mod snippets;
 pub mod splash;
 pub mod ssh;
 pub mod ssh_store;
+pub mod sync;
 pub mod tab_state;
 pub mod tray;
 pub mod vault;
@@ -44,6 +45,9 @@ use vpn::manager::VpnManager;
 use vpn_store::VpnStore;
 
 pub fn run() {
+    // reqwest and tokio-tungstenite are built without a provider of their own, so every https client needs this first.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // Before the windows exist: on Linux the webview keeps its data in this same folder, so it would create it first.
     legacy::import_on_first_start();
 
@@ -69,12 +73,33 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
 
             let vault = Arc::new(Vault::new(data_dir.join("secrets.vault")));
-            let store = Arc::new(ConnectionStore::load(data_dir.join("connections.json")));
-            let known_hosts = Arc::new(KnownHosts::load(data_dir.join("known_hosts.json")));
-            let ssh_store = Arc::new(SshStore::load(data_dir.join("ssh.json")));
-            let vpn_store = Arc::new(VpnStore::load(data_dir.join("vpn.json")));
-            let secrets_store = Arc::new(secrets::SecretsStore::load(data_dir.join("secrets.json")));
+            let store = Arc::new(ConnectionStore::load(data_dir.join("connections.json")).watched());
+            let known_hosts = Arc::new(KnownHosts::load(data_dir.join("known_hosts.json")).watched());
+            let ssh_store = Arc::new(SshStore::load(data_dir.join("ssh.json")).watched());
+            let vpn_store = Arc::new(VpnStore::load(data_dir.join("vpn.json")).watched());
+            let secrets_store = Arc::new(secrets::SecretsStore::load(data_dir.join("secrets.json")).watched());
+            let saved_queries = Arc::new(SavedQueryStore::load(data_dir.join("saved_queries.json")).watched());
+            let settings_store = Arc::new(SettingsStore::load(data_dir.join("settings.json")).watched());
+            let snippets = Arc::new(SnippetStore::load(data_dir.join("snippets.json")).watched());
             secrets::install(secrets_store.clone());
+            let sync_engine = sync::engine::Engine::new(
+                sync::items::Stores {
+                    connections: store.clone(),
+                    ssh: ssh_store.clone(),
+                    vpn: vpn_store.clone(),
+                    secrets: secrets_store.clone(),
+                    saved_queries: saved_queries.clone(),
+                    snippets: snippets.clone(),
+                    known_hosts: known_hosts.clone(),
+                    settings: settings_store.clone(),
+                    vault: vault.clone(),
+                },
+                Arc::new(sync::state::SyncStore::load(data_dir.join("sync.json"))),
+                sync::providers::opener(vault.clone(), secrets_store.clone()),
+                Arc::new(sync::commands::WindowEvents(app.handle().clone())),
+            );
+            sync_engine.start();
+            app.manage(sync_engine);
             app.manage(secrets_store);
             let vpn_manager = VpnManager::new(vpn_store.clone(), vault.clone());
             vpn::manager::install(vpn_manager.clone());
@@ -94,10 +119,10 @@ pub fn run() {
             app.manage(vpn_store);
             app.manage(vpn_manager);
             app.manage(Arc::new(vault::reveal::RevealSession::default()));
-            app.manage(Arc::new(SavedQueryStore::load(data_dir.join("saved_queries.json"))));
+            app.manage(saved_queries);
             app.manage(Arc::new(TabStateStore::load(data_dir.join("tab_state.json"))));
-            app.manage(Arc::new(SettingsStore::load(data_dir.join("settings.json"))));
-            app.manage(Arc::new(SnippetStore::load(data_dir.join("snippets.json"))));
+            app.manage(settings_store);
+            app.manage(snippets);
             app.manage(SessionManager::default());
             app.manage(PortForwards::default());
             app.manage(RuleForwards::default());
@@ -133,6 +158,52 @@ pub fn run() {
             secrets::commands::list_secrets,
             secrets::commands::save_secret,
             secrets::commands::delete_secret,
+            sync::commands::sync_get,
+            sync::commands::sync_now,
+            sync::commands::sync_refresh_linked,
+            sync::commands::sync_remove_cloud,
+            sync::commands::sync_rename_cloud,
+            sync::commands::sync_set_category_route,
+            sync::commands::sync_use_for_everything,
+            sync::commands::sync_set_group_route,
+            sync::commands::sync_set_item_routes,
+            sync::commands::sync_move_candidates,
+            sync::commands::sync_restore_replaced,
+            sync::commands::sync_discard_replaced,
+            sync::commands::sync_settle_duplicates,
+            sync::providers::fran_server::commands::fran_server_info,
+            sync::providers::fran_server::commands::fran_server_create_account,
+            sync::providers::fran_server::commands::fran_server_sign_in,
+            sync::providers::fran_server::commands::fran_server_recover,
+            sync::providers::fran_server::commands::fran_server_sign_out,
+            sync::providers::fran_server::commands::fran_server_account,
+            sync::providers::fran_server::commands::fran_server_devices,
+            sync::providers::fran_server::commands::fran_server_revoke_device,
+            sync::providers::fran_server::commands::fran_server_change_password,
+            sync::providers::fran_server::commands::fran_server_new_recovery_key,
+            sync::providers::fran_server::commands::fran_server_totp,
+            sync::providers::fran_server::commands::fran_server_delete_account,
+            sync::providers::fran_server::commands::fran_server_admin_claim,
+            sync::providers::fran_server::commands::fran_server_admin_overview,
+            sync::providers::fran_server::commands::fran_server_admin_users,
+            sync::providers::fran_server::commands::fran_server_admin_user,
+            sync::providers::fran_server::commands::fran_server_admin_set_quota,
+            sync::providers::fran_server::commands::fran_server_admin_set_role,
+            sync::providers::fran_server::commands::fran_server_admin_sign_out_user,
+            sync::providers::fran_server::commands::fran_server_admin_delete_user,
+            sync::providers::fran_server::commands::fran_server_admin_transfer,
+            sync::providers::fran_server::commands::fran_server_admin_invites,
+            sync::providers::fran_server::commands::fran_server_admin_create_invite,
+            sync::providers::fran_server::commands::fran_server_admin_delete_invite,
+            sync::providers::fran_server::commands::fran_server_admin_settings,
+            sync::providers::fran_server::commands::fran_server_admin_update_settings,
+            sync::providers::fran_server::commands::fran_server_admin_log,
+            sync::providers::doppler::commands::doppler_check_token,
+            sync::providers::doppler::commands::doppler_configs,
+            sync::providers::doppler::commands::doppler_add,
+            sync::providers::doppler::commands::doppler_set_token,
+            sync::providers::doppler::commands::doppler_names,
+            sync::providers::doppler::commands::doppler_delete_secret,
             connections::commands::list_connections,
             connections::commands::save_connection,
             connections::commands::save_connection_order,
@@ -163,6 +234,7 @@ pub fn run() {
             ssh_store::commands::import_key,
             ssh_store::commands::import_key_text,
             ssh_store::commands::rename_key,
+            ssh_store::commands::set_key_secret_refs,
             ssh_store::commands::export_key,
             ssh_store::commands::delete_key,
             ssh_store::commands::preview_ssh_config_import,

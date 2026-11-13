@@ -120,6 +120,7 @@ fn describe(vault_id: &str, stores: &Stores) -> SavedSecret {
     match vault_id {
         "agent:historyKey" => return internal("Agent history"),
         "terminal:logKey" => return internal("Terminal logs"),
+        id if id.starts_with("cloud:") || id.starts_with("sync:") => return internal("Cloud sync"),
         _ => {}
     }
 
@@ -433,7 +434,7 @@ mod tests {
         let mut ssh = SshFile::default();
         ssh.identities.push(Identity { id: "i1".to_string(), label: "deploy".to_string(), user: "deploy".to_string(), auth: IdentityAuth::Password, secret_refs: Default::default() });
         let secrets = SecretsFile {
-            secrets: vec![NamedSecret { id: "s1".to_string(), name: "PROD_DB_HOST".to_string(), note: String::new() }],
+            secrets: vec![NamedSecret { id: "s1".to_string(), name: "PROD_DB_HOST".to_string(), ..NamedSecret::default() }],
             ..Default::default()
         };
         Stores { connections: ConnectionsFile::default(), ssh, vpn: VpnFile::default(), secrets }

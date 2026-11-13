@@ -1,0 +1,60 @@
+.Form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.Error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--font-sm);
+}
+
+.Actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.Hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+}
+
+.Account {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.Facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+
+  strong {
+    color: var(--text);
+    font-weight: 550;
+  }
+}
+
+.Buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.Panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface);
+}

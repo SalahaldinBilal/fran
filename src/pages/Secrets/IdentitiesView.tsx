@@ -17,6 +17,8 @@ import Select, { SelectItem } from "@core/components/Select/Select";
 import SegmentedControl from "@core/components/SegmentedControl/SegmentedControl";
 import SecretField from "@core/components/SecretField/SecretField";
 import EmptyState from "@core/components/EmptyState/EmptyState";
+import SyncField from "@core/components/SyncTarget/SyncField";
+import { itemKey } from "@core/states/syncState";
 
 const COLUMNS = "minmax(180px, 1.4fr) minmax(140px, 1.4fr) minmax(120px, 1.2fr) 70px";
 
@@ -57,6 +59,8 @@ function IdentityModal(props: { identity: Identity | null, show: boolean, onClos
   const keyItems = createMemo<SelectItem<string | null>[]>(() => ssh.file.keys.map(key => ({ value: key.id, label: `${key.label} (${key.algorithm})` })));
   const keyHint = createMemo(() => (keyItems().length === 0 ? "No keys yet. Generate or import one on the SSH keys page." : undefined));
   const namePlaceholder = createMemo(() => user() || "deploy");
+  const syncKey = createMemo(() => (props.identity ? itemKey("identity", props.identity.id) : null));
+  const syncLabel = createMemo(() => label() || props.identity?.label || "");
 
   function auth(): IdentityAuth {
     switch (kind()) {
@@ -137,6 +141,7 @@ function IdentityModal(props: { identity: Identity | null, show: boolean, onClos
             </Field>
           </Match>
         </Switch>
+        <SyncField itemKey={syncKey()} label={syncLabel()} category="identities" />
       </div>
     </Modal>
   );

@@ -20,6 +20,8 @@ import SecretInput from "../SecretInput/SecretInput";
 import Select, { SelectItem } from "../Select/Select";
 import SegmentedControl from "../SegmentedControl/SegmentedControl";
 import SuggestInput from "../SuggestInput/SuggestInput";
+import SyncField from "../SyncTarget/SyncField";
+import { itemKey } from "@core/states/syncState";
 import ColorSwatches from "../ColorSwatches/ColorSwatches";
 import SecretField from "../SecretField/SecretField";
 import Toggle from "../Switch/Switch";
@@ -196,6 +198,7 @@ function VpnEditor() {
   }
 
   const isNew = createMemo(() => !draft.id);
+  const syncKey = createMemo(() => (draft.id ? itemKey("vpn", draft.id) : null));
   const title = createMemo(() => (isNew() ? "New VPN" : `Edit ${editor.request()?.profile?.label ?? draft.label}`));
   const saveLabel = createMemo(() => (saving() ? "Saving" : isNew() ? "Add VPN" : "Save"));
   const groups = createMemo(() => [...new Set(vpn.file.profiles.flatMap(profile => (profile.group ? [profile.group] : [])))].sort());
@@ -391,6 +394,7 @@ function VpnEditor() {
         <Field label="Color">
           <ColorSwatches value={draft.color} onChange={color => setDraft("color", color)} />
         </Field>
+        <SyncField itemKey={syncKey()} label={draft.label} category="vpnProfiles" />
 
         <Show when={wireGuardRequest()} keyed>
           {_request => (
@@ -399,6 +403,7 @@ function VpnEditor() {
               setDraft={setDraft}
               pending={pending}
               setPending={setPending}
+              refs={secretRefs}
               stored={stored()}
               generate={generate()}
               setGenerate={setGenerate}

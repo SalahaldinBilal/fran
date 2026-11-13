@@ -62,7 +62,7 @@ pub async fn start_port_forward(
     }
     let saved = store.find(&connection_id)?;
     let filler = Filler::new(&vault, &secrets)?;
-    let profile = filler.fill(&saved, &saved.secret_refs, &saved.name)?;
+    let profile = filler.fill(&saved, &saved.live_refs(), &saved.name)?;
     let (ssh, host, port) = profile.driver.ssh_target().ok_or_else(|| {
         AppError::general("Port forwarding needs a connection that uses an SSH tunnel")
     })?;
