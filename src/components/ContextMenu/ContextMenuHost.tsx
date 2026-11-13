@@ -1,7 +1,7 @@
 import styles from "./ContextMenu.module.scss";
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { Dynamic, Portal } from "solid-js/web";
-import { ChevronRight } from "lucide-solid";
+import { ChevronRight } from "@core/icons";
 import useContextMenuState, { MenuAction, MenuItem, isSeparator } from "@core/states/contextMenuState";
 import { Position } from "@core/types";
 import { clickOutside } from "@core/directives/clickOutside";

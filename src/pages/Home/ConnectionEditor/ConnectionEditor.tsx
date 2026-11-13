@@ -1,7 +1,7 @@
 import styles from "./ConnectionEditor.module.scss";
 import { Match, Show, Switch, createEffect, createMemo, createSignal, on } from "solid-js";
 import { createStore, produce, reconcile, unwrap } from "solid-js/store";
-import { CircleAlert, CircleCheck, Plug, Wand2 } from "lucide-solid";
+import { CircleAlert, CircleCheck, Plug, Wand2 } from "@core/icons";
 import { ConnectionProfile, DatabaseKind, DriverOptions } from "@core/types";
 import { databaseModule, databaseModules, defaultDriver, parseConnectionString, ParsedDriver, withDatabaseModule } from "@core/databases";
 import { PendingSecret, SecretEditor } from "@core/databases/types";

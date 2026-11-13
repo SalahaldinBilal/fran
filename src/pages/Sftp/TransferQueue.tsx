@@ -1,6 +1,6 @@
 import styles from "./Sftp.module.scss";
 import { For, Show, createMemo, createSignal } from "solid-js";
-import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight, RotateCw, X } from "lucide-solid";
+import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight, RotateCw, X } from "@core/icons";
 import useSftpState, { TransferItem, isFinished } from "@core/states/sftpState";
 import { formatBytes, plural } from "@core/helpers";
 import Button from "@core/components/Button/Button";

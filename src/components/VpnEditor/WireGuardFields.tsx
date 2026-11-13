@@ -2,7 +2,7 @@ import hostStyles from "../HostEditor/HostEditor.module.scss";
 import styles from "./VpnEditor.module.scss";
 import { Show, createMemo, createSignal } from "solid-js";
 import { SetStoreFunction } from "solid-js/store";
-import { Copy, KeyRound, Server } from "lucide-solid";
+import { Copy, KeyRound, Server } from "@core/icons";
 import { VpnProfile } from "@core/types";
 import { PendingSecret } from "@core/databases/types";
 import { copyText } from "@core/helpers/clipboard";

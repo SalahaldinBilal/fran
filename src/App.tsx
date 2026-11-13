@@ -1,6 +1,6 @@
 import styles from "./App.module.scss";
 import { For, Show, createMemo, onMount } from "solid-js";
-import { Bot, Database, FolderOpen, House, KeyRound, Lock, Settings, Shield, ShieldCheck, SquareTerminal, X } from "lucide-solid";
+import { Bot, Database, FolderOpen, House, KeyRound, Lock, Settings, Shield, ShieldCheck, SquareTerminal, X } from "@core/icons";
 import { setVpnOnComputer, watchVpnPrompts } from "./helpers/vpnActions";
 import { vpnBackendLabel } from "./helpers/vpn";
 import { startTray } from "./helpers/tray";

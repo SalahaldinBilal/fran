@@ -1,6 +1,6 @@
 import styles from "./Settings.module.scss";
 import { Match, Show, Switch as Branch, createMemo, createSignal } from "solid-js";
-import { Lock } from "lucide-solid";
+import { Lock } from "@core/icons";
 import useSettingsState, { LOCK_AFTER_MINUTES } from "@core/states/settingsState";
 import useLockState from "@core/states/lockState";
 import useVaultState from "@core/states/vaultState";

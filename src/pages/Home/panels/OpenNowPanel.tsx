@@ -1,6 +1,6 @@
 import shared from "./Panels.module.scss";
 import { For, Show, createMemo } from "solid-js";
-import { ArrowLeftRight, ArrowRight, Cable, Database, FolderOpen, Shield, SquareTerminal, Zap } from "lucide-solid";
+import { ArrowLeftRight, ArrowRight, Cable, Database, FolderOpen, Shield, SquareTerminal, Zap } from "@core/icons";
 import useVpnState from "@core/states/vpnState";
 import useVpnEditorState from "@core/states/vpnEditorState";
 import { vpnBackendLabel, vpnRunning, vpnStateLabel } from "@core/helpers/vpn";

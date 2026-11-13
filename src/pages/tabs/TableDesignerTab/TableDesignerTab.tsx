@@ -5,7 +5,7 @@ import { Dynamic } from "solid-js/web";
 import {
   ArrowDown, ArrowRight, ArrowUp, CircleAlert, Columns3, Fingerprint, KeyRound, Link2, ListTree, Plus, RotateCcw,
   Trash2, TriangleAlert, X,
-} from "lucide-solid";
+} from "@core/icons";
 import { databaseModule } from "@core/databases";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage } from "@core/helpers/errors";

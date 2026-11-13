@@ -1,6 +1,6 @@
 import shared from "../shared/ConnectionForm.module.scss";
 import { Match, Show, Switch as SwitchCase, createMemo, createSignal } from "solid-js";
-import { Cable, Container, Network, Plug } from "lucide-solid";
+import { Cable, Container, Network, Plug } from "@core/icons";
 import { PostgresConnectMethod, PostgresOptions, PostgresSslMode } from "@core/types";
 import { ConnectionFormProps } from "../types";
 import Field, { FieldRow, FieldSection } from "@core/components/Field/Field";

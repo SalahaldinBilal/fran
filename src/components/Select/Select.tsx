@@ -2,7 +2,7 @@ import styles from "./Select.module.scss";
 import { For, JSX, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
 import { keepInViewport } from "@core/helpers/viewport";
-import { Check, ChevronDown } from "lucide-solid";
+import { Check, ChevronDown } from "@core/icons";
 
 export type SelectItem<T> = {
   value: T,

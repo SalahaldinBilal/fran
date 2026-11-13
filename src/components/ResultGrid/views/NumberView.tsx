@@ -1,6 +1,6 @@
 import styles from "./Views.module.scss";
 import { For, Show, createMemo } from "solid-js";
-import { Minus, Plus } from "lucide-solid";
+import { Minus, Plus } from "@core/icons";
 import { ColumnMeta } from "@core/types";
 import Button from "../../Button/Button";
 import { tooltip } from "../../Tooltip/Tooltip";

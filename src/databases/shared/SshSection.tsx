@@ -1,7 +1,7 @@
 import styles from "./ConnectionForm.module.scss";
 import { Match, Show, Switch, createMemo, createSignal } from "solid-js";
 import { unwrap } from "solid-js/store";
-import { Pencil, Plus, Save, Server } from "lucide-solid";
+import { Pencil, Plus, Save, Server } from "@core/icons";
 import { IdentityAuth, SshAuthMethod, SshOptions } from "@core/types";
 import { SecretEditor } from "../types";
 import Field, { FieldRow, FieldSection } from "@core/components/Field/Field";

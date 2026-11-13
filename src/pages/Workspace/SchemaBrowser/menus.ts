@@ -1,4 +1,4 @@
-import { ClipboardCopy, Copy, FileCode, PencilRuler, RefreshCw, SquarePen, TableProperties } from "lucide-solid";
+import { ClipboardCopy, Copy, FileCode, PencilRuler, RefreshCw, SquarePen, TableProperties } from "@core/icons";
 import { MenuItem } from "@core/states/contextMenuState";
 import useWorkspaceState from "@core/states/workspaceState";
 import useToastState from "@core/states/toastState";

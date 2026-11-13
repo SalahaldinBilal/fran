@@ -8,6 +8,9 @@ export default defineConfig({
   plugins: [solid()],
   clearScreen: false,
   server: {
+    warmup: {
+      clientFiles: ["./src/**/*.{ts,tsx}", "!./src/**/*.d.ts"],
+    },
     port: 1430,
     strictPort: true,
     host: host || false,
@@ -19,7 +22,7 @@ export default defineConfig({
       }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: ["**/src-tauri/**", "**/target/**", "**/crates/**", "**/bundles/**", "**/release-files/**"],
     },
   },
   resolve: {

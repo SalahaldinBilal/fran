@@ -3,7 +3,7 @@ import styles from "./SuggestInput.module.scss";
 import { For, JSX, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
 import { keepInViewport } from "@core/helpers/viewport";
-import { Check } from "lucide-solid";
+import { Check } from "@core/icons";
 
 export type SuggestInputProps = {
   value: string,

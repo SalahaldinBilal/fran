@@ -1,5 +1,5 @@
 import { createRoot, createSignal } from "solid-js";
-import { LucideIcon } from "lucide-solid";
+import { LucideIcon } from "@core/icons";
 import { Position } from "@core/types";
 
 export type MenuAction = {

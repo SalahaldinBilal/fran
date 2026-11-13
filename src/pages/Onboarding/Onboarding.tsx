@@ -1,7 +1,7 @@
 import styles from "./Onboarding.module.scss";
 import { For, Match, Show, Switch, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { createStore } from "solid-js/store";
-import { ArrowLeft, ArrowRight, Check, CircleAlert, Database, FileX, LucideIcon, Shield, ShieldCheck, SquareTerminal } from "lucide-solid";
+import { ArrowLeft, ArrowRight, Check, CircleAlert, Database, FileX, LucideIcon, Shield, ShieldCheck, SquareTerminal } from "@core/icons";
 import useSettingsState, { Features } from "@core/states/settingsState";
 import useToastState from "@core/states/toastState";
 import { createSshImport } from "@core/helpers/sshImport";

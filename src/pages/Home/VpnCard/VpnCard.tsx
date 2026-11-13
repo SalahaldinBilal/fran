@@ -1,7 +1,7 @@
 import styles from "../ConnectionCard/ConnectionCard.module.scss";
 import vpnStyles from "../panels/VpnPanel.module.scss";
 import { Show, createMemo } from "solid-js";
-import { CircleAlert, Ellipsis, GripVertical, Monitor, Pencil, Server, Shield, Unplug } from "lucide-solid";
+import { CircleAlert, Ellipsis, GripVertical, Monitor, Pencil, Server, Shield, Unplug } from "@core/icons";
 import useVpnState from "@core/states/vpnState";
 import useVpnEditorState from "@core/states/vpnEditorState";
 import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";

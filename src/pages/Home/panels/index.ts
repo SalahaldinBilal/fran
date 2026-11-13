@@ -1,5 +1,5 @@
 import { Component } from "solid-js";
-import { ArrowLeftRight, CodeXml, Database, History, LucideIcon, Server, Shield } from "lucide-solid";
+import { ArrowLeftRight, CodeXml, Database, History, LucideIcon, Server, Shield } from "@core/icons";
 import { HomePanelId } from "@core/helpers/homeLayout";
 import { Feature } from "@core/helpers/features";
 import DatabasesPanel from "./DatabasesPanel";

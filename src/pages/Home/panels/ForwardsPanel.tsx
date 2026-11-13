@@ -1,7 +1,7 @@
 import shared from "./Panels.module.scss";
 import styles from "./ForwardsPanel.module.scss";
 import { For, Show, createMemo } from "solid-js";
-import { ArrowLeftRight, Plus } from "lucide-solid";
+import { ArrowLeftRight, Plus } from "@core/icons";
 import useSshState from "@core/states/sshState";
 import useForwardRulesState from "@core/states/forwardRulesState";
 import useContextMenuState from "@core/states/contextMenuState";

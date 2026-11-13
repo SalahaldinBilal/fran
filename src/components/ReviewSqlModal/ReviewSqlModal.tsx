@@ -1,6 +1,6 @@
 import styles from "./ReviewSqlModal.module.scss";
 import { Show, createComputed, createMemo, createSignal, on } from "solid-js";
-import { CircleAlert, ShieldCheck, TriangleAlert } from "lucide-solid";
+import { CircleAlert, ShieldCheck, TriangleAlert } from "@core/icons";
 import { SQLDialect } from "@codemirror/lang-sql";
 import { plural } from "@core/helpers";
 import Modal from "../Modal/Modal";

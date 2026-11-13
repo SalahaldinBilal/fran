@@ -1,7 +1,7 @@
 import styles from "./TabStrip.module.scss";
 import { For, JSX, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { LucideIcon, X } from "lucide-solid";
+import { LucideIcon, X } from "@core/icons";
 
 export type TabStripItem = {
   id: string,

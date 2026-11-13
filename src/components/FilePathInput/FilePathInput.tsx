@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderOpen } from "lucide-solid";
+import { FolderOpen } from "@core/icons";
 import Input from "../Input/Input";
 import Button from "../Button/Button";
 import useToastState from "@core/states/toastState";

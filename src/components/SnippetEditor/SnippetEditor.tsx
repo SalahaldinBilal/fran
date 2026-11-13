@@ -1,6 +1,6 @@
 import styles from "./SnippetEditor.module.scss";
 import { Show, createEffect, createMemo, createSignal, on } from "solid-js";
-import { Trash2 } from "lucide-solid";
+import { Trash2 } from "@core/icons";
 import useSnippetsState from "@core/states/snippetsState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";

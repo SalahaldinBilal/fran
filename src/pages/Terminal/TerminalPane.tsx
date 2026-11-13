@@ -1,7 +1,7 @@
 import "@xterm/xterm/css/xterm.css";
 import styles from "./Terminal.module.scss";
 import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
-import { ArrowDown, ArrowUp, ClipboardPaste, Copy, Eraser, GripVertical, Search, SquareTerminal, TextSelect, TriangleAlert, X } from "lucide-solid";
+import { ArrowDown, ArrowUp, ClipboardPaste, Copy, Eraser, GripVertical, Search, SquareTerminal, TextSelect, TriangleAlert, X } from "@core/icons";
 import { ITheme, Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";

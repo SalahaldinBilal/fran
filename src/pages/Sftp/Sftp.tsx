@@ -2,7 +2,7 @@ import styles from "./Sftp.module.scss";
 import { Match, Show, Switch as Branch, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import useWorkspaceState from "@core/states/workspaceState";
-import { CircleAlert, Files, Laptop, Link2, Pencil, RefreshCw, Server, ShieldCheck, SquareTerminal, User } from "lucide-solid";
+import { CircleAlert, Files, Laptop, Link2, Pencil, RefreshCw, Server, ShieldCheck, SquareTerminal, User } from "@core/icons";
 import useSftpState, { Side } from "@core/states/sftpState";
 import useSshState from "@core/states/sshState";
 import useTerminalState from "@core/states/terminalState";

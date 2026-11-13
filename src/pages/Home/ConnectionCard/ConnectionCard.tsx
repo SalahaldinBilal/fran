@@ -1,6 +1,6 @@
 import styles from "./ConnectionCard.module.scss";
 import { Show, createMemo } from "solid-js";
-import { ArrowRight, Cable, Copy, Database, Ellipsis, GripVertical, Pencil, Plug, Server, Trash2 } from "lucide-solid";
+import { ArrowRight, Cable, Copy, Database, Ellipsis, GripVertical, Pencil, Plug, Server, Trash2 } from "@core/icons";
 import { ConnectionProfile } from "@core/types";
 import { withDatabaseModule } from "@core/databases";
 import useWorkspaceState from "@core/states/workspaceState";

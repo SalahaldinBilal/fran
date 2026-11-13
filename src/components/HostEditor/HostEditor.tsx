@@ -2,7 +2,7 @@ import styles from "./HostEditor.module.scss";
 import editorStyles from "@core/pages/Home/ConnectionEditor/ConnectionEditor.module.scss";
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on } from "solid-js";
 import { createStore, produce, reconcile, unwrap } from "solid-js/store";
-import { ArrowDown, ArrowUp, Link, Plus, Server, SlidersHorizontal, Trash2, User, X } from "lucide-solid";
+import { ArrowDown, ArrowUp, Link, Plus, Server, SlidersHorizontal, Trash2, User, X } from "@core/icons";
 import { IdentityAuth, SshHost } from "@core/types";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import useHostEditorState from "@core/states/hostEditorState";

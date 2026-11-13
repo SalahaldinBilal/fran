@@ -1,6 +1,6 @@
 import styles from "./AgentApprovalModal.module.scss";
 import { For, Match, Show, Switch, createMemo, createSignal, onCleanup } from "solid-js";
-import { ArrowRight, CircleAlert, ShieldCheck, TriangleAlert } from "lucide-solid";
+import { ArrowRight, CircleAlert, ShieldCheck, TriangleAlert } from "@core/icons";
 import { AgentApproval, PreviewRow } from "@core/types";
 import { databaseModule } from "@core/databases";
 import { errorMessage } from "@core/helpers/errors";

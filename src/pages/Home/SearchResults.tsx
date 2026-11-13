@@ -1,7 +1,7 @@
 import styles from "./SearchResults.module.scss";
 import { For, Show, createMemo } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { ArrowLeftRight, CodeXml, Database, LucideIcon, Server, Shield } from "lucide-solid";
+import { ArrowLeftRight, CodeXml, Database, LucideIcon, Server, Shield } from "@core/icons";
 import useVpnState from "@core/states/vpnState";
 import useVpnEditorState from "@core/states/vpnEditorState";
 import { vpnServer } from "@core/helpers/vpn";

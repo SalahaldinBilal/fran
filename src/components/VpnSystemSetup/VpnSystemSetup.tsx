@@ -1,6 +1,6 @@
 import styles from "@core/pages/Settings/Settings.module.scss";
 import { Show, createEffect, createMemo, createSignal, on, onMount } from "solid-js";
-import { Copy } from "lucide-solid";
+import { Copy } from "@core/icons";
 import useSettingsState from "@core/states/settingsState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";

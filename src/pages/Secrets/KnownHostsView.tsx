@@ -1,6 +1,6 @@
 import styles from "./Secrets.module.scss";
 import { For, Show, createMemo, createSignal } from "solid-js";
-import { Info, Search, ShieldCheck, Trash2 } from "lucide-solid";
+import { Info, Search, ShieldCheck, Trash2 } from "@core/icons";
 import useSshState from "@core/states/sshState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";

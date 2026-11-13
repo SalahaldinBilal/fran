@@ -4,7 +4,7 @@ import editorStyles from "@core/pages/Home/ConnectionEditor/ConnectionEditor.mod
 import styles from "./VpnEditor.module.scss";
 import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
 import { createStore, produce, reconcile, unwrap } from "solid-js/store";
-import { ArrowDown, ArrowUp, FileText, KeyRound, Monitor, Plus, Server, ShieldCheck, Trash2, User, X } from "lucide-solid";
+import { ArrowDown, ArrowUp, FileText, KeyRound, Monitor, Plus, Server, ShieldCheck, Trash2, User, X } from "@core/icons";
 import { CertSummary, TlsWrap, VerifyNameKind, VpnAuth, VpnProfile, VpnProto } from "@core/types";
 import { PendingSecret, SecretEditor } from "@core/databases/types";
 import { safeInvoke } from "@core/helpers/safeInvoke";

@@ -4,7 +4,7 @@ import { Dynamic } from "solid-js/web";
 import {
   ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight, ChevronUp, CircleAlert, Copy, CornerLeftUp, Eye, File, FileQuestion,
   FileSymlink, Folder, FolderOpen, FolderPlus, FolderSymlink, HardDrive, Lock, LucideIcon, Pencil, RefreshCw, Trash2,
-} from "lucide-solid";
+} from "@core/icons";
 import useSftpState, { Side, isFolder } from "@core/states/sftpState";
 import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
 import { formatBytes, plural } from "@core/helpers";

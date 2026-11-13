@@ -1,6 +1,6 @@
 import styles from "./Settings.module.scss";
 import { createMemo, Match, Show, Switch } from "solid-js";
-import { Download, RefreshCw, RotateCw } from "lucide-solid";
+import { Download, RefreshCw, RotateCw } from "@core/icons";
 import useUpdaterState from "@core/states/updaterState";
 import Button from "@core/components/Button/Button";
 import ReleaseNotes from "@core/components/ReleaseNotes/ReleaseNotes";

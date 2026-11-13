@@ -2,7 +2,7 @@ import styles from "./Settings.module.scss";
 import { createMemo, createSignal, For, JSX, Show } from "solid-js";
 import {
   Bot, CircleAlert, Download, LucideIcon, Palette, Shield, ShieldCheck, SlidersHorizontal, SquareTerminal, Table2, Terminal as TerminalIcon, WandSparkles,
-} from "lucide-solid";
+} from "@core/icons";
 import VpnSettings from "./VpnSettings";
 import SecuritySettings from "./SecuritySettings";
 import useSettingsState from "@core/states/settingsState";

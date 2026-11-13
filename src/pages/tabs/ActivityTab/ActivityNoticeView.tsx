@@ -1,6 +1,6 @@
 import styles from "./ActivityTab.module.scss";
 import { For, Show, createMemo } from "solid-js";
-import { Copy, Info, RotateCw, TriangleAlert } from "lucide-solid";
+import { Copy, Info, RotateCw, TriangleAlert } from "@core/icons";
 import { ActivityNotice, SetupStep } from "@core/types";
 import { copyText } from "@core/helpers/clipboard";
 import Button from "@core/components/Button/Button";

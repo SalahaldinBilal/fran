@@ -1,6 +1,6 @@
 import styles from "./Views.module.scss";
 import { For, Show, createEffect, createMemo, createSignal, on, untrack } from "solid-js";
-import { ChevronLeft, ChevronRight, Clock } from "lucide-solid";
+import { ChevronLeft, ChevronRight, Clock } from "@core/icons";
 import { ColumnMeta } from "@core/types";
 import Button from "../../Button/Button";
 import { tooltip } from "../../Tooltip/Tooltip";

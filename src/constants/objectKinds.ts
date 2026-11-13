@@ -1,4 +1,4 @@
-import { CalendarClock, Eye, Layers, ListOrdered, LucideIcon, Sigma, Table2, Workflow, Zap } from "lucide-solid";
+import { CalendarClock, Eye, Layers, ListOrdered, LucideIcon, Sigma, Table2, Workflow, Zap } from "@core/icons";
 import { ObjectKind } from "@core/types";
 
 export type ObjectKindInfo = {

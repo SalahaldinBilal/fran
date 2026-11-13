@@ -1,6 +1,6 @@
 import styles from "./Input.module.scss";
 import { JSX, Show, createMemo, createSignal, onMount } from "solid-js";
-import { X } from "lucide-solid";
+import { X } from "@core/icons";
 import { tooltip } from "../Tooltip/Tooltip";
 
 export type InputProps = {

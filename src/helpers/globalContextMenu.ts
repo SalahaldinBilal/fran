@@ -1,5 +1,5 @@
 import { onCleanup } from "solid-js";
-import { ClipboardPaste, Copy, Scissors, TextSelect } from "lucide-solid";
+import { ClipboardPaste, Copy, Scissors, TextSelect } from "@core/icons";
 import useContextMenuState from "@core/states/contextMenuState";
 import { pasteText } from "./clipboard";
 

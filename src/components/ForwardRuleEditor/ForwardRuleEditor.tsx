@@ -1,7 +1,7 @@
 import styles from "./ForwardRuleEditor.module.scss";
 import { Match, Show, Switch as Branch, createEffect, createMemo, createSignal, on } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
-import { Trash2 } from "lucide-solid";
+import { Trash2 } from "@core/icons";
 import { ForwardKind, ForwardRule } from "@core/types";
 import useForwardRulesState from "@core/states/forwardRulesState";
 import useSshState from "@core/states/sshState";

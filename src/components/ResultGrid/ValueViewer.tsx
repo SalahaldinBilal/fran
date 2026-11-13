@@ -1,6 +1,6 @@
 import styles from "./ValueViewer.module.scss";
 import { Match, Show, Switch, createComputed, createMemo, createSignal, on, onCleanup } from "solid-js";
-import { Copy } from "lucide-solid";
+import { Copy } from "@core/icons";
 import { ColumnChoices, ColumnMeta } from "@core/types";
 import { copyText } from "@core/helpers/clipboard";
 import { safeInvoke } from "@core/helpers/safeInvoke";

@@ -1,7 +1,7 @@
 import styles from "./Home.module.scss";
 import { Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { ArrowLeftRight, Check, CodeXml, Database, Download, LayoutGrid, Plus, RotateCcw, Search, Server, Shield, ShieldAlert } from "lucide-solid";
+import { ArrowLeftRight, Check, CodeXml, Database, Download, LayoutGrid, Plus, RotateCcw, Search, Server, Shield, ShieldAlert } from "@core/icons";
 import useVpnEditorState from "@core/states/vpnEditorState";
 import useSettingsState from "@core/states/settingsState";
 import useHostEditorState from "@core/states/hostEditorState";

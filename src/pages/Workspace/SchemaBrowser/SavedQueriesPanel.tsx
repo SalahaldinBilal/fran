@@ -1,6 +1,6 @@
 import styles from "./SchemaBrowser.module.scss";
 import { For, Show, createMemo, createSignal } from "solid-js";
-import { Pencil, Plus, Search, SquarePen, TextCursorInput, Trash2 } from "lucide-solid";
+import { Pencil, Plus, Search, SquarePen, TextCursorInput, Trash2 } from "@core/icons";
 import useWorkspaceState from "@core/states/workspaceState";
 import useSavedQueriesState from "@core/states/savedQueriesState";
 import useContextMenuState from "@core/states/contextMenuState";

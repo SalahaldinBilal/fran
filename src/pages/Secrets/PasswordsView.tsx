@@ -1,7 +1,7 @@
 import styles from "./Secrets.module.scss";
 import own from "./PasswordsView.module.scss";
 import { For, Show, createMemo, createResource, createSignal, onCleanup } from "solid-js";
-import { Copy, Database, Globe, KeyRound, Lock, LockOpen, Shield, TriangleAlert, User } from "lucide-solid";
+import { Copy, Database, Globe, KeyRound, Lock, LockOpen, Shield, TriangleAlert, User } from "@core/icons";
 import useSavedSecretsState from "@core/states/savedSecretsState";
 import useToastState from "@core/states/toastState";
 import { safeInvoke } from "@core/helpers/safeInvoke";

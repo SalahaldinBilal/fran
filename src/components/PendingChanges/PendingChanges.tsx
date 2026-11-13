@@ -1,5 +1,5 @@
 import styles from "./PendingChanges.module.scss";
-import { Check } from "lucide-solid";
+import { Check } from "@core/icons";
 import { plural } from "@core/helpers";
 
 export type PendingChangesProps = {

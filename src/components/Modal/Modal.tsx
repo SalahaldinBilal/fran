@@ -3,7 +3,7 @@ import { JSX, Show, createEffect, createMemo, createSignal, onCleanup } from "so
 import { Portal } from "solid-js/web";
 import { Transition } from "solid-transition-group";
 import { makeEventListener } from "@solid-primitives/event-listener";
-import { X } from "lucide-solid";
+import { X } from "@core/icons";
 import Button from "../Button/Button";
 import useModalState from "@core/states/modalState";
 

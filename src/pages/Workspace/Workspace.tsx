@@ -1,6 +1,6 @@
 import styles from "./Workspace.module.scss";
 import { For, Show, createMemo, untrack } from "solid-js";
-import { Database } from "lucide-solid";
+import { Database } from "@core/icons";
 import useWorkspaceState from "@core/states/workspaceState";
 import { databaseModule } from "@core/databases";
 import EmptyState from "@core/components/EmptyState/EmptyState";

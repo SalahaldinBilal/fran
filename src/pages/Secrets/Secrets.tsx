@@ -1,6 +1,6 @@
 import settingsStyles from "../Settings/Settings.module.scss";
 import { For, JSX, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
-import { Cog, Globe, KeyRound, Lock, LucideIcon, Shield, ShieldCheck, User } from "lucide-solid";
+import { Cog, Globe, KeyRound, Lock, LucideIcon, Shield, ShieldCheck, User } from "@core/icons";
 import useSshState from "@core/states/sshState";
 import useSavedSecretsState from "@core/states/savedSecretsState";
 import useWorkspaceState, { SECRETS_TAB_ID } from "@core/states/workspaceState";

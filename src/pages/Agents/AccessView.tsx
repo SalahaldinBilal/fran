@@ -1,6 +1,6 @@
 import styles from "./Agents.module.scss";
 import { For, Show, createMemo, createSignal } from "solid-js";
-import { Info, Plus, ShieldAlert, X } from "lucide-solid";
+import { Info, Plus, ShieldAlert, X } from "@core/icons";
 import { AgentAccess, AgentMode, ConnectionProfile } from "@core/types";
 import { withDatabaseModule } from "@core/databases";
 import useAgentState from "@core/states/agentState";

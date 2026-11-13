@@ -1,6 +1,6 @@
 import shared from "./Panels.module.scss";
 import { For, Show, createMemo } from "solid-js";
-import { Database, History, SquareTerminal } from "lucide-solid";
+import { Database, History, SquareTerminal } from "@core/icons";
 import useSettingsState from "@core/states/settingsState";
 import useConnectionsState from "@core/states/connectionsState";
 import useWorkspaceState from "@core/states/workspaceState";

@@ -1,6 +1,6 @@
 import styles from "./RoutePreview.module.scss";
 import { For, Show } from "solid-js";
-import { ChevronRight, Database, Globe, Monitor, Server, Shield } from "lucide-solid";
+import { ChevronRight, Database, Globe, Monitor, Server, Shield } from "@core/icons";
 import { Proxy, SshHost, VpnProfile } from "@core/types";
 
 export type RoutePreviewProps = {

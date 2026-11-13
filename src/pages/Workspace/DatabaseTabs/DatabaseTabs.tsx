@@ -1,6 +1,6 @@
 import styles from "./DatabaseTabs.module.scss";
 import { For, Match, Show, Switch, createMemo, onMount } from "solid-js";
-import { Database, FileCode, Gauge, PencilRuler, Plus, SquareTerminal, X } from "lucide-solid";
+import { Database, FileCode, Gauge, PencilRuler, Plus, SquareTerminal, X } from "@core/icons";
 import useWorkspaceState, { DatabaseTab } from "@core/states/workspaceState";
 import useSavedQueriesState from "@core/states/savedQueriesState";
 import useContextMenuState from "@core/states/contextMenuState";

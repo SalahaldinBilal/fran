@@ -1,6 +1,6 @@
 import styles from "./Views.module.scss";
 import { For } from "solid-js";
-import { Copy } from "lucide-solid";
+import { Copy } from "@core/icons";
 import { copyText } from "@core/helpers/clipboard";
 import { tooltip } from "../../Tooltip/Tooltip";
 

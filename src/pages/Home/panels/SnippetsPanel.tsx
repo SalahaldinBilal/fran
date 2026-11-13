@@ -1,6 +1,6 @@
 import shared from "./Panels.module.scss";
 import { For, Show, createMemo } from "solid-js";
-import { CodeXml, Play, Plus, SquareTerminal } from "lucide-solid";
+import { CodeXml, Play, Plus, SquareTerminal } from "@core/icons";
 import useSnippetsState from "@core/states/snippetsState";
 import useTerminalState from "@core/states/terminalState";
 import useSshState from "@core/states/sshState";

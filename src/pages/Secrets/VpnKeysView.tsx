@@ -1,7 +1,7 @@
 import styles from "./Secrets.module.scss";
 import { For, Show, createMemo } from "solid-js";
 import { save } from "@tauri-apps/plugin-dialog";
-import { Download, FileKey, Shield } from "lucide-solid";
+import { Download, FileKey, Shield } from "@core/icons";
 import useSavedSecretsState from "@core/states/savedSecretsState";
 import useVpnState from "@core/states/vpnState";
 import useToastState from "@core/states/toastState";

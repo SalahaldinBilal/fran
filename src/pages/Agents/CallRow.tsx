@@ -1,6 +1,6 @@
 import styles from "./Activity.module.scss";
 import { For, Show, createMemo, createResource } from "solid-js";
-import { ChevronDown, ChevronRight, CircleAlert, ShieldCheck } from "lucide-solid";
+import { ChevronDown, ChevronRight, CircleAlert, ShieldCheck } from "@core/icons";
 import { AgentHistoryEntry } from "@core/types";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage } from "@core/helpers/errors";

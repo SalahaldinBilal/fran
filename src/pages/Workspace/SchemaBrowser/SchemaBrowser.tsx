@@ -1,6 +1,6 @@
 import styles from "./SchemaBrowser.module.scss";
 import { Match, Show, Switch, createMemo, createSignal, onMount, untrack } from "solid-js";
-import { Cable, Database, Gauge, RefreshCw, Unplug } from "lucide-solid";
+import { Cable, Database, Gauge, RefreshCw, Unplug } from "@core/icons";
 import useWorkspaceState from "@core/states/workspaceState";
 import useToastState from "@core/states/toastState";
 import usePortForwardState from "@core/states/portForwardState";

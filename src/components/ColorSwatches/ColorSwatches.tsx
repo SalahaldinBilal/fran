@@ -1,6 +1,6 @@
 import styles from "./ColorSwatches.module.scss";
 import { For, Show, createMemo, createSignal } from "solid-js";
-import { Pipette } from "lucide-solid";
+import { Pipette } from "@core/icons";
 import ColorPicker from "@core/components/ColorPicker/ColorPicker";
 import { tooltip } from "@core/components/Tooltip/Tooltip";
 

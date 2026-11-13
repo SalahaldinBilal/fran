@@ -2,7 +2,7 @@ import styles from "./DatabasesPanel.module.scss";
 import shared from "./Panels.module.scss";
 import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
 import { unwrap } from "solid-js/store";
-import { Check, CircleAlert, Database, GripVertical, Pencil, Plus, X } from "lucide-solid";
+import { Check, CircleAlert, Database, GripVertical, Pencil, Plus, X } from "@core/icons";
 import useConnectionsState from "@core/states/connectionsState";
 import useToastState from "@core/states/toastState";
 import { startReorder } from "@core/helpers/dragReorder";

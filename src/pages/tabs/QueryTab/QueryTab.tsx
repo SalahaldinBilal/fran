@@ -6,7 +6,7 @@ import { Channel } from "@tauri-apps/api/core";
 import {
   ArrowDownToLine, CircleAlert, CircleCheck, Lock, Pencil, Play, Plus, Save, Search, Square, StepForward, Table2,
   WandSparkles,
-} from "lucide-solid";
+} from "@core/icons";
 import { databaseModule } from "@core/databases";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage, isAppError } from "@core/helpers/errors";

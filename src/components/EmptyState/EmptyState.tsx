@@ -1,7 +1,7 @@
 import styles from "./EmptyState.module.scss";
 import { JSX, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { LucideIcon } from "lucide-solid";
+import { LucideIcon } from "@core/icons";
 
 export type EmptyStateProps = {
   icon?: LucideIcon,

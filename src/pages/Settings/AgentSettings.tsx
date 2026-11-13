@@ -1,5 +1,5 @@
 import { createMemo } from "solid-js";
-import { Bot } from "lucide-solid";
+import { Bot } from "@core/icons";
 import useAgentState from "@core/states/agentState";
 import Button from "@core/components/Button/Button";
 import Toggle from "@core/components/Switch/Switch";

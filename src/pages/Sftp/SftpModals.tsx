@@ -1,6 +1,6 @@
 import styles from "./Sftp.module.scss";
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal } from "solid-js";
-import { CircleAlert } from "lucide-solid";
+import { CircleAlert } from "@core/icons";
 import useSftpState from "@core/states/sftpState";
 import Modal from "@core/components/Modal/Modal";
 import Button from "@core/components/Button/Button";

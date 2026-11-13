@@ -2,7 +2,7 @@ import styles from "./Secrets.module.scss";
 import formStyles from "@core/databases/shared/ConnectionForm.module.scss";
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { save } from "@tauri-apps/plugin-dialog";
-import { Copy, Download, FileKey, Info, KeyRound, Lock, Pencil, Plus, Trash2, Upload } from "lucide-solid";
+import { Copy, Download, FileKey, Info, KeyRound, Lock, Pencil, Plus, Trash2, Upload } from "@core/icons";
 import useSshState from "@core/states/sshState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";

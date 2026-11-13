@@ -1,7 +1,7 @@
 import shared from "../shared/ConnectionForm.module.scss";
 import styles from "./MysqlConnectionForm.module.scss";
 import { Match, Show, Switch as SwitchCase, createMemo, createSignal } from "solid-js";
-import { Cable, Container, KeyRound, Network, Plug } from "lucide-solid";
+import { Cable, Container, KeyRound, Network, Plug } from "@core/icons";
 import { MysqlConnectMethod, MysqlOptions, SslMode } from "@core/types";
 import { ConnectionFormProps } from "../types";
 import Field, { FieldRow, FieldSection } from "@core/components/Field/Field";

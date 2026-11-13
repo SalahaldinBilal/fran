@@ -1,6 +1,6 @@
 import styles from "./Settings.module.scss";
 import { For, Match, Show, Switch as Branch, createEffect, createMemo, createSignal } from "solid-js";
-import { CircleAlert, ScrollText, Trash2 } from "lucide-solid";
+import { CircleAlert, ScrollText, Trash2 } from "@core/icons";
 import useSettingsState, {
   TERMINAL_CURSORS, TERMINAL_FONT_SIZES, TERMINAL_FONTS, TERMINAL_LOG_DAYS, TERMINAL_SCROLLBACK, TerminalCursor,
 } from "@core/states/settingsState";

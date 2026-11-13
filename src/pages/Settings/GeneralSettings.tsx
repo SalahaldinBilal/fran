@@ -1,5 +1,5 @@
 import { createMemo, createSignal, onMount } from "solid-js";
-import { Database, Shield, SquareTerminal } from "lucide-solid";
+import { Database, Shield, SquareTerminal } from "@core/icons";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import useSettingsState, { Features } from "@core/states/settingsState";
 import useOnboardingState from "@core/states/onboardingState";

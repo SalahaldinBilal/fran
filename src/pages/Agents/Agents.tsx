@@ -1,6 +1,6 @@
 import styles from "./Agents.module.scss";
 import { Show, createMemo } from "solid-js";
-import { Activity, Copy, Server, Shield } from "lucide-solid";
+import { Activity, Copy, Server, Shield } from "@core/icons";
 import useAgentState, { AgentsView } from "@core/states/agentState";
 import useConnectionsState from "@core/states/connectionsState";
 import { copyText } from "@core/helpers/clipboard";

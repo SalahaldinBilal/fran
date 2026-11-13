@@ -1,6 +1,6 @@
 import styles from "./Secrets.module.scss";
 import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
-import { Globe, Pencil, Plus, Trash2 } from "lucide-solid";
+import { Globe, Pencil, Plus, Trash2 } from "@core/icons";
 import useSshState from "@core/states/sshState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";

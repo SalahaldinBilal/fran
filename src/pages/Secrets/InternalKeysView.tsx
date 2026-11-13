@@ -1,6 +1,6 @@
 import styles from "./Secrets.module.scss";
 import { For, Show, createMemo } from "solid-js";
-import { Cog, Lock } from "lucide-solid";
+import { Cog, Lock } from "@core/icons";
 import useSavedSecretsState from "@core/states/savedSecretsState";
 import EmptyState from "@core/components/EmptyState/EmptyState";
 

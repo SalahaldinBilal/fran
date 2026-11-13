@@ -14,6 +14,7 @@
 ## UI rules
 
 - Context menus go through `contextMenuState.openContextMenu(event, items)` (items can have `children` for submenus). The webview's native menu is suppressed globally in `helpers/globalContextMenu.ts`, text fields get a Cut/Copy/Paste menu there. Clipboard access goes through `helpers/clipboard.ts` (Tauri clipboard plugin).
+- Icons are imported from `@core/icons` (`src/icons.ts`), never from `lucide-solid`, whose barrel makes the dev server load every icon. A new icon gets one line there, from its own `lucide-solid/icons/<name>` path.
 - Tooltips are `Button`'s `tooltip` prop, or `ref={element => tooltip(element, () => text)}` (`components/Tooltip/Tooltip.tsx`) on any other element, shown by the one `TooltipHost`. Never use the native `title` attribute.
 - Anything that needs the OS to confirm the user (`reveal_secret`, `copy_secret`, exports) goes through `withUserCheck` in `helpers/revealSecret.ts`, which handles a cancelled prompt, the app lock fallback and the one-time polkit setup. `SecretField` shows a stored value when its `SecretEditor` has an `owner`. Copy is only on the Secrets page (`pages/Secrets/`, tab kind `secrets`). Shown values hide after 30 seconds and when the app locks. The Passwords page unlocks every value at once for 5 minutes (`savedSecretsState`, the window's length comes from Rust), and hides them while the tab isn't shown.
 - Every `Modal` is mounted once at start, so mount order can't decide which is on top. Each one takes a layer from `modalState.nextLayer()` when shown, so the one opened last is.

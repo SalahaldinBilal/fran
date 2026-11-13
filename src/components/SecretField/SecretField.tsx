@@ -1,7 +1,7 @@
 import styles from "./SecretField.module.scss";
 import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import useLockState from "@core/states/lockState";
-import { Eye, EyeOff, KeyRound, Undo2 } from "lucide-solid";
+import { Eye, EyeOff, KeyRound, Undo2 } from "@core/icons";
 import Input from "../Input/Input";
 import Button from "../Button/Button";
 import { SecretEditor } from "@core/databases/types";

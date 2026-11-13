@@ -1,6 +1,6 @@
 import styles from "./Agents.module.scss";
 import { Show, createMemo } from "solid-js";
-import { Activity } from "lucide-solid";
+import { Activity } from "@core/icons";
 import { agentColor, agentInitial } from "./agentText";
 
 export type AgentMarkProps = {

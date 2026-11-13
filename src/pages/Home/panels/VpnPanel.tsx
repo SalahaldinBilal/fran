@@ -2,7 +2,7 @@ import shared from "./Panels.module.scss";
 import groups from "./DatabasesPanel.module.scss";
 import hostStyles from "./SshHostsPanel.module.scss";
 import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
-import { Check, CircleAlert, Download, GripVertical, LayoutGrid, Pencil, Plus, Rows3, Shield, Unplug, X } from "lucide-solid";
+import { Check, CircleAlert, Download, GripVertical, LayoutGrid, Pencil, Plus, Rows3, Shield, Unplug, X } from "@core/icons";
 import useVpnState from "@core/states/vpnState";
 import useVpnEditorState from "@core/states/vpnEditorState";
 import useContextMenuState from "@core/states/contextMenuState";

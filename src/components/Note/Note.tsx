@@ -1,6 +1,6 @@
 import styles from "./Note.module.scss";
 import { JSX, createMemo } from "solid-js";
-import { Info, TriangleAlert } from "lucide-solid";
+import { Info, TriangleAlert } from "@core/icons";
 
 export type NoteProps = {
   tone?: "info" | "warning",

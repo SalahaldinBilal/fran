@@ -1,6 +1,6 @@
 import styles from "./Views.module.scss";
 import { For, Show, createMemo, createSignal, onMount } from "solid-js";
-import { Check, Search } from "lucide-solid";
+import { Check, Search } from "@core/icons";
 import { ColumnChoices } from "@core/types";
 import { plural } from "@core/helpers";
 import { tooltip } from "../../Tooltip/Tooltip";

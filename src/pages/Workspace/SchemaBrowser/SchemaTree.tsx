@@ -1,7 +1,7 @@
 import styles from "./SchemaBrowser.module.scss";
 import { For, Match, Show, Switch, createMemo, createSignal, untrack } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { ChevronRight, CircleAlert, Database, Folder, Search } from "lucide-solid";
+import { ChevronRight, CircleAlert, Database, Folder, Search } from "@core/icons";
 import useWorkspaceState from "@core/states/workspaceState";
 import useContextMenuState from "@core/states/contextMenuState";
 import { OBJECT_KINDS, objectKindInfo } from "@core/constants/objectKinds";

@@ -1,6 +1,6 @@
 import styles from "./SshImport.module.scss";
 import { For, Show } from "solid-js";
-import { Check } from "lucide-solid";
+import { Check } from "@core/icons";
 import { ImportCandidate } from "@core/types";
 
 export type SshImportListProps = {

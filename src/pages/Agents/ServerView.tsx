@@ -1,6 +1,6 @@
 import styles from "./Agents.module.scss";
 import { Show, createEffect, createMemo, createResource, createSignal } from "solid-js";
-import { Braces, Trash2 } from "lucide-solid";
+import { Braces, Trash2 } from "@core/icons";
 import useAgentState from "@core/states/agentState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";

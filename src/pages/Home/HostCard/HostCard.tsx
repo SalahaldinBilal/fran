@@ -1,6 +1,6 @@
 import styles from "../ConnectionCard/ConnectionCard.module.scss";
 import { Show, createMemo } from "solid-js";
-import { ArrowLeftRight, ArrowRight, Ellipsis, FolderOpen, GripVertical, Pencil, Server, SquareTerminal } from "lucide-solid";
+import { ArrowLeftRight, ArrowRight, Ellipsis, FolderOpen, GripVertical, Pencil, Server, SquareTerminal } from "@core/icons";
 import useSshState from "@core/states/sshState";
 import useHostEditorState from "@core/states/hostEditorState";
 import useTerminalState from "@core/states/terminalState";

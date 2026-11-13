@@ -1,6 +1,6 @@
 import styles from "./Toasts.module.scss";
 import { For, Match, Switch } from "solid-js";
-import { CircleAlert, CircleCheck, Info, X } from "lucide-solid";
+import { CircleAlert, CircleCheck, Info, X } from "@core/icons";
 import useToastState from "@core/states/toastState";
 
 function Toasts() {

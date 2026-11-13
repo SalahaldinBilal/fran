@@ -1,7 +1,7 @@
 import styles from "./SegmentedControl.module.scss";
 import { For, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { LucideIcon } from "lucide-solid";
+import { LucideIcon } from "@core/icons";
 
 export type SegmentedOption<T> = {
   value: T,

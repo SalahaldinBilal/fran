@@ -4,7 +4,7 @@ import styles from "./SshHostsPanel.module.scss";
 import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
 import {
   Check, CircleAlert, Download, Globe, GripVertical, LayoutGrid, Link, Pencil, Plus, Rows3, Server, SquareTerminal, X,
-} from "lucide-solid";
+} from "@core/icons";
 import useSshState from "@core/states/sshState";
 import useHostEditorState from "@core/states/hostEditorState";
 import useSshImportState from "@core/states/sshImportState";

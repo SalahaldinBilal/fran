@@ -1,7 +1,7 @@
 import styles from "./Prompts.module.scss";
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
-import { ShieldAlert, ShieldCheck, ShieldQuestionMark } from "lucide-solid";
+import { ShieldAlert, ShieldCheck, ShieldQuestionMark } from "@core/icons";
 import usePromptState from "@core/states/promptState";
 import { HopPosition } from "@core/types";
 import Modal from "../Modal/Modal";

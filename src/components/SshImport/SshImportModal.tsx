@@ -1,6 +1,6 @@
 import styles from "./SshImport.module.scss";
 import { Match, Switch, createEffect, createMemo, createSignal, on } from "solid-js";
-import { CircleAlert, FileX } from "lucide-solid";
+import { CircleAlert, FileX } from "@core/icons";
 import useSshImportState from "@core/states/sshImportState";
 import useToastState from "@core/states/toastState";
 import { createSshImport } from "@core/helpers/sshImport";

@@ -1,7 +1,7 @@
 import styles from "./LockScreen.module.scss";
 import { Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
-import { Lock } from "lucide-solid";
+import { Lock } from "@core/icons";
 import useLockState from "@core/states/lockState";
 import useVaultState from "@core/states/vaultState";
 import useModalState from "@core/states/modalState";

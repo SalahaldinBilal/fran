@@ -1,6 +1,6 @@
 import shared from "./ConnectionForm.module.scss";
 import { Show, createMemo, createResource } from "solid-js";
-import { RefreshCw } from "lucide-solid";
+import { RefreshCw } from "@core/icons";
 import { KubeOptions } from "@core/types";
 import Field, { FieldRow, FieldSection } from "@core/components/Field/Field";
 import Input from "@core/components/Input/Input";

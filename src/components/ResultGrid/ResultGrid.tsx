@@ -1,7 +1,7 @@
 import styles from "./ResultGrid.module.scss";
 import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
 import { createStore } from "solid-js/store";
-import { Ban, Braces, ClipboardList, Copy, KeyRound, Maximize2, Rows3, TextCursorInput, Trash2, Undo2 } from "lucide-solid";
+import { Ban, Braces, ClipboardList, Copy, KeyRound, Maximize2, Rows3, TextCursorInput, Trash2, Undo2 } from "@core/icons";
 import { ColumnMeta, ValueCategory } from "@core/types";
 import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
 import useSettingsState, { CellEditMode } from "@core/states/settingsState";

@@ -1,7 +1,7 @@
 import styles from "./Settings.module.scss";
 import { Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderOpen } from "lucide-solid";
+import { FolderOpen } from "@core/icons";
 import useSettingsState, { VPN_CONNECT_TIMEOUTS, VPN_IDLE_CLOSE } from "@core/states/settingsState";
 import useToastState from "@core/states/toastState";
 import { safeInvoke } from "@core/helpers/safeInvoke";

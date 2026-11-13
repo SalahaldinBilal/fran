@@ -1,6 +1,6 @@
 import styles from "./ActivityTab.module.scss";
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
-import { ArrowDown, ArrowUp, CircleAlert, Copy, Info, Pause, Play, RefreshCw, Search, SquareTerminal } from "lucide-solid";
+import { ArrowDown, ArrowUp, CircleAlert, Copy, Info, Pause, Play, RefreshCw, Search, SquareTerminal } from "@core/icons";
 import useWorkspaceState from "@core/states/workspaceState";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage } from "@core/helpers/errors";

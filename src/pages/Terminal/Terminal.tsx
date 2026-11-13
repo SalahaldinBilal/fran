@@ -2,7 +2,7 @@ import styles from "./Terminal.module.scss";
 import { For, Show, createMemo, createResource } from "solid-js";
 import {
   ArrowLeftRight, Clipboard, CodeXml, Columns2, FolderOpen, KeyRound, Pencil, Play, Plus, RefreshCw, Rows2, Shield, ShieldCheck, TriangleAlert, User, X,
-} from "lucide-solid";
+} from "@core/icons";
 import useVpnState from "@core/states/vpnState";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import useTerminalState from "@core/states/terminalState";
