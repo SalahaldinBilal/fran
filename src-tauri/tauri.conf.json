@@ -4,7 +4,7 @@
   "version": "0.2.0",
   "identifier": "com.fran.app",
   "build": {
-    "beforeDevCommand": "node scripts/vpn-worker.ts && npm run dev",
+    "beforeDevCommand": "node scripts/dev.ts",
     "devUrl": "http://localhost:1430",
     "beforeBuildCommand": "node scripts/vpn-worker.ts && npm run build",
     "frontendDist": "../dist"

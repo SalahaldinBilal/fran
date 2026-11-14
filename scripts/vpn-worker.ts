@@ -1,7 +1,7 @@
 // Builds fran-vpn and puts it where Tauri's externalBin looks for it: src-tauri/binaries/fran-vpn-<target triple>.
 // On Windows it also fetches Wintun's signed wintun.dll, which the VPN service needs, checked against its published hash.
 // Wintun's license allows shipping that DLL unmodified with an app that only uses wintun.h.
-// Tauri runs this before dev and build. By hand: node scripts/vpn-worker.ts [--release]
+// Tauri runs this before build, and scripts/dev.ts next to Vite in dev. By hand: node scripts/vpn-worker.ts [--release]
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
