@@ -388,8 +388,7 @@ function KeysView() {
         </Button>
       </div>
       <p class={styles.Description}>
-        Keys in the vault leave it only through Export, which asks your system to confirm it's you and writes the key with a new passphrase.
-        Keys kept as files are read from disk each time you connect.
+        SSH keys used by your identities.
       </p>
 
       <div class={styles.List} style={{ "--columns": COLUMNS }}>
@@ -441,8 +440,7 @@ function KeysView() {
         <div class={`${styles.Note} ${styles.Warn}`}>
           <Info size={14} />
           <span>
-            <b>{hasRsa().join(", ")}</b> still works, but servers that only accept ssh-rsa signatures with SHA-1 are refused.
-            If a login fails with an RSA key, generate an Ed25519 key for that server.
+            <b>{hasRsa().join(", ")}</b> won't work on servers that only accept SHA-1 RSA signatures. Use an Ed25519 key for those.
           </span>
         </div>
       </Show>

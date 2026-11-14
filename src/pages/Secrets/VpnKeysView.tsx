@@ -50,8 +50,7 @@ function VpnKeysView() {
         <h2>VPN keys</h2>
       </div>
       <p class={styles.Description}>
-        Keys of VPN profiles. To use a profile on another computer, export it as an .ovpn or WireGuard .conf with its keys inside.
-        Fran asks your system to confirm it's you first. Keep that file private, the key in it isn't protected.
+        Keys of your VPN profiles.
       </p>
       <div class={styles.List} style={{ "--columns": COLUMNS }}>
         <div class={styles.ListHead}><span>VPN</span><span>Keys in the vault</span><span /></div>

@@ -96,12 +96,10 @@ function HostEditor() {
 
   const isNew = createMemo(() => !draft.id);
   const syncKey = createMemo(() => (draft.id ? itemKey("sshHost", draft.id) : null));
-  const title = createMemo(() => (isNew() ? "New SSH host": `Edit ${editor.request()?.host?.label ?? ""}`));
+  const title = createMemo(() => (isNew() ? "New SSH host" : `Edit ${editor.request()?.host?.label ?? ""}`));
   const saveLabel = createMemo(() => (saving() ? "Saving" : isNew() ? "Add host" : "Save"));
   const customLogin = createMemo(() => (draft.identityId ?? CUSTOM_LOGIN) === CUSTOM_LOGIN);
-  const identityHint = createMemo(() => (customLogin()
-    ? "Saved as an identity named after this host, so other hosts can use it too."
-    : "Changing the identity's password or key changes it for every host that uses it."));
+  const identityHint = createMemo(() => (customLogin() ? "Saved as an identity named after this host, so other hosts can use it too." : undefined));
   const groups = createMemo(() => [...new Set(ssh.file.hosts.flatMap(host => (host.group ? [host.group] : [])))].sort());
 
   const identityItems = createMemo<SelectItem<string>[]>(() => [
@@ -396,7 +394,7 @@ function HostEditor() {
             <Field label="Keepalive" grow>
               <Select value={draft.keepaliveSecs} items={KEEPALIVE} onChange={secs => setDraft("keepaliveSecs", secs)} />
             </Field>
-            <Field label="Run on connect" grow hint="Typed at the prompt after login, without pressing Enter.">
+            <Field label="Run on connect" grow>
               <Select value={draft.startupSnippetId} items={snippetItems()} onChange={id => setDraft("startupSnippetId", id)} />
             </Field>
           </FieldRow>

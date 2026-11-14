@@ -145,7 +145,7 @@ function MysqlConnectionForm(props: ConnectionFormProps<MysqlOptions>) {
                   <SecretField slot="password" secrets={props.secrets} />
                 </Field>
               </FieldRow>
-              <Field label="Default schema" hint="Opened automatically after connecting. Leave empty for none.">
+              <Field label="Default schema">
                 <SecretInput
                   path="defaultSchema"
                   refs={props.refs}

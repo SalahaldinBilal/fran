@@ -54,31 +54,6 @@
   font-size: var(--font-sm);
 }
 
-.ParseNote {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  color: var(--success);
-  font-size: var(--font-sm);
-
-  svg {
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  span {
-    color: var(--text-muted);
-  }
-
-  &.Failed {
-    color: var(--danger);
-
-    span {
-      color: var(--danger);
-    }
-  }
-}
-
 .TestArea {
   display: flex;
   align-items: center;

@@ -106,8 +106,7 @@ function PasswordsView() {
         <h2>Passwords</h2>
       </div>
       <p class={styles.Description}>
-        Every password, passphrase and token saved in the vault. Unlock them once and they stay readable for 5 minutes,
-        or until you lock them again or lock Fran. Leaving this page hides them until you come back. A copied password is cleared from the clipboard after 30 seconds.
+        Passwords, passphrases and tokens in the vault.
       </p>
 
       <Show when={passwords().length > 0}>
@@ -150,7 +149,7 @@ function PasswordsView() {
         <div class={`${styles.Note} ${styles.Warn} ${own.Warning}`}>
           <TriangleAlert size={15} />
           <span>
-            Your account has no password, so anyone at this computer can see these. Set one, or turn on the app lock in Settings, Security.
+            Your account has no password, so anyone using this computer can see these. Set one, or turn on the app lock in Settings.
           </span>
         </div>
       </Show>

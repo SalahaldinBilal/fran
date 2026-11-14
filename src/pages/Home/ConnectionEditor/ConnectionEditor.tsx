@@ -35,19 +35,11 @@ export type ConnectionEditorProps = {
 };
 
 type TestResult = { ok: boolean, message: string };
-type ParseNote = { ok: boolean, message: string };
 
 const IMPORT_VPN = "import:vpn";
 
 // What a paste into the Host field has to look like before it's read as a connection string.
 const CONNECTION_STRING_SHAPE = /^\s*([a-z][\w+.-]*:\/\/|jdbc:|\w+\s*=)/i;
-
-function parsedSummary(parsed: ParsedDriver): string {
-  const parts = [`Filled in ${parsed.filled.join(", ")}.`];
-  if (parsed.password !== null) parts.push("The password goes to the vault when you save, not into the connection.");
-  if (parsed.ignored.length > 0) parts.push(`Not used: ${parsed.ignored.join(", ")}.`);
-  return parts.join(" ");
-}
 
 function blankProfile(kind: DatabaseKind): ConnectionProfile {
   return { id: "", name: "", color: null, group: null, forwardPort: null, forwardAllNetworks: false, agentAccess: { mode: "off", databases: [] }, vpnId: null, ...defaultDriver(kind) };
@@ -58,7 +50,6 @@ function ConnectionEditor(props: ConnectionEditorProps) {
   const { confirm } = usePromptState;
   const { pushToast, pushError } = useToastState;
   const [connectionString, setConnectionString] = createSignal("");
-  const [parseNote, setParseNote] = createSignal<ParseNote | null>(null);
 
   const [draft, setDraft] = createStore<ConnectionProfile>(blankProfile("mysql"));
   const [pending, setPending] = createStore<Record<string, PendingSecret>>({});
@@ -111,7 +102,6 @@ function ConnectionEditor(props: ConnectionEditorProps) {
     setStoredSlots([]);
     setTestResult(null);
     setConnectionString("");
-    setParseNote(null);
 
     if (profile) {
       safeInvoke("get_stored_secrets", { connectionId: profile.id })
@@ -198,7 +188,6 @@ function ConnectionEditor(props: ConnectionEditorProps) {
     if (parsed.password !== null) setPending("password", parsed.password);
     setConnectionString("");
     setTestResult(null);
-    setParseNote({ ok: true, message: parsedSummary(parsed) });
   }
 
   // True when the text was taken as a connection string, including one that turned out to be broken.
@@ -208,7 +197,6 @@ function ConnectionEditor(props: ConnectionEditorProps) {
       parsed = parseConnectionString(text, unwrap(draft));
     } catch (error) {
       if (!(error instanceof ConnectionStringError)) throw error;
-      setParseNote({ ok: false, message: error.message });
       return true;
     }
     if (!parsed) return false;
@@ -217,9 +205,7 @@ function ConnectionEditor(props: ConnectionEditorProps) {
   }
 
   function fillFromConnectionString() {
-    if (!takeConnectionString(connectionString())) {
-      setParseNote({ ok: false, message: "That isn't a connection string Fran can read." });
-    }
+    takeConnectionString(connectionString());
   }
 
   function pastedIntoHost(text: string): boolean {
@@ -335,16 +321,13 @@ function ConnectionEditor(props: ConnectionEditorProps) {
           </Field>
         </FieldRow>
 
-        <Field label="Connection string">
+        <Field label="Connection string (optional)">
           <div class={styles.ConnectionString}>
             <Input
               mono
               class={styles.ConnectionStringInput}
               value={connectionString()}
-              onValue={value => {
-                setConnectionString(value);
-                setParseNote(null);
-              }}
+              onValue={setConnectionString}
               onKeyDown={event => {
                 if (event.key === "Enter") {
                   event.preventDefault();
@@ -358,17 +341,6 @@ function ConnectionEditor(props: ConnectionEditorProps) {
               Fill in
             </Button>
           </div>
-          <Show
-            when={parseNote()}
-            fallback={<span class={styles.ParseHint}>Optional. Fills the fields below from a URL like mysql://, postgres:// or jdbc:, a libpq key=value string or a SQLite file path.</span>}
-          >
-            {note => (
-              <span class={styles.ParseNote} classList={{ [styles.Failed]: !note().ok }}>
-                {note().ok ? <CircleCheck size={13} /> : <CircleAlert size={13} />}
-                <span>{note().message}</span>
-              </span>
-            )}
-          </Show>
         </Field>
 
         <div class={styles.Divider} />

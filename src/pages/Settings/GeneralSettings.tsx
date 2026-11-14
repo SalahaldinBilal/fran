@@ -1,4 +1,4 @@
-import { createMemo, createSignal, onMount } from "solid-js";
+import { Show, createMemo, createSignal, onMount } from "solid-js";
 import { Database, Shield, SquareTerminal } from "@core/icons";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import useSettingsState, { Features } from "@core/states/settingsState";
@@ -56,9 +56,11 @@ function GeneralSettings() {
             onChange={keepInTray => void useSettingsState.update({ keepInTray })}
           />
         </SettingRow>
-        <SettingRow name="Welcome screen" hint="Pick what you use Fran for again.">
-          <Button size="sm" variant="subtle" onClick={useOnboardingState.showAgain}>Show again</Button>
-        </SettingRow>
+        <Show when={import.meta.env.DEV}>
+          <SettingRow name="Welcome screen" hint="Pick what you use Fran for again.">
+            <Button size="sm" variant="subtle" onClick={useOnboardingState.showAgain}>Show again</Button>
+          </SettingRow>
+        </Show>
       </SettingGroup>
     </SettingsPage>
   );

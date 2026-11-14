@@ -89,8 +89,7 @@ function NamedSecretsView() {
         </div>
       </div>
       <p class={styles.Description}>
-        A value with a name that any field of a connection, SSH host, identity, proxy or VPN can use, like a host, a user or a password.
-        Change it here and everything that uses it follows. Fields only save the secret's name, the value stays in the vault.
+        Named values that any field can use instead of typing them in.
       </p>
 
       <Show when={secrets.loadError()}>

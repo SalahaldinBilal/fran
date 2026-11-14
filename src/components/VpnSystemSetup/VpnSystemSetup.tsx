@@ -16,8 +16,8 @@ import Button from "@core/components/Button/Button";
 import { SettingGroup, SettingRow } from "@core/pages/Settings/SettingsLayout";
 
 const GROUP_HINT = IS_MAC
-  ? "Adds you to a list only administrators can change. Others need an administrator to set it up for them."
-  : `Adds you to a "${IS_WINDOWS ? "Fran VPN Users" : "fran-vpn"}" group. Others need an administrator to add them.`;
+  ? "Others need an administrator to add them."
+  : `Others need an administrator to add them to "${IS_WINDOWS ? "Fran VPN Users" : "fran-vpn"}".`;
 
 const ACCESS_ITEMS: SelectItem<VpnServiceAccess>[] = [
   { value: "everyone", label: "Everyone on this computer" },
@@ -26,7 +26,7 @@ const ACCESS_ITEMS: SelectItem<VpnServiceAccess>[] = [
 
 // Shown under the setting instead of in the menu, which they'd make far too wide.
 const ACCESS_HINTS: Record<VpnServiceAccess, string> = {
-  everyone: "Any account signed in here. Not service accounts or network sign-ins.",
+  everyone: "Any account that signs in on this computer.",
   group: GROUP_HINT,
 };
 
@@ -41,16 +41,16 @@ function serviceText(status: VpnServiceStatus | null, failed: string | null): { 
   switch (status.state) {
     case "notSetUp":
       return status.nixos
-        ? { text: "Not set up. On NixOS, turn it on with programs.fran.vpnService in your configuration.", error: false }
-        : { text: "Not set up. Setting it up asks for admin rights once. After that, turning a VPN on asks for nothing.", error: false };
+        ? { text: "Not set up. Turn it on with programs.fran.vpnService.", error: false }
+        : { text: "Not set up. Needs admin rights once.", error: false };
     case "notRunning":
       return { text: `Set up, but not running. ${status.reason}`, error: true };
     case "needsUpdate":
-      return { text: "Installed by a different version of Fran. Click Update to fix it.", error: true };
+      return { text: "Installed by another Fran version. Click Update.", error: true };
     case "running": {
       if (!status.allowed) return { text: status.refused ?? "Running, but it doesn't take your account.", error: true };
       const who = status.access === "everyone" ? "everyone on this computer" : "you and administrators";
-      const outdated = status.outdated ? ` This Fran comes with a different version. Click Update to install it.` : "";
+      const outdated = status.outdated ? " Out of date. Click Update." : "";
       return { text: `Running, for ${who}.${outdated}`, error: status.outdated };
     }
   }
@@ -179,13 +179,13 @@ function VpnSystemSetup() {
   const showOpenVpn = createMemo(() => settings.vpn.systemWith === "openvpn" || profilesNeedOpenVpn());
   const openVpnMissing = createMemo(() => check() !== null && check()?.program === null);
   const openVpnError = createMemo(() => openVpn().error && !installCommand());
-  const accessHint = createMemo(() => (state() === "running" ? `${ACCESS_HINTS[access()]} Changing this asks for admin rights once.` : ACCESS_HINTS[access()]));
+  const accessHint = createMemo(() => (state() === "running" ? `${ACCESS_HINTS[access()]} Changing it needs admin rights.` : ACCESS_HINTS[access()]));
 
   return (
     <SettingGroup title="Turning VPNs on for this computer">
       <SettingRow
         name="Fran's VPN service"
-        hint={<>Turns VPNs on for this computer. It runs OpenVPN and WireGuard as a small system service. <span classList={{ [styles.HintError]: service().error }}>{service().text}</span></>}
+        hint={<>Runs OpenVPN and WireGuard as a system service. <span classList={{ [styles.HintError]: service().error }}>{service().text}</span></>}
       >
         <div class={styles.FormActions}>
           <Show when={canSetUp()}>
@@ -209,7 +209,7 @@ function VpnSystemSetup() {
       <Show when={showOpenVpn()}>
         <SettingRow
           name="Installed OpenVPN"
-          hint={<>For the profiles Fran's engine can't run, like TAP, legacy ciphers and proxies. <span classList={{ [styles.HintError]: openVpnError() }}>{openVpn().text}</span></>}
+          hint={<>For profiles Fran can't run itself, like TAP or legacy ciphers. <span classList={{ [styles.HintError]: openVpnError() }}>{openVpn().text}</span></>}
           below={
             <Show when={openVpnMissing() && installCommand()}>
               {command => (
@@ -235,7 +235,7 @@ function VpnSystemSetup() {
 
       <SettingRow
         name="OpenVPN profiles use"
-        hint="WireGuard profiles always use Fran's VPN service. Fran's own tunnels need neither of these. They carry only Fran's connections and never need admin rights."
+        hint="WireGuard always uses Fran's VPN service."
       >
         <Select value={settings.vpn.systemWith} items={BACKEND_ITEMS} onChange={systemWith => void updateVpn({ systemWith })} />
       </SettingRow>

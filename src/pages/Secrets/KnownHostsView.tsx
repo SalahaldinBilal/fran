@@ -49,8 +49,7 @@ function KnownHostsView() {
         <Input class={styles.Search} type="search" value={search()} onValue={setSearch} placeholder="Search" before={<Search size={14} />} clearable />
       </div>
       <p class={styles.Description}>
-        Every server you've trusted, checked on each hop of every connection. A key that changes stops the connection
-        until you replace it from the warning or forget it here.
+        Servers you've trusted. A changed key blocks the connection.
       </p>
 
       <div class={styles.List} style={{ "--columns": COLUMNS }}>
@@ -88,8 +87,7 @@ function KnownHostsView() {
       <div class={styles.Note}>
         <Info size={14} />
         <span>
-          When a server isn't listed here but OpenSSH on this computer already trusts it in <code>~/.ssh/known_hosts</code>,
-          the prompt says so. You still confirm it once. That file is only read, never written.
+          Servers already in <code>~/.ssh/known_hosts</code> are marked in the prompt, but you still confirm them once. Fran never writes to that file.
         </span>
       </div>
     </>

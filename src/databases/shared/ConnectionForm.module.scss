@@ -46,16 +46,15 @@
   }
 }
 
-.Actions {
+.HostPicker {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-.ActionHint {
+.HostSelect {
+  flex: 1;
   min-width: 0;
-  color: var(--text-faint);
-  font-size: var(--font-sm);
 }
 
 .Picker {

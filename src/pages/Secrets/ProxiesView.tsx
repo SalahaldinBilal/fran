@@ -161,8 +161,7 @@ function ProxiesView() {
         </Button>
       </div>
       <p class={styles.Description}>
-        For networks where SSH has to go out through a SOCKS5 or HTTP proxy. A host uses its proxy to reach the first hop of its route.
-        To go through another SSH server, add it as a jump host instead.
+        SOCKS5 and HTTP proxies for networks that block direct SSH.
       </p>
 
       <div class={styles.List} style={{ "--columns": COLUMNS }}>

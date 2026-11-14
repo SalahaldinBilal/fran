@@ -234,8 +234,8 @@ function Welcome() {
       <span class={page.WelcomeIcon}><CloudSync size={26} /></span>
       <h1>The same Fran on every computer</h1>
       <p>
-        Connect a cloud and your connections, SSH hosts, VPNs, snippets and settings follow you. Passwords and keys only sync if you say so,
-        and everything is encrypted here before it leaves.
+        Connect a cloud to sync your connections, SSH hosts, VPNs, snippets and settings between computers.
+        Everything is encrypted on this computer before it's uploaded.
       </p>
       <div class={page.Choices}>
         <For each={cloudModules}>

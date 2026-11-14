@@ -1,7 +1,7 @@
 import styles from "./ConnectionForm.module.scss";
-import { Match, Show, Switch, createMemo, createSignal } from "solid-js";
+import { Match, Show, Switch, createMemo } from "solid-js";
 import { unwrap } from "solid-js/store";
-import { Pencil, Plus, Save, Server } from "@core/icons";
+import { Pencil, Server } from "@core/icons";
 import { IdentityAuth, SecretRefs, SshAuthMethod, SshOptions } from "@core/types";
 import useSecretsState from "@core/states/secretsState";
 import { SecretEditor } from "../types";
@@ -33,6 +33,9 @@ const AGENT_SOCKET_HINT = IS_WINDOWS
   ? "Leave empty for the OpenSSH agent, or Pageant if that isn't running. Enter a pipe for agents like 1Password that use their own."
   : "Leave empty to use SSH_AUTH_SOCK. Enter a socket path for agents like 1Password that use their own.";
 
+const SAVE_INLINE = "save:inline";
+const NEW_HOST = "new:host";
+
 type Source = "saved" | "inline";
 
 export type SshSectionProps = {
@@ -50,12 +53,16 @@ function SshSection(props: SshSectionProps) {
   const sshState = useSshState;
   const editor = useHostEditorState;
   const { pushToast, pushError } = useToastState;
-  const [saving, setSaving] = createSignal(false);
 
   const source = createMemo<Source>(() => (props.ssh.hostId !== null ? "saved" : "inline"));
 
-  const hostItems = createMemo<SelectItem<string | null>[]>(() =>
-    sshState.file.hosts.map(host => ({ value: host.id, label: `${host.label} (${sshState.address(host)})` })));
+  const inlineHost = createMemo(() => shown(props.ssh.host, props.refs?.get("host")));
+  const inlineUser = createMemo(() => shown(props.ssh.user, props.refs?.get("user")));
+  const hostItems = createMemo<SelectItem<string | null>[]>(() => [
+    ...sshState.file.hosts.map(host => ({ value: host.id, label: `${host.label} (${sshState.address(host)})` })),
+    ...(inlineHost() && inlineUser() ? [{ value: SAVE_INLINE, label: `Save ${inlineUser()}@${inlineHost()} as a host…` }] : []),
+    { value: NEW_HOST, label: "New SSH host…" },
+  ]);
   const savedHost = createMemo(() => (props.ssh.hostId ? sshState.host(props.ssh.hostId) : undefined));
   const route = createMemo(() => (props.ssh.hostId ? sshState.route(props.ssh.hostId) : []));
   const routeProxy = createMemo(() => (props.ssh.hostId ? sshState.routeProxy(props.ssh.hostId) : undefined));
@@ -105,13 +112,8 @@ function SshSection(props: SshSectionProps) {
     const hostRefs = refsFor({ host: "host", port: "port" });
     const identityRefs = refsFor({ user: "user", "slot:sshPassword": "slot:password" });
     const keyRefs = refsFor({ "slot:sshKeyPassphrase": "slot:passphrase" });
-    const hostText = shown(ssh.host, hostRefs.host);
-    const userText = shown(ssh.user, identityRefs.user);
-    if (!hostText || !userText) {
-      pushError(new Error("Enter the SSH host and user first"));
-      return;
-    }
-    setSaving(true);
+    const hostText = inlineHost();
+    const userText = inlineUser();
     try {
       let auth: IdentityAuth;
       switch (ssh.auth) {
@@ -163,9 +165,13 @@ function SshSection(props: SshSectionProps) {
       pushToast(`Saved ${host.label} as an SSH host`, "success", 3000);
     } catch (error) {
       pushError(error);
-    } finally {
-      setSaving(false);
     }
+  }
+
+  function pickHost(id: string | null) {
+    if (id === SAVE_INLINE) void saveAsHost();
+    else if (id === NEW_HOST) newHost();
+    else props.update(ssh => { ssh.hostId = id; });
   }
 
   return (
@@ -182,36 +188,27 @@ function SshSection(props: SshSectionProps) {
 
       <Switch>
         <Match when={source() === "saved"}>
-          <Show
-            when={sshState.file.hosts.length > 0}
-            fallback={<div class={styles.Note}>No saved hosts yet. Add one, or set up the tunnel only for this connection.</div>}
-          >
-            <Field label="Host" hint="The host's identity, jump hosts and proxy are used as they are. Its secrets stay with the host, not this connection.">
+          <Field label="Host">
+            <div class={styles.HostPicker}>
               <Select
+                class={styles.HostSelect}
                 value={props.ssh.hostId}
                 items={hostItems()}
-                onChange={id => props.update(ssh => { ssh.hostId = id; })}
+                onChange={pickHost}
                 placeholder={hostPlaceholder()}
               />
-            </Field>
-            <Show when={route().length > 0}>
-              <RoutePreview hosts={route()} proxy={routeProxy()} vpn={routeVpn()} database={props.databaseTarget} />
-            </Show>
+              <Show when={savedHost()}>
+                {host => (
+                  <Button icon variant="subtle" tooltip={`Edit ${host().label}`} onClick={() => editor.open(host())}>
+                    <Pencil size={14} />
+                  </Button>
+                )}
+              </Show>
+            </div>
+          </Field>
+          <Show when={route().length > 0}>
+            <RoutePreview hosts={route()} proxy={routeProxy()} vpn={routeVpn()} database={props.databaseTarget} />
           </Show>
-          <div class={styles.Actions}>
-            <Button size="sm" variant="subtle" onClick={newHost}>
-              <Plus size={14} />
-              New SSH host
-            </Button>
-            <Show when={savedHost()}>
-              {host => (
-                <Button size="sm" variant="ghost" onClick={() => editor.open(host())}>
-                  <Pencil size={14} />
-                  Edit {host().label}
-                </Button>
-              )}
-            </Show>
-          </div>
         </Match>
 
         <Match when={source() === "inline"}>
@@ -285,13 +282,6 @@ function SshSection(props: SshSectionProps) {
               </Field>
             </Match>
           </Switch>
-          <div class={styles.Actions}>
-            <Button size="sm" variant="subtle" disabled={saving()} onClick={saveAsHost}>
-              <Save size={14} />
-              Save as an SSH host
-            </Button>
-            <span class={styles.ActionHint}>Other connections can use it too. Its login becomes an identity on the Secrets page.</span>
-          </div>
         </Match>
       </Switch>
     </FieldSection>

@@ -174,7 +174,7 @@ function IdentitiesView() {
         </Button>
       </div>
       <p class={styles.Description}>
-        A user name and how it logs in. Hosts point at an identity, so changing a password or key here changes it for every host that uses it.
+        Logins your SSH hosts share.
       </p>
 
       <div class={styles.List} style={{ "--columns": COLUMNS }}>

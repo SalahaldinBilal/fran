@@ -73,7 +73,6 @@ function Settings(props: SettingsProps) {
             </button>
           )}
         </For>
-        <div class={styles.NavNote}>Saved on this machine and applied right away.</div>
       </nav>
 
       <div class={styles.Content}>
