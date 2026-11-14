@@ -1,5 +1,5 @@
 // Run with: npm run version:bump <version>  (e.g. 0.2.0)
-// Sets the version in package.json, the Cargo.toml files and tauri.conf.json, and turns CHANGELOG.md's
+// Sets the app's version in package.json, src-tauri/Cargo.toml and tauri.conf.json, and turns CHANGELOG.md's
 // "Unreleased" section into a dated section for that version, which deploy.ts uses as the release notes.
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -31,15 +31,6 @@ function bumpCargoVersion(relativePath: string) {
   const contents = readFileSync(filePath, "utf-8");
   // Anchored to a line start so dependency versions like `{ version = "..." }` are left alone.
   writeFileSync(filePath, replaceOrThrow(contents, /^version = "[^"]*"/m, `version = "${newVersion}"`, filePath));
-  console.log(`Updated ${relativePath}`);
-}
-
-// The server has its own lockfile and its image builds with --locked, so the version in there has to follow.
-function bumpLockedVersion(relativePath: string, crate: string) {
-  const filePath = fileURLToPath(new URL(relativePath, import.meta.url));
-  const contents = readFileSync(filePath, "utf-8");
-  const pattern = new RegExp(`(name = "${crate}"\\r?\\nversion = ")[^"]*"`);
-  writeFileSync(filePath, replaceOrThrow(contents, pattern, `$1${newVersion}"`, filePath));
   console.log(`Updated ${relativePath}`);
 }
 
@@ -76,8 +67,6 @@ function cutChangelog() {
 bumpJsonVersion("../package.json");
 bumpCargoVersion("../src-tauri/Cargo.toml");
 bumpJsonVersion("../src-tauri/tauri.conf.json");
-bumpCargoVersion("../server/Cargo.toml");
-bumpLockedVersion("../server/Cargo.lock", "fran-sync-server");
 cutChangelog();
 
 console.log(`\nBumped to ${newVersion}. Cargo.lock picks it up on the next cargo check or build.`);

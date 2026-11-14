@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*.*.*"
+      - "sv*.*.*"
   workflow_dispatch:
 
 jobs:
@@ -15,7 +16,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Tag matches the app version
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
         run: |
           version=$(jq -r .version src-tauri/tauri.conf.json)
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
@@ -23,9 +24,19 @@ jobs:
             exit 1
           fi
 
+      - name: Tag matches the server version
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'sv')
+        run: |
+          version=$(grep -m1 '^version = ' server/Cargo.toml | cut -d'"' -f2)
+          if [ "sv$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match version $version in server/Cargo.toml."
+            exit 1
+          fi
+
   build:
     name: Build (${{ matrix.name }})
     needs: check
+    if: github.ref_type != 'tag' || startsWith(github.ref_name, 'v')
     strategy:
       fail-fast: false
       matrix:
@@ -124,6 +135,7 @@ jobs:
   nix:
     name: Nix (${{ matrix.runner }})
     needs: check
+    if: github.ref_type != 'tag' || startsWith(github.ref_name, 'v')
     strategy:
       fail-fast: false
       matrix:
@@ -146,6 +158,7 @@ jobs:
   server:
     name: Sync server image (${{ matrix.arch }})
     needs: check
+    if: github.ref_type != 'tag' || startsWith(github.ref_name, 'sv')
     strategy:
       fail-fast: false
       matrix:

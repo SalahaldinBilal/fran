@@ -14,7 +14,7 @@
 - Linux only, as a Docker image and a Nix package. No binaries are published, and the server's code has nothing OS specific in it. Keep it that way: the image sets `STOPSIGNAL SIGINT` and the NixOS unit `KillSignal=SIGINT` so the server only has to handle Ctrl+C.
 - `Dockerfile` builds from the repo root (`docker build --file server/Dockerfile .`), since the crate needs `crates/sync-proto`. `Dockerfile.dockerignore` keeps everything else out of the build.
 - `README.md` is the self-hosting guide. Its settings table has to match `src/config.rs`.
-- `npm run version:bump` sets this crate's version in `Cargo.toml` and `Cargo.lock` to the app's. The release workflow tags the image with it.
+- This crate is versioned on its own, `npm run version:bump` leaves it alone. Bump `Cargo.toml` by hand and run `cargo check` here so `Cargo.lock` follows (the image builds with `--locked`), then push an `sv<version>` tag to publish the image.
 
 ## Database
 

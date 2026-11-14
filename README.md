@@ -141,7 +141,7 @@ On Windows without Docker Desktop, Docker can run inside WSL instead. Have docke
 ### Releasing
 
 1. Add the user-facing changes under `## [Unreleased]` in `CHANGELOG.md`.
-2. Run `npm run version:bump <version>`, which sets the version everywhere and dates the changelog section.
+2. Run `npm run version:bump <version>`, which sets the app's version and dates the changelog section.
 3. Commit, tag `v<version>` and push the tag.
 
 The release workflow builds all three platforms, uploads the installers, publishes the GitHub release, and points the in-app updater at the new version.

@@ -149,7 +149,7 @@ docker compose -f compose.sqlite.yml pull
 docker compose -f compose.sqlite.yml up -d
 ```
 
-The server updates its own tables when it starts. Take a backup first, since a newer database can't be opened by an older server. The image tags are the version (`0.3.0`) and `latest`. Fran and the server have to speak the same protocol version, and each tells you to update the other when they don't.
+The server updates its own tables when it starts. Take a backup first, since a newer database can't be opened by an older server. The image tags are the server's version (`0.1.0`), which is separate from Fran's, and `latest`. Fran and the server have to speak the same protocol version, and each tells you to update the other when they don't.
 
 ## What the server knows
 
