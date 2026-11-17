@@ -1,7 +1,8 @@
 // Run with: npm run version:bump <version>  (e.g. 0.2.0)
-// Sets the app's version in package.json, src-tauri/Cargo.toml and tauri.conf.json, and turns CHANGELOG.md's
-// "Unreleased" section into a dated section for that version, which deploy.ts uses as the release notes.
+// Sets the app's version in package.json, src-tauri/Cargo.toml, Cargo.lock and tauri.conf.json, and turns
+// CHANGELOG.md's "Unreleased" section into a dated section for that version, which deploy.ts uses as the release notes.
 
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -67,6 +68,8 @@ function cutChangelog() {
 bumpJsonVersion("../package.json");
 bumpCargoVersion("../src-tauri/Cargo.toml");
 bumpJsonVersion("../src-tauri/tauri.conf.json");
+execFileSync("cargo", ["update", "--workspace"], { cwd: fileURLToPath(new URL("..", import.meta.url)), stdio: "inherit" });
+console.log("Updated ../Cargo.lock");
 cutChangelog();
 
-console.log(`\nBumped to ${newVersion}. Cargo.lock picks it up on the next cargo check or build.`);
+console.log(`\nBumped to ${newVersion}.`);
