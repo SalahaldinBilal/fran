@@ -16,6 +16,7 @@ use vpn_proto::{PROTOCOL_VERSION, WORKER_ARG};
 
 use super::frames::{self, Frame, FromWorker, Login, ToWorker, WireGuardStart};
 use super::keys::{self, ClientKey};
+use super::log::VpnLog;
 use super::net::{NetStack, VpnStream};
 
 const STOP_GRACE: Duration = Duration::from_secs(3);
@@ -71,6 +72,7 @@ pub struct Tunnel {
     to_worker: mpsc::UnboundedSender<Vec<u8>>,
     child: Mutex<Option<Child>>,
     on_change: ChangeHook,
+    log: Arc<VpnLog>,
 }
 
 /// What Core's events mean for someone looking at the VPN.
@@ -87,6 +89,12 @@ pub(crate) fn describe(name: &str, info: &str) -> String {
         "HANDSHAKE_TIMEOUT" => format!("No answer from the WireGuard server{detail}. Check the endpoint and both keys."),
         _ => format!("{name}{detail}"),
     }
+}
+
+/// An event as the VPN log shows it. A dynamic challenge carries the server's session cookie, so only its name goes in.
+pub(crate) fn event_line(name: &str, info: &str) -> String {
+    let info = if name == "DYNAMIC_CHALLENGE" { "" } else { info.trim() };
+    if info.is_empty() { format!("Event {name}") } else { format!("Event {name}: {info}") }
 }
 
 fn worker_exe() -> io::Result<std::path::PathBuf> {
@@ -111,7 +119,7 @@ fn worker_command() -> io::Result<Command> {
 }
 
 impl Tunnel {
-    pub fn spawn(start: TunnelStart, on_change: ChangeHook) -> io::Result<Arc<Self>> {
+    pub fn spawn(start: TunnelStart, on_change: ChangeHook, log: Arc<VpnLog>) -> io::Result<Arc<Self>> {
         let mut child = worker_command()?.spawn().map_err(|error| io::Error::other(format!("The VPN worker didn't start: {error}")))?;
         let mut stdin = child.stdin.take().ok_or_else(|| io::Error::other("The VPN worker has no input"))?;
         let mut stdout = child.stdout.take().ok_or_else(|| io::Error::other("The VPN worker has no output"))?;
@@ -126,6 +134,7 @@ impl Tunnel {
             to_worker,
             child: Mutex::new(Some(child)),
             on_change,
+            log,
         });
 
         tokio::spawn(async move {
@@ -201,11 +210,13 @@ impl Tunnel {
             FromWorker::Hello { version, .. } if version != PROTOCOL_VERSION => {
                 return Some(Some("Fran's VPN worker doesn't match this version of Fran. Reinstall Fran.".to_string()));
             }
-            FromWorker::Hello { .. } | FromWorker::Evaluated { .. } | FromWorker::Log { .. } => {}
+            FromWorker::Hello { .. } | FromWorker::Evaluated { .. } => {}
+            FromWorker::Log { line } => self.log.vpn(false, line),
             FromWorker::Refused { message } => return Some(Some(message)),
             FromWorker::AdapterUp { .. } => return Some(Some("Fran's VPN worker set up an adapter for an own tunnel".to_string())),
             FromWorker::EvalFailed { message } => return Some(Some(format!("OpenVPN refused the profile: {message}"))),
             FromWorker::Event { name, info, fatal, error } => {
+                self.log.vpn(fatal || error, event_line(&name, &info));
                 if fatal || error {
                     let text = describe(&name, &info);
                     self.update(|state| state.error = Some(text));
@@ -244,6 +255,7 @@ impl Tunnel {
                         if let Some(old) = self.stack.lock().ok().and_then(|mut slot| slot.replace(Arc::new(stack))) {
                             old.shutdown();
                         }
+                        self.log.fran(format!("The tunnel is up with address {}", address.as_deref().unwrap_or("none")));
                         self.update(|state| {
                             state.phase = Phase::Up;
                             state.error = None;
@@ -261,6 +273,7 @@ impl Tunnel {
             }),
             FromWorker::TunFailed { message } => return Some(Some(format!("The tunnel couldn't be set up: {message}"))),
             FromWorker::TunDown => {
+                self.log.fran("The tunnel went down, its connections were closed");
                 self.drop_stack();
                 self.update(|state| {
                     if state.phase == Phase::Up {
@@ -287,6 +300,10 @@ impl Tunnel {
 
     fn finish(&self, reason: Option<String>) {
         self.drop_stack();
+        match self.state().error.or(reason.clone()) {
+            Some(why) => self.log.fran_error(format!("The tunnel ended: {why}")),
+            None => self.log.fran("The tunnel ended"),
+        }
         self.update(|state| {
             if state.error.is_none() {
                 state.error = reason;

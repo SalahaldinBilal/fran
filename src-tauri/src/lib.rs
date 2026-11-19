@@ -295,6 +295,8 @@ pub fn run() {
             vpn_store::commands::export_vpn_profile,
             vpn::commands::watch_vpn,
             vpn::commands::list_vpn_status,
+            vpn::commands::get_vpn_log,
+            vpn::commands::clear_vpn_log,
             vpn::commands::disconnect_vpn,
             vpn::commands::turn_on_vpn_system,
             vpn::commands::turn_off_vpn_system,

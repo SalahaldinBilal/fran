@@ -28,6 +28,7 @@ use adapter::Adapter;
 
 use super::frames::Login;
 use super::keys::{self, ClientKey};
+use super::log::VpnLog;
 use super::tunnel::{ChangeHook, Phase, TunnelState};
 use crate::connections::SecretSlot;
 use crate::error::{AppError, AppResult};
@@ -270,6 +271,7 @@ pub struct SystemVpn {
     dir: PathBuf,
     process: Mutex<Option<launch::Process>>,
     on_change: ChangeHook,
+    log: Arc<VpnLog>,
 }
 
 struct Session {
@@ -289,17 +291,18 @@ struct Session {
 }
 
 impl SystemVpn {
-    pub async fn start(start: SystemStart, on_change: ChangeHook) -> AppResult<Arc<Self>> {
+    pub async fn start(start: SystemStart, on_change: ChangeHook, log: Arc<VpnLog>) -> AppResult<Arc<Self>> {
         let program = find_program(start.program.as_deref()).await?;
+        log.fran(format!("Starting the installed OpenVPN at {}", program.path));
         let dir = private_dir()?;
-        let started = Self::launch(start, Path::new(&program.path), dir.clone(), on_change).await;
+        let started = Self::launch(start, Path::new(&program.path), dir.clone(), on_change, log).await;
         if started.is_err() {
             let _ = std::fs::remove_dir_all(&dir);
         }
         started
     }
 
-    async fn launch(start: SystemStart, program: &Path, dir: PathBuf, on_change: ChangeHook) -> AppResult<Arc<Self>> {
+    async fn launch(start: SystemStart, program: &Path, dir: PathBuf, on_change: ChangeHook, log: Arc<VpnLog>) -> AppResult<Arc<Self>> {
         let config = dir.join("profile.ovpn");
         write_private(&config, start.config.as_bytes())?;
         let management = Management::open(&dir)?;
@@ -325,6 +328,7 @@ impl SystemVpn {
             dir,
             process: Mutex::new(Some(process)),
             on_change,
+            log,
         });
 
         tokio::spawn(async move {
@@ -517,30 +521,44 @@ impl SystemVpn {
                     }
                 }
             }
-            Event::State { name, address, address6 } => match name.as_str() {
-                "CONNECTED" => {
-                    self.adapter.set_addresses(address.as_deref().and_then(|address| address.parse::<Ipv4Addr>().ok()), address6);
-                    self.update(|state| {
-                        state.phase = Phase::Up;
-                        state.error = None;
-                        state.address = address;
-                    });
-                }
-                "EXITING" => {}
-                _ => self.update(|state| {
-                    if state.phase == Phase::Up {
-                        state.phase = Phase::Reconnecting;
+            Event::State { name, address, address6 } => {
+                self.log.vpn(false, match &address {
+                    Some(address) => format!("State {name}, address {address}"),
+                    None => format!("State {name}"),
+                });
+                match name.as_str() {
+                    "CONNECTED" => {
+                        self.adapter.set_addresses(address.as_deref().and_then(|address| address.parse::<Ipv4Addr>().ok()), address6);
+                        self.update(|state| {
+                            state.phase = Phase::Up;
+                            state.error = None;
+                            state.address = address;
+                        });
                     }
-                }),
-            },
+                    "EXITING" => {}
+                    _ => self.update(|state| {
+                        if state.phase == Phase::Up {
+                            state.phase = Phase::Reconnecting;
+                        }
+                    }),
+                }
+            }
             Event::Bytes { bytes_in, bytes_out } => self.state.send_modify(|state| {
                 state.bytes_in = bytes_in;
                 state.bytes_out = bytes_out;
             }),
             Event::Dns(servers) => self.adapter.set_dns(servers),
-            Event::Fatal(text) => self.update(|state| state.error = Some(text)),
-            Event::Log { error: true, text } => session.last_log_error = Some(text),
-            Event::Log { .. } | Event::Other => {}
+            Event::Fatal(text) => {
+                self.log.vpn(true, text.clone());
+                self.update(|state| state.error = Some(text));
+            }
+            Event::Log { error, text } => {
+                self.log.vpn(error, text.clone());
+                if error {
+                    session.last_log_error = Some(text);
+                }
+            }
+            Event::Other => {}
         }
     }
 
@@ -552,6 +570,10 @@ impl SystemVpn {
         if let Ok(mut process) = self.process.lock() {
             let ended = process.as_mut().and_then(launch::Process::ended);
             process.take();
+            match self.state().error.or(ended.clone()).or(reason.clone()) {
+                Some(why) => self.log.fran_error(format!("OpenVPN ended: {why}")),
+                None => self.log.fran("OpenVPN was turned off"),
+            }
             self.update(|state| {
                 state.error = state.error.take().or(ended).or(reason);
                 state.phase = Phase::Down;

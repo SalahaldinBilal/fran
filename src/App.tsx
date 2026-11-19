@@ -37,6 +37,7 @@ import useSecretsState from "./states/secretsState";
 import SecretEditor from "./components/SecretEditor/SecretEditor";
 import LinkSecretsModal from "./components/SecretEditor/LinkSecretsModal";
 import AgentApprovalModal from "./components/AgentApprovalModal/AgentApprovalModal";
+import VpnLogModal from "./components/VpnLogModal/VpnLogModal";
 import useAgentState from "./states/agentState";
 import Home from "./pages/Home/Home";
 import Workspace from "./pages/Workspace/Workspace";
@@ -370,6 +371,7 @@ function App() {
         <LockScreen />
       </Show>
       <AgentApprovalModal />
+      <VpnLogModal />
       <Prompts />
       <PortForwardModal />
       <HostEditor />

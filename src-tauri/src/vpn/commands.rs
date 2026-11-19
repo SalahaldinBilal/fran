@@ -6,6 +6,7 @@ use zeroize::Zeroizing;
 
 use vpn_proto::frames::Access;
 
+use super::log::VpnLogLine;
 use super::manager::{ComputerStart, SystemBackend, VpnManager, VpnPlan, VpnStatus};
 use super::system::{
     self, OpenVpnProgram,
@@ -27,6 +28,17 @@ fn planned<'a>(vault: &'a Vault, ssh_store: &SshStore, profile_id: &str, secrets
 #[tauri::command]
 pub async fn watch_vpn(manager: State<'_, Arc<VpnManager>>, channel: Channel<Vec<VpnStatus>>) -> AppResult<()> {
     manager.watch(channel);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_vpn_log(manager: State<'_, Arc<VpnManager>>, profile_id: String) -> AppResult<Vec<VpnLogLine>> {
+    Ok(manager.log(&profile_id))
+}
+
+#[tauri::command]
+pub async fn clear_vpn_log(manager: State<'_, Arc<VpnManager>>, profile_id: String) -> AppResult<()> {
+    manager.clear_log(&profile_id);
     Ok(())
 }
 

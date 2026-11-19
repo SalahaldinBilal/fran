@@ -27,7 +27,8 @@ use super::{PromptSlots, VpnPrompt};
 use crate::connections::SecretSlot;
 use crate::vpn::frames::Login;
 use crate::vpn::keys;
-use crate::vpn::tunnel::{ChangeHook, Phase, TunnelState, WorkerStart, describe};
+use crate::vpn::log::VpnLog;
+use crate::vpn::tunnel::{ChangeHook, Phase, TunnelState, WorkerStart, describe, event_line};
 
 const STOP_GRACE: Duration = Duration::from_secs(5);
 const CONNECT_WAIT: Duration = Duration::from_secs(3);
@@ -129,13 +130,15 @@ pub struct ServiceVpn {
     answers: mpsc::UnboundedSender<HashMap<String, Zeroizing<String>>>,
     stop: CancellationToken,
     on_change: ChangeHook,
+    log: Arc<VpnLog>,
 }
 
 impl ServiceVpn {
     /// Fails right away when the service can't be reached or won't take this account. After that, problems end
     /// up in the state, like with the installed OpenVPN.
-    pub async fn start(start: ServiceStart, on_change: ChangeHook) -> Result<Arc<Self>, String> {
+    pub async fn start(start: ServiceStart, on_change: ChangeHook, log: Arc<VpnLog>) -> Result<Arc<Self>, String> {
         let (reader, writer, _) = open().await.map_err(Unreachable::message)?;
+        log.fran("Connected to Fran's VPN service");
         let (answers, inbox) = mpsc::unbounded_channel();
         let (state, _) = watch::channel(TunnelState { phase: Phase::Connecting, error: None, address: None, bytes_in: 0, bytes_out: 0 });
         let vpn = Arc::new(Self {
@@ -146,6 +149,7 @@ impl ServiceVpn {
             answers,
             stop: CancellationToken::new(),
             on_change,
+            log,
         });
         let runner = vpn.clone();
         tokio::spawn(async move { runner.run(start, reader, writer, inbox).await });
@@ -208,6 +212,7 @@ impl ServiceVpn {
                 Outcome::Stopped => break None,
                 Outcome::Failed(reason) => break Some(reason),
                 Outcome::AuthFailed => {
+                    self.log.fran_error("The VPN server refused the login");
                     let (Some(password), Some(current)) = (start.prompts.password.clone(), login.as_mut()) else {
                         break Some("The VPN server refused the login".to_string());
                     };
@@ -224,6 +229,7 @@ impl ServiceVpn {
                     current.dynamic_cookie.clear();
                 }
                 Outcome::Challenge(challenge, cookie) => {
+                    self.log.fran("The VPN server asked for one more sign-in step");
                     let label = if challenge.text.trim().is_empty() { "Code".to_string() } else { challenge.text.clone() };
                     let slot = SecretSlot::one_time(start.prompts.challenge_id.clone(), label);
                     let title = format!("VPN {} asks for one more sign-in step", self.label);
@@ -279,24 +285,28 @@ impl ServiceVpn {
                 Err(error) => return Outcome::Failed(format!("Fran's VPN service sent something broken: {error}")),
             };
             match message {
-                FromWorker::Event { name, info, fatal, error } => match name.as_str() {
-                    "DYNAMIC_CHALLENGE" => {
-                        if let Some(challenge) = management::dynamic_challenge(&info) {
-                            pending = Some(Outcome::Challenge(challenge, info));
+                FromWorker::Log { line } => self.log.vpn(false, line),
+                FromWorker::Event { name, info, fatal, error } => {
+                    self.log.vpn(fatal || error, event_line(&name, &info));
+                    match name.as_str() {
+                        "DYNAMIC_CHALLENGE" => {
+                            if let Some(challenge) = management::dynamic_challenge(&info) {
+                                pending = Some(Outcome::Challenge(challenge, info));
+                            }
                         }
-                    }
-                    "AUTH_FAILED" => pending = Some(Outcome::AuthFailed),
-                    "RECONNECTING" => self.update(|state| {
-                        if state.phase == Phase::Up {
-                            state.phase = Phase::Reconnecting;
+                        "AUTH_FAILED" => pending = Some(Outcome::AuthFailed),
+                        "RECONNECTING" => self.update(|state| {
+                            if state.phase == Phase::Up {
+                                state.phase = Phase::Reconnecting;
+                            }
+                        }),
+                        _ if fatal || error => {
+                            let text = describe(&name, &info);
+                            self.update(|state| state.error = Some(text));
                         }
-                    }),
-                    _ if fatal || error => {
-                        let text = describe(&name, &info);
-                        self.update(|state| state.error = Some(text));
+                        _ => {}
                     }
-                    _ => {}
-                },
+                }
                 FromWorker::Sign { id, data, algorithm, hash, salt_len } => {
                     let reply = match start.worker.key() {
                         Some(key) => keys::sign(key, &data, &algorithm, &hash, &salt_len),
@@ -314,6 +324,7 @@ impl ServiceVpn {
                     self.adapter.set_addresses(adapter.addr4.map(|(addr, _)| addr), adapter.addr6.map(|(addr, _)| addr));
                     self.adapter.set_dns(adapter.dns);
                     let address = adapter.addr4.map(|(addr, _)| addr.to_string()).or_else(|| adapter.addr6.map(|(addr, _)| addr.to_string()));
+                    self.log.fran(format!("The adapter is up with address {}", address.as_deref().unwrap_or("none")));
                     self.update(|state| {
                         state.phase = Phase::Up;
                         state.error = None;
@@ -327,6 +338,7 @@ impl ServiceVpn {
                     }
                 }),
                 FromWorker::TunDown => {
+                    self.log.fran("The tunnel went down, connections through the adapter were cut");
                     self.adapter.cut();
                     self.update(|state| {
                         if state.phase == Phase::Up {
@@ -348,7 +360,7 @@ impl ServiceVpn {
                         None => Outcome::Stopped,
                     });
                 }
-                FromWorker::Hello { .. } | FromWorker::Evaluated { .. } | FromWorker::Log { .. } | FromWorker::TunUp { .. } => {}
+                FromWorker::Hello { .. } | FromWorker::Evaluated { .. } | FromWorker::TunUp { .. } => {}
             }
         }
     }
@@ -357,6 +369,10 @@ impl ServiceVpn {
         self.adapter.cut();
         if let Ok(mut current) = self.prompt.lock() {
             current.take();
+        }
+        match self.state().error.or(reason.clone()) {
+            Some(why) => self.log.fran_error(format!("Ended: {why}")),
+            None => self.log.fran("Turned off"),
         }
         self.update(|state| {
             state.error = state.error.take().or(reason);

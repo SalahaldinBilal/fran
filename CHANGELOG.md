@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A system notification when an agent is waiting for you to approve a change and Fran isn't the window in front. Turn it off in Settings > Agents.
 - Read + write access for agents: changes run without asking you first. Fran shows a big warning and asks you to type the name before turning it on.
 - Agent access per database. Expand a connection on the Access tab to see its databases, then hide each one or give it its own access level. Databases you don't set either follow the connection or stay hidden.
+- A log for each VPN, with what Fran did and what OpenVPN or WireGuard said. Open it from a VPN's menu, or by clicking its Failed badge.
+
+### Fixed
+
+- A VPN that dropped and got stuck reconnecting made every later connect through it fail until Fran was restarted.
 
 ## [0.3.0] - 2026-11-14
 

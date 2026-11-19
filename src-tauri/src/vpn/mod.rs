@@ -2,6 +2,7 @@ pub mod commands;
 pub mod config;
 pub mod dns;
 pub mod keys;
+pub mod log;
 pub mod manager;
 pub mod net;
 pub mod system;

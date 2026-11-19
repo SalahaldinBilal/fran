@@ -87,7 +87,7 @@ fn start(lab: &Lab, peer_public_key: &str) -> TunnelStart {
 }
 
 async fn tunnel_carries_a_stream(lab: &Lab) -> TestResult {
-    let tunnel = Tunnel::spawn(start(lab, &lab.server_public), Arc::new(|| {}))?;
+    let tunnel = Tunnel::spawn(start(lab, &lab.server_public), Arc::new(|| {}), Arc::default())?;
     tunnel.wait_up(TIMEOUT).await?;
     assert_eq!(tunnel.state().address.as_deref(), Some(CLIENT_ADDRESS));
 
@@ -114,7 +114,7 @@ async fn tunnel_carries_a_stream(lab: &Lab) -> TestResult {
 /// WireGuard never refuses anything, so a wrong key looks like silence. The error has to say what to check.
 async fn a_wrong_server_key_says_so(lab: &Lab) -> TestResult {
     let (_, someone_else) = wireguard::generate();
-    let tunnel = Tunnel::spawn(start(lab, &someone_else), Arc::new(|| {}))?;
+    let tunnel = Tunnel::spawn(start(lab, &someone_else), Arc::new(|| {}), Arc::default())?;
     let error = tunnel.wait_up(Duration::from_secs(12)).await.err().ok_or("a wrong server key connected")?;
     assert!(error.contains("No answer from the WireGuard server"), "{error}");
     tunnel.stop().await;

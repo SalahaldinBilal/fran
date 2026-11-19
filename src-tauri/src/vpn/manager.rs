@@ -16,6 +16,7 @@ use super::VpnConn;
 use super::config;
 use super::frames::{AdapterOptions, Login};
 use super::keys::{self, ClientKey};
+use super::log::{VpnLog, VpnLogLine};
 use super::system::{
     PromptSlots, SystemStart, SystemStream, SystemVpn, VpnPrompt,
     service::{ServiceStart, ServiceVpn},
@@ -25,7 +26,7 @@ use super::tunnel::{Phase, Tunnel, TunnelStart, TunnelState, WorkerStart};
 use super::wireguard;
 use crate::vpn_store::RouteAll;
 use crate::connections::{PASSWORD_SLOT, PRESHARED_KEY_SLOT, PRIVATE_KEY_SLOT, SecretBag, SecretOwner, SecretSlot, TLS_KEY_SLOT};
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, ErrorDetail};
 use crate::secrets::fill::Filler;
 use crate::vault::Vault;
 use crate::vpn_store::{TlsWrap, VpnChallenge, VpnProfile, VpnStore};
@@ -207,6 +208,7 @@ struct Slot {
     last_error: Mutex<Option<String>>,
     /// The last login a user brought, so the own tunnel can come back as soon as the computer's VPN is turned off.
     leg: Mutex<Option<VpnLeg>>,
+    log: Arc<VpnLog>,
 }
 
 impl Slot {
@@ -365,8 +367,16 @@ impl VpnManager {
                             leg.profile.needs_system.join(", ")
                         )));
                     }
-                    let start = leg.build()?;
-                    let tunnel = Tunnel::spawn(start, self.change_hook()).map_err(|error| AppError::general(error.to_string()))?;
+                    let start = leg.build().inspect_err(|error| {
+                        if !matches!(error.detail, ErrorDetail::SecretsRequired { .. }) {
+                            slot.log.fran_error(format!("Couldn't start the own tunnel: {}", error.message));
+                        }
+                    })?;
+                    slot.log.fran(format!("Starting Fran's own tunnel, waiting up to {} seconds", connect_timeout().as_secs()));
+                    let tunnel = Tunnel::spawn(start, self.change_hook(), slot.log.clone()).map_err(|error| {
+                        slot.log.fran_error(error.to_string());
+                        AppError::general(error.to_string())
+                    })?;
                     if let Ok(mut current) = slot.tunnel.lock() {
                         *current = Some(tunnel.clone());
                     }
@@ -378,12 +388,14 @@ impl VpnManager {
 
         if let Err(error) = tunnel.wait_up(connect_timeout()).await {
             slot.set_error(Some(error.clone()));
-            if !tunnel.alive() || tunnel.state().phase == Phase::Connecting {
-                tunnel.stop().await;
-                if let Ok(mut current) = slot.tunnel.lock() {
-                    if current.as_ref().is_some_and(|current| Arc::ptr_eq(current, &tunnel)) {
-                        *current = None;
-                    }
+            // A tunnel stuck reconnecting has already dropped its connections, and keeping it would fail every later
+            // connect the same way for as long as anything holds the VPN.
+            let phase = tunnel.state().phase;
+            slot.log.fran_error(format!("Not up in time ({phase:?}): {error}. Stopped it, so the next connect starts a new one."));
+            tunnel.stop().await;
+            if let Ok(mut current) = slot.tunnel.lock() {
+                if current.as_ref().is_some_and(|current| Arc::ptr_eq(current, &tunnel)) {
+                    *current = None;
                 }
             }
             self.notify();
@@ -405,7 +417,10 @@ impl VpnManager {
         let lease = VpnLease { manager: self.me.clone(), leg: leg.clone(), slot: slot.clone() };
 
         match slot.system_on() {
-            Some(system) => system.wait_up(connect_timeout()).await.map_err(|error| AppError::general(format!("VPN {}: {error}", leg.label)))?,
+            Some(system) => system.wait_up(connect_timeout()).await.map_err(|error| {
+                slot.log.fran_error(format!("A connect waited for the VPN on this computer, which didn't come up in time: {error}"));
+                AppError::general(format!("VPN {}: {error}", leg.label))
+            })?,
             None => drop(self.own_tunnel(&slot, leg).await?),
         }
         self.notify();
@@ -416,7 +431,11 @@ impl VpnManager {
     pub async fn disconnect(&self, profile_id: &str) {
         let tunnel = self.existing_slot(profile_id).and_then(|slot| {
             slot.generation.fetch_add(1, Ordering::SeqCst);
-            slot.tunnel.lock().ok().and_then(|mut current| current.take())
+            let tunnel = slot.tunnel.lock().ok().and_then(|mut current| current.take());
+            if tunnel.is_some() {
+                slot.log.fran("Disconnected from the VPN panel");
+            }
+            tunnel
         });
         if let Some(tunnel) = tunnel {
             tunnel.stop().await;
@@ -441,15 +460,22 @@ impl VpnManager {
             *with = Some(backend);
         }
         slot.turning_on.store(true, Ordering::SeqCst);
+        slot.log.fran(match backend {
+            SystemBackend::Fran => "Turning on for this computer with Fran's VPN service",
+            SystemBackend::Openvpn => "Turning on for this computer with the installed OpenVPN",
+        });
         self.notify();
         let started = match start {
-            ComputerStart::Installed(start) => SystemVpn::start(start, self.change_hook()).await.map(ComputerVpn::Installed),
-            ComputerStart::Fran(start) => ServiceVpn::start(start, self.change_hook()).await.map(ComputerVpn::Fran).map_err(AppError::general),
+            ComputerStart::Installed(start) => SystemVpn::start(start, self.change_hook(), slot.log.clone()).await.map(ComputerVpn::Installed),
+            ComputerStart::Fran(start) => {
+                ServiceVpn::start(start, self.change_hook(), slot.log.clone()).await.map(ComputerVpn::Fran).map_err(AppError::general)
+            }
         };
         slot.turning_on.store(false, Ordering::SeqCst);
         let system = match started {
             Ok(system) => system,
             Err(error) => {
+                slot.log.fran_error(format!("Couldn't turn it on: {}", error.message));
                 slot.set_error(Some(error.message.clone()));
                 self.notify();
                 return Err(error);
@@ -461,6 +487,7 @@ impl VpnManager {
         self.notify();
 
         if let Err(error) = system.wait_up_with_prompts(connect_timeout()).await {
+            slot.log.fran_error(format!("Not up in time: {error}. Turned it off again."));
             system.stop().await;
             if let Ok(mut current) = slot.system.lock() {
                 if current.as_ref().is_some_and(|current| current.same(&system)) {
@@ -492,6 +519,7 @@ impl VpnManager {
         let Some(system) = system else {
             return;
         };
+        slot.log.fran("Turning off for this computer");
         system.stop().await;
         self.notify();
 
@@ -582,12 +610,23 @@ impl VpnManager {
             }
             let tunnel = slot.tunnel.lock().ok().and_then(|mut current| current.take());
             if let Some(tunnel) = tunnel {
+                slot.log.fran(format!("Closing the own tunnel after {} seconds without use", idle.as_secs()));
                 tunnel.stop().await;
             }
             if let Some(manager) = me.upgrade() {
                 manager.notify();
             }
         });
+    }
+
+    pub fn log(&self, profile_id: &str) -> Vec<VpnLogLine> {
+        self.existing_slot(profile_id).map(|slot| slot.log.lines()).unwrap_or_default()
+    }
+
+    pub fn clear_log(&self, profile_id: &str) {
+        if let Some(slot) = self.existing_slot(profile_id) {
+            slot.log.clear();
+        }
     }
 
     pub fn store(&self) -> &VpnStore {

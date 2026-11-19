@@ -1,7 +1,7 @@
 import styles from "../ConnectionCard/ConnectionCard.module.scss";
 import vpnStyles from "../panels/VpnPanel.module.scss";
 import { Show, createMemo } from "solid-js";
-import { CircleAlert, Ellipsis, GripVertical, Monitor, Pencil, Server, Shield, Unplug } from "@core/icons";
+import { CircleAlert, Ellipsis, GripVertical, Monitor, Pencil, ScrollText, Server, Shield, Unplug } from "@core/icons";
 import useVpnState from "@core/states/vpnState";
 import useVpnEditorState from "@core/states/vpnEditorState";
 import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
@@ -28,6 +28,7 @@ export function vpnMenuItems(profile: VpnProfile): MenuItem[] {
       ? { label: "Turn off for this computer", icon: Monitor, onSelect: () => void setVpnOnComputer(profile, false) }
       : { label: "Turn on for this computer", icon: Monitor, disabled: vpn.turningOn(profile.id), onSelect: () => void setVpnOnComputer(profile, true) },
     ...(ownRunning ? [{ label: "Disconnect", icon: Unplug, onSelect: () => void disconnectVpn(profile) }] : []),
+    { label: "Show log", icon: ScrollText, onSelect: () => vpn.showLog(profile.id) },
     ...syncMenu(itemKey("vpn", profile.id), profile.label, "vpnProfiles"),
   ];
 }
@@ -67,10 +68,19 @@ export function VpnStateBadges(props: { view: ReturnType<typeof useVpnView>, pro
       </Show>
       <Show when={props.view.failed()}>
         {message => (
-          <span class={vpnStyles.Failed} ref={element => tooltip(element, () => message())}>
+          <button
+            type="button"
+            class={`${vpnStyles.Failed} ${vpnStyles.FailedButton}`}
+            ref={element => tooltip(element, () => `${message()}. Click to see the log.`)}
+            onClick={event => {
+              event.stopPropagation();
+              useVpnState.showLog(props.profile.id);
+            }}
+            onKeyDown={event => event.stopPropagation()}
+          >
             <CircleAlert size={12} />
             <span class={vpnStyles.Label}>Failed</span>
-          </span>
+          </button>
         )}
       </Show>
       <Show when={props.view.systemOnly()}>

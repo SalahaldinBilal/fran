@@ -115,6 +115,9 @@ export type VpnStatus = {
 
 export type VpnPrompt = { title: string, slots: SecretSlot[] };
 
+// `fran` is what Fran did, `vpn` is OpenVPN's or WireGuard's own log.
+export type VpnLogLine = { at: number, source: "fran" | "vpn", error: boolean, text: string };
+
 export type SecretGroup = "connection" | "identity" | "key" | "proxy" | "vpn" | "secret" | "internal" | "unknown";
 
 // One entry in the vault, without its value.

@@ -11,7 +11,16 @@ function useVpnStateInner() {
   const [statuses, setStatuses] = createStore<Record<string, VpnStatus>>({});
   const [loaded, setLoaded] = createSignal(false);
   const [loadError, setLoadError] = createSignal<unknown>(null);
+  const [logFor, setLogFor] = createSignal<string | null>(null);
   let watching = false;
+
+  function showLog(id: string) {
+    setLogFor(id);
+  }
+
+  function closeLog() {
+    setLogFor(null);
+  }
 
   async function load() {
     try {
@@ -169,6 +178,9 @@ function useVpnStateInner() {
     onComputerCount,
     reorder,
     renameGroup,
+    logFor,
+    showLog,
+    closeLog,
   };
 }
 

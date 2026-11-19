@@ -7,7 +7,7 @@ import {
   ObjectKind, ForwardRule, ObjectStructure, PortForwardInfo, Proxy, RowChange, RuleForwardInfo, SavedQuery, SecretOwner, ServerInfo,
   SessionInfo, SftpInfo, Snippet, SqlTemplate, SshFile, SshHost, StatementOutcome, StatementRange, TableDesign, TerminalEvent,
   TerminalInfo, TerminalLogSession, TransferDirection, TransferEvent, TreeCount, VaultStatus,
-  VpnCertificates, VpnFile, VpnProfile, VpnStatus, SavedSecret, RevealOptions, OpenVpnCheck, TrayItem,
+  VpnCertificates, VpnFile, VpnLogLine, VpnProfile, VpnStatus, SavedSecret, RevealOptions, OpenVpnCheck, TrayItem,
   SystemBackend, VpnServiceAccess, VpnServiceStatus, OpenVpnInstallHelp,
   HistoryOrder, QueryHistory, RunningQueries, NamedSecret, SecretInfo,
   FranServerAccount, FranServerDevice, FranServerInfo, FranServerLogin, FranServerTotp, FranServerTotpAction,
@@ -209,6 +209,8 @@ type Commands = {
   "export_vpn_profile": Command<{ id: string, path: string, options: RevealOptions }>,
   "watch_vpn": Command<{ channel: Channel<VpnStatus[]> }>,
   "list_vpn_status": Command<undefined, VpnStatus[]>,
+  "get_vpn_log": Command<{ profileId: string }, VpnLogLine[]>,
+  "clear_vpn_log": Command<{ profileId: string }>,
   "disconnect_vpn": Command<{ profileId: string }>,
   // `program` is the OpenVPN path from Settings > VPN, null to look in the usual places. `with` is Settings > VPN's
   // choice. Fran's service is only used once it's set up, and profiles it can't run use the installed OpenVPN.

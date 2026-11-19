@@ -1,0 +1,101 @@
+.Body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.LastError {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgb(from var(--danger) r g b / 40%);
+  border-radius: var(--radius-md);
+  background-color: rgb(from var(--danger) r g b / 10%);
+  color: var(--text-strong);
+  font-size: var(--font-md);
+
+  svg {
+    flex-shrink: 0;
+    color: var(--danger);
+  }
+}
+
+.Bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.Hint {
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  text-align: right;
+}
+
+.Lines {
+  overflow-y: auto;
+  height: 420px;
+  padding: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  user-select: text;
+}
+
+.Empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 24px;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  text-align: center;
+}
+
+.Line {
+  display: grid;
+  grid-template-columns: auto 64px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+  padding: 2px 12px;
+
+  &:hover {
+    background-color: var(--surface-hover);
+  }
+
+  &.Error {
+    background-color: rgb(from var(--danger) r g b / 8%);
+
+    .Text {
+      color: var(--danger);
+    }
+  }
+}
+
+.Time {
+  color: var(--text-faint);
+}
+
+.Source {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &.Fran {
+    color: var(--accent);
+  }
+}
+
+.Text {
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

@@ -135,7 +135,7 @@ fn server_address(tunnel: &Tunnel) -> TestResult<Ipv4Addr> {
 }
 
 async fn echo_through(name: &str, text: String, login: Option<Login>) -> TestResult {
-    let tunnel = Tunnel::spawn(start_for(name, &text, login)?, Arc::new(|| {}))?;
+    let tunnel = Tunnel::spawn(start_for(name, &text, login)?, Arc::new(|| {}), Arc::default())?;
     tunnel.wait_up(TIMEOUT).await?;
     let server = server_address(&tunnel)?;
 
@@ -175,7 +175,7 @@ async fn password_login_and_a_wrong_one(lab: &Lab) -> TestResult {
     echo_through("client-userpass.ovpn", lab.profile("client-userpass.ovpn")?, Some(login("labpass"))).await?;
 
     let text = lab.profile("client-userpass.ovpn")?;
-    let tunnel = Tunnel::spawn(start_for("client-userpass.ovpn", &text, Some(login("wrong")))?, Arc::new(|| {}))?;
+    let tunnel = Tunnel::spawn(start_for("client-userpass.ovpn", &text, Some(login("wrong")))?, Arc::new(|| {}), Arc::default())?;
     let error = tunnel.wait_up(TIMEOUT).await.err().ok_or("a wrong password connected")?;
     assert!(error.contains("refused the login"), "{error}");
     Ok(())
@@ -204,7 +204,7 @@ async fn system_mode_carries_a_stream(lab: &Lab) -> TestResult {
         prompts: PromptSlots { password: None, code: None, challenge_id: "challenge".to_string(), pin_id: "pin".to_string() },
         management_wait: Duration::from_secs(180),
     };
-    let vpn = SystemVpn::start(start, Arc::new(|| {})).await?;
+    let vpn = SystemVpn::start(start, Arc::new(|| {}), Arc::default()).await?;
     vpn.wait_up(TIMEOUT).await?;
     let address: Ipv4Addr = vpn.state().address.ok_or("the VPN has no address")?.parse()?;
     let octets = address.octets();
@@ -311,7 +311,7 @@ async fn service_runs_a_vpn_for_the_computer(lab: &Lab) -> TestResult {
         timeout: TIMEOUT,
     };
 
-    let vpn = ServiceVpn::start(make(config.clone()), Arc::new(|| {})).await?;
+    let vpn = ServiceVpn::start(make(config.clone()), Arc::new(|| {}), Arc::default()).await?;
     vpn.wait_up(TIMEOUT).await?;
     let address: Ipv4Addr = vpn.state().address.ok_or("the VPN has no address")?.parse()?;
     let octets = address.octets();
