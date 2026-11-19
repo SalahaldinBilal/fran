@@ -2,10 +2,21 @@ import { createMemo, createRoot, createSignal } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import { listen } from "@tauri-apps/api/event";
 import { safeInvoke } from "@core/helpers/safeInvoke";
-import { AgentApproval, AgentConfig, AgentHistoryEntry, AgentServerStatus, AgentSessionInfo } from "@core/types";
+import { withConnectPrompts } from "@core/helpers/connectFlow";
+import { errorMessage } from "@core/helpers/errors";
+import {
+  AgentApproval, AgentConfig, AgentDatabases, AgentHistoryEntry, AgentServerStatus, AgentSessionInfo, ConnectionProfile,
+} from "@core/types";
 import useToastState from "./toastState";
 
 export type AgentsView = "activity" | "access" | "server";
+
+export type DatabaseList = {
+  list: AgentDatabases | null,
+  listedAt: number | null,
+  loading: boolean,
+  error: string | null,
+};
 
 const DEFAULT_CONFIG: AgentConfig = {
   enabled: false,
@@ -27,6 +38,7 @@ function useAgentStateInner() {
   const [view, setView] = createSignal<AgentsView>("activity");
   const [reviewingId, setReviewingId] = createSignal<string | null>(null);
   const reviewing = createMemo(() => approvals.find(approval => approval.id === reviewingId()));
+  const [databaseLists, setDatabaseLists] = createStore<Record<string, DatabaseList>>({});
   const seenApprovals = new Set<string>();
   const historyListeners = new Set<(entry: AgentHistoryEntry) => void>();
 
@@ -86,6 +98,26 @@ function useAgentStateInner() {
     setReviewingId(null);
   }
 
+  // Kept until Refresh, so expanding a connection again doesn't reconnect.
+  async function listDatabases(profile: ConnectionProfile, refresh = false) {
+    const known = databaseLists[profile.id];
+    if (known?.loading || (known?.list && !refresh)) return;
+    setDatabaseLists(profile.id, { list: known?.list ?? null, listedAt: known?.listedAt ?? null, loading: true, error: null });
+    try {
+      const list = await withConnectPrompts(
+        { connectionId: profile.id, connectionName: profile.name },
+        secrets => safeInvoke("list_agent_databases", { connectionId: profile.id, secrets }),
+      );
+      if (list) {
+        setDatabaseLists(profile.id, { list, listedAt: Date.now(), loading: false, error: null });
+      } else {
+        setDatabaseLists(profile.id, { loading: false, error: "Fran needs to connect to list the databases." });
+      }
+    } catch (error) {
+      setDatabaseLists(profile.id, { loading: false, error: errorMessage(error) });
+    }
+  }
+
   function onHistoryAdded(listener: (entry: AgentHistoryEntry) => void): () => void {
     historyListeners.add(listener);
     return () => historyListeners.delete(listener);
@@ -114,6 +146,8 @@ function useAgentStateInner() {
     view,
     setView,
     reviewing,
+    databaseLists,
+    listDatabases,
     load,
     update,
     closeSession,

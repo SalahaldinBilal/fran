@@ -1,11 +1,21 @@
 import { DatabaseKind } from "./connection";
 
-export type AgentMode = "off" | "readOnly" | "ask";
+export type AgentMode = "off" | "readOnly" | "ask" | "write";
 
+export type DatabaseRule = { name: string, mode: AgentMode };
+
+// On Postgres and D1 the names are the databases a session opens.
 export type AgentAccess = {
   mode: AgentMode,
-  // Empty shares all of them. On Postgres and D1 these are the databases a session opens.
-  databases: string[],
+  // Whether databases without a rule get `mode`. False hides them.
+  allDatabases: boolean,
+  exceptions: DatabaseRule[],
+};
+
+// `bound`: a session is tied to one of these, so raw SQL can't reach the others.
+export type AgentDatabases = {
+  bound: boolean,
+  databases: { name: string, system: boolean }[],
 };
 
 export type AgentConfig = {

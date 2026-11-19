@@ -1,5 +1,6 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
+use serde::Serialize;
 use tauri::State;
 
 use super::approvals::ApprovalRequest;
@@ -7,9 +8,54 @@ use super::config::AgentConfig;
 use super::history::HistoryEntry;
 use super::host::{AgentHost, CloseReason, ServerStatus};
 use super::sessions::AgentSessionInfo;
+use crate::connections::prepare::prepare_connect;
 use crate::error::{AppError, AppResult};
 
 type Host<'a> = State<'a, Arc<AgentHost>>;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDatabase {
+    pub name: String,
+    pub system: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDatabases {
+    /// A session is bound to one of these, so raw SQL can't reach the others.
+    pub bound: bool,
+    pub databases: Vec<AgentDatabase>,
+}
+
+/// The names `agentAccess` rules apply to on this connection, for the Access tab.
+#[tauri::command]
+pub async fn list_agent_databases(
+    host: Host<'_>,
+    connection_id: String,
+    secrets: HashMap<String, String>,
+) -> AppResult<AgentDatabases> {
+    let profile = host.store.find(&connection_id)?;
+    let prepared = prepare_connect(&profile, secrets, &host.vault, &host.ssh_store)?;
+    let access = prepared.access(&host.known_hosts);
+    let session = prepared.profile.driver.connect(&prepared.secrets, &access).await.map_err(|error| prepared.scrub(error))?;
+
+    let listed = match session.catalog() {
+        Some(_) => session.list_catalogs().await.map(|names| AgentDatabases {
+            bound: true,
+            databases: names.into_iter().map(|name| AgentDatabase { name, system: false }).collect(),
+        }),
+        None => session.list_databases().await.map(|databases| AgentDatabases {
+            bound: false,
+            databases: databases
+                .into_iter()
+                .map(|database| AgentDatabase { name: database.name, system: database.system })
+                .collect(),
+        }),
+    };
+    session.close().await;
+    listed
+}
 
 #[tauri::command]
 pub async fn get_agent_config(host: Host<'_>) -> AppResult<AgentConfig> {

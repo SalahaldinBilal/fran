@@ -42,7 +42,7 @@ const IMPORT_VPN = "import:vpn";
 const CONNECTION_STRING_SHAPE = /^\s*([a-z][\w+.-]*:\/\/|jdbc:|\w+\s*=)/i;
 
 function blankProfile(kind: DatabaseKind): ConnectionProfile {
-  return { id: "", name: "", color: null, group: null, forwardPort: null, forwardAllNetworks: false, agentAccess: { mode: "off", databases: [] }, vpnId: null, ...defaultDriver(kind) };
+  return { id: "", name: "", color: null, group: null, forwardPort: null, forwardAllNetworks: false, agentAccess: { mode: "off", allDatabases: true, exceptions: [] }, vpnId: null, ...defaultDriver(kind) };
 }
 
 function ConnectionEditor(props: ConnectionEditorProps) {

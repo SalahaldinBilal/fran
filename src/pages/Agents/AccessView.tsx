@@ -1,76 +1,242 @@
 import styles from "./Agents.module.scss";
-import { For, Show, createMemo, createSignal } from "solid-js";
-import { Info, Plus, ShieldAlert, X } from "@core/icons";
-import { AgentAccess, AgentMode, ConnectionProfile } from "@core/types";
+import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { ChevronDown, Database, Info, Plus, RefreshCw, Search, ShieldAlert, TriangleAlert } from "@core/icons";
+import { AgentAccess, AgentMode, ConnectionProfile, DatabaseRule } from "@core/types";
 import { describeConnection, withDatabaseModule } from "@core/databases";
+import { plural } from "@core/helpers";
+import { formatClock } from "./agentText";
 import useAgentState from "@core/states/agentState";
 import useConnectionsState from "@core/states/connectionsState";
+import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";
-import SegmentedControl from "@core/components/SegmentedControl/SegmentedControl";
+import SegmentedControl, { SegmentedOption } from "@core/components/SegmentedControl/SegmentedControl";
 import EmptyState from "@core/components/EmptyState/EmptyState";
+import Button from "@core/components/Button/Button";
+import Spinner from "@core/components/Spinner/Spinner";
+import Input from "@core/components/Input/Input";
 import { tooltip } from "@core/components/Tooltip/Tooltip";
 
-const MODES: { value: AgentMode, label: string }[] = [
+const MODES: SegmentedOption<AgentMode>[] = [
   { value: "off", label: "Nothing" },
   { value: "readOnly", label: "Read" },
   { value: "ask", label: "Read + ask" },
+  { value: "write", label: "Read + write" },
 ];
 
-function DatabaseChips(props: { access: AgentAccess, onChange: (databases: string[]) => void }) {
-  const [adding, setAdding] = createSignal(false);
-  const addLabel = createMemo(() => (props.access.databases.length === 0 ? "Limit" : "Add"));
+const SHORT_LABELS: Record<AgentMode, string> = {
+  off: "Hidden",
+  readOnly: "Read",
+  ask: "Ask",
+  write: "Write",
+};
 
-  function commit(input: HTMLInputElement) {
-    if (!adding()) return;
-    const name = input.value.trim();
-    setAdding(false);
-    if (name && !props.access.databases.includes(name)) props.onChange([...props.access.databases, name]);
+type Choice = AgentMode | "default";
+
+type DatabaseEntry = { name: string, system: boolean, onServer: boolean };
+
+function describeScope(access: AgentAccess): string {
+  const hidden = access.exceptions.filter(rule => rule.mode === "off").length;
+  const own = access.exceptions.length - hidden;
+  if (!access.allDatabases) return own === 0 ? "No databases" : `${plural(own, "database")} shared`;
+  const parts = ["All databases"];
+  if (hidden > 0) parts.push(`${hidden} hidden`);
+  if (own > 0) parts.push(`${own} with their own level`);
+  return parts.join(", ");
+}
+
+type DatabaseRowProps = {
+  entry: DatabaseEntry,
+  access: AgentAccess,
+  onChoose: (name: string, choice: Choice) => void,
+};
+
+function DatabaseRow(props: DatabaseRowProps) {
+  const rule = createMemo(() => props.access.exceptions.find(existing => existing.name === props.entry.name));
+  const choice = createMemo<Choice>(() => rule()?.mode ?? "default");
+  const options = createMemo(() => {
+    const fallback = props.access.allDatabases ? SHORT_LABELS[props.access.mode] : SHORT_LABELS.off;
+    const levels: SegmentedOption<Choice>[] = [{ value: "default", label: `Default (${fallback})` }];
+    for (const mode of ["off", "readOnly", "ask", "write"] as const) {
+      if (mode !== "off" || props.access.allDatabases) levels.push({ value: mode, label: SHORT_LABELS[mode] });
+    }
+    return levels;
+  });
+  const writes = createMemo(() => choice() === "write" || (choice() === "default" && props.access.allDatabases && props.access.mode === "write"));
+
+  return (
+    <div class={styles.DbRow} classList={{ [styles.DbWrite]: writes() }}>
+      <div class={styles.DbName}>
+        <Show when={writes()}>
+          <TriangleAlert size={13} />
+        </Show>
+        <span>{props.entry.name}</span>
+        <Show when={props.entry.system}>
+          <span class={styles.DbTag}>system</span>
+        </Show>
+        <Show when={!props.entry.onServer}>
+          <span class={styles.DbTag}>not on the server</span>
+        </Show>
+      </div>
+      <SegmentedControl<Choice> value={choice()} options={options()} onChange={next => props.onChoose(props.entry.name, next)} />
+    </div>
+  );
+}
+
+type DatabasePanelProps = {
+  profile: ConnectionProfile,
+  onChange: (access: AgentAccess) => void,
+};
+
+function DatabasePanel(props: DatabasePanelProps) {
+  const agent = useAgentState;
+  const prompts = usePromptState;
+  const [search, setSearch] = createSignal("");
+  const [extra, setExtra] = createSignal<string[]>([]);
+
+  const access = createMemo(() => props.profile.agentAccess);
+  const state = createMemo(() => agent.databaseLists[props.profile.id]);
+  const listed = createMemo(() => state()?.list ?? null);
+  const loading = createMemo(() => state()?.loading ?? false);
+  const error = createMemo(() => state()?.error ?? null);
+
+  const entries = createMemo<DatabaseEntry[]>(() => {
+    const fromServer = listed()?.databases ?? [];
+    const known = new Set(fromServer.map(database => database.name));
+    const ordered = [...fromServer.filter(database => !database.system), ...fromServer.filter(database => database.system)];
+    const unlisted = [...access().exceptions.map(rule => rule.name), ...extra()].filter(name => {
+      if (known.has(name)) return false;
+      known.add(name);
+      return true;
+    });
+    return [
+      ...ordered.map(database => ({ name: database.name, system: database.system, onServer: true })),
+      ...unlisted.map(name => ({ name, system: false, onServer: listed() === null })),
+    ];
+  });
+
+  const needle = createMemo(() => search().trim().toLowerCase());
+  const shown = createMemo(() => entries().filter(entry => entry.name.toLowerCase().includes(needle())));
+  const addable = createMemo(() => {
+    const name = search().trim();
+    return name !== "" && !entries().some(entry => entry.name === name) ? name : null;
+  });
+  const sharedSession = createMemo(() => listed()?.bound === false);
+  const showList = createMemo(() => !loading() || listed() !== null);
+  const listedNote = createMemo(() => {
+    const current = state();
+    if (!current?.list || current.listedAt === null) return null;
+    const count = needle() ? `${shown().length} of ${plural(entries().length, "database")}` : plural(entries().length, "database");
+    return `${count}, listed at ${formatClock(current.listedAt, false)}`;
+  });
+  const emptyText = createMemo(() => (needle() ? `No database matches "${search().trim()}"` : "No databases to show"));
+
+  const scopeOptions = createMemo<SegmentedOption<boolean>[]>(() => [
+    { value: true, label: `Default to ${SHORT_LABELS[access().mode]}` },
+    { value: false, label: "Hidden" },
+  ]);
+
+  function load(refresh = false) {
+    void agent.listDatabases(props.profile, refresh);
+  }
+
+  onMount(() => load());
+
+  function addByName(name: string) {
+    setExtra(names => [...names, name]);
+  }
+
+  async function choose(name: string, choice: Choice) {
+    const current = access().exceptions.find(rule => rule.name === name)?.mode ?? "default";
+    if (choice === current) return;
+    const others = access().exceptions.filter(rule => rule.name !== name);
+    if (choice === "default") {
+      props.onChange({ ...access(), exceptions: others });
+      return;
+    }
+    if (choice === "write" && !await prompts.askToAllowUnattendedWrites({ connectionName: props.profile.name, database: name })) return;
+    const rules: DatabaseRule[] = access().exceptions.some(rule => rule.name === name)
+      ? access().exceptions.map(rule => (rule.name === name ? { name, mode: choice } : rule))
+      : [...others, { name, mode: choice }];
+    props.onChange({ ...access(), exceptions: rules });
   }
 
   return (
-    <div class={styles.Chips}>
-      <Show when={props.access.databases.length === 0}>
-        <span class={styles.AllNote}>All databases</span>
-      </Show>
-      <For each={props.access.databases}>
-        {name => (
-          <span class={styles.Chip}>
-            {name}
-            <button
-              type="button"
-              aria-label={`Stop sharing ${name}`}
-              ref={element => tooltip(element, () => "Stop sharing")}
-              onClick={() => props.onChange(props.access.databases.filter(existing => existing !== name))}
-            >
-              <X size={12} />
-            </button>
+    <div class={styles.DbPanel}>
+      <div class={styles.DbPanelHead}>
+        <Input
+          class={styles.DbSearch}
+          value={search()}
+          onValue={setSearch}
+          placeholder="Find or add a database"
+          before={<Search size={14} />}
+          clearable
+          onKeyDown={event => {
+            const name = addable();
+            if (event.key === "Enter" && name) addByName(name);
+          }}
+        />
+        <div class={styles.DbScope}>
+          <span class={styles.DbPanelLabel}>Databases you don't set</span>
+          <SegmentedControl<boolean>
+            value={access().allDatabases}
+            options={scopeOptions()}
+            onChange={allDatabases => props.onChange({ ...access(), allDatabases })}
+          />
+        </div>
+      </div>
+
+      <div class={styles.DbMeta}>
+        <span>{listedNote() ?? ""}</span>
+        <Button size="sm" variant="subtle" disabled={loading()} onClick={() => load(true)}>
+          <Show when={loading()} fallback={<RefreshCw size={13} />}>
+            <Spinner size={13} />
+          </Show>
+          Refresh
+        </Button>
+      </div>
+
+      <Show when={sharedSession()}>
+        <div class={styles.DbNote}>
+          <Info size={13} />
+          <span>
+            One session reaches every database on this server, so raw SQL that changes data still asks first unless every
+            database is Write. The other change tools follow each database's level.
           </span>
+        </div>
+      </Show>
+
+      <Show when={error()}>
+        {message => (
+          <div class={`${styles.DbNote} ${styles.DbError}`}>
+            <ShieldAlert size={13} />
+            <span>{message()}</span>
+            <Button size="sm" variant="subtle" onClick={() => load(true)}>Try again</Button>
+          </div>
         )}
-      </For>
+      </Show>
+
       <Show
-        when={adding()}
+        when={showList()}
         fallback={
-          <button type="button" class={`${styles.Chip} ${styles.AddChip}`} onClick={() => setAdding(true)}>
-            <Plus size={12} />
-            {addLabel()}
-          </button>
+          <div class={styles.DbLoading}>
+            <Spinner size={14} />
+            Listing databases
+          </div>
         }
       >
-        <input
-          class={styles.ChipInput}
-          placeholder="Database name"
-          spellcheck={false}
-          ref={input => queueMicrotask(() => input.focus())}
-          onKeyDown={event => {
-            if (event.key === "Enter") commit(event.currentTarget);
-            if (event.key === "Escape") {
-              event.stopPropagation();
-              event.currentTarget.value = "";
-              setAdding(false);
-            }
-          }}
-          onBlur={event => commit(event.currentTarget)}
-        />
+        <div class={styles.DbList}>
+          <For each={shown()} fallback={<Show when={!addable()}><div class={styles.DbEmpty}>{emptyText()}</div></Show>}>
+            {entry => <DatabaseRow entry={entry} access={access()} onChoose={(name, choice) => void choose(name, choice)} />}
+          </For>
+          <Show when={addable()}>
+            {name => (
+              <button type="button" class={styles.DbAddRow} onClick={() => addByName(name())}>
+                <Plus size={13} />
+                <span>Add <b>{name()}</b>, a database that isn't listed</span>
+              </button>
+            )}
+          </Show>
+        </div>
       </Show>
     </div>
   );
@@ -78,12 +244,21 @@ function DatabaseChips(props: { access: AgentAccess, onChange: (databases: strin
 
 function AccessRow(props: { profile: ConnectionProfile }) {
   const connections = useConnectionsState;
+  const prompts = usePromptState;
   const { pushError } = useToastState;
+  const [open, setOpen] = createSignal(false);
 
   const details = createMemo(() =>
     withDatabaseModule(props.profile, module => ({ kind: module.label, target: describeConnection(props.profile) })),
   );
   const initial = createMemo(() => props.profile.name.trim().charAt(0).toUpperCase() || "?");
+  const shared = createMemo(() => props.profile.agentAccess.mode !== "off");
+  const expanded = createMemo(() => open() && shared());
+  const scope = createMemo(() => describeScope(props.profile.agentAccess));
+  const anyWrite = createMemo(() => {
+    const access = props.profile.agentAccess;
+    return (access.allDatabases && access.mode === "write") || access.exceptions.some(rule => rule.mode === "write");
+  });
 
   async function save(access: AgentAccess) {
     try {
@@ -93,28 +268,49 @@ function AccessRow(props: { profile: ConnectionProfile }) {
     }
   }
 
+  async function setMode(mode: AgentMode) {
+    if (mode === props.profile.agentAccess.mode) return;
+    if (mode === "write" && !await prompts.askToAllowUnattendedWrites({ connectionName: props.profile.name, database: null })) return;
+    await save({ ...props.profile.agentAccess, mode });
+  }
+
   return (
-    <div class={styles.TableRow}>
-      <div class={styles.Connection}>
-        <span class={styles.Badge} style={{ "--badge": props.profile.color ?? undefined }}>{initial()}</span>
-        <div class={styles.ConnectionText}>
-          <div class={styles.ConnectionName}>{props.profile.name}</div>
-          <div class={styles.ConnectionHost} ref={element => tooltip(element, () => details().target)}>{details().target}</div>
+    <>
+      <div class={styles.TableRow}>
+        <div class={styles.Connection}>
+          <span class={styles.Badge} style={{ "--badge": props.profile.color ?? undefined }}>{initial()}</span>
+          <div class={styles.ConnectionText}>
+            <div class={styles.ConnectionName}>{props.profile.name}</div>
+            <div class={styles.ConnectionHost} ref={element => tooltip(element, () => details().target)}>{details().target}</div>
+          </div>
         </div>
-      </div>
-      <span class={styles.Kind}>{details().kind}</span>
-      <SegmentedControl<AgentMode>
-        value={props.profile.agentAccess.mode}
-        options={MODES}
-        onChange={mode => save({ ...props.profile.agentAccess, mode })}
-      />
-      <Show when={props.profile.agentAccess.mode !== "off"} fallback={<span class={styles.Off}>Not shared</span>}>
-        <DatabaseChips
-          access={props.profile.agentAccess}
-          onChange={databases => save({ ...props.profile.agentAccess, databases })}
+        <span class={styles.Kind}>{details().kind}</span>
+        <SegmentedControl<AgentMode>
+          value={props.profile.agentAccess.mode}
+          options={MODES}
+          onChange={mode => void setMode(mode)}
         />
+        <Show when={shared()} fallback={<span class={styles.Off}>Not shared</span>}>
+          <button
+            type="button"
+            class={styles.DbToggle}
+            classList={{ [styles.Open]: open() }}
+            aria-expanded={open()}
+            onClick={() => setOpen(!open())}
+          >
+            <Database size={14} />
+            <span class={styles.DbToggleText}>{scope()}</span>
+            <Show when={anyWrite()}>
+              <TriangleAlert size={13} class={styles.WriteIcon} />
+            </Show>
+            <ChevronDown size={14} class={styles.DbChevron} />
+          </button>
+        </Show>
+      </div>
+      <Show when={expanded()}>
+        <DatabasePanel profile={props.profile} onChange={access => void save(access)} />
       </Show>
-    </div>
+    </>
   );
 }
 
@@ -127,13 +323,13 @@ function AccessView() {
       <div class={styles.Wrap}>
         <div class={styles.PageHead}>
           <h2>Access</h2>
-          <p>What agents can do with each connection. New connections start at Nothing.</p>
+          <p>What agents can do with each connection, and with each of its databases. New connections start at Nothing.</p>
         </div>
 
         <Show when={!agent.config.allowChanges}>
           <div class={styles.Notice}>
             <ShieldAlert size={14} />
-            <span>Changes are turned off for every agent in Server, so Read + ask works like Read for now.</span>
+            <span>Changes are turned off for every agent in Server, so Read + ask and Read + write work like Read for now.</span>
           </div>
         </Show>
 
@@ -153,7 +349,10 @@ function AccessView() {
             </For>
             <div class={styles.TableFoot}>
               <Info size={14} />
-              Read keeps agents to reads, but a database login that can only read is the only full guarantee. Changing a connection here closes its open agent sessions.
+              <span>
+                Read keeps agents to reads, but a database login that can only read is the only full guarantee. Changing a
+                connection here closes its open agent sessions.
+              </span>
             </div>
           </div>
         </Show>

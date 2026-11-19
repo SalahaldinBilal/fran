@@ -1,6 +1,6 @@
 import { Channel, invoke, InvokeOptions } from "@tauri-apps/api/core";
 import {
-  AgentApproval, AgentConfig, AgentHistoryEntry, AgentServerStatus, AgentSessionInfo,
+  AgentApproval, AgentConfig, AgentDatabases, AgentHistoryEntry, AgentServerStatus, AgentSessionInfo,
   BatchOutcome, CatalogColumn, ColumnChoices, ColumnMeta, ConflictChoice, ConnectionProfile, Crumb, DatabaseInfo, DatabaseKind, DatabaseSize,
   SftpEvent,
   DesignOptions, FileEntry, HostKeyInfo, Identity, ImportOutcome, ImportPreview, KeyAlgorithm, KeyMeta, KubeContexts, Listing, ObjectInfo, SecretRefs,
@@ -287,4 +287,5 @@ type Commands = {
   "get_agent_history_entry": Command<{ id: string, at: number }, AgentHistoryEntry | null>,
   "get_agent_history_size": Command<undefined, number>,
   "clear_agent_history": Command,
+  "list_agent_databases": Command<{ connectionId: string, secrets: Secrets }, AgentDatabases>,
 };

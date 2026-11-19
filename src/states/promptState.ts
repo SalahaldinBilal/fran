@@ -47,12 +47,30 @@ export type TextPromptOptions = {
 
 type TextRequest = TextPromptOptions & { resolve: (value: string | null) => void };
 
+// `database` is null when the whole connection is being switched.
+export type UnattendedWritesTarget = { connectionName: string, database: string | null };
+
+type UnattendedWritesRequest = UnattendedWritesTarget & { resolve: (allowed: boolean) => void };
+
 function usePromptStateInner() {
   const [secretsRequest, setSecretsRequest] = createSignal<SecretsRequest | null>(null);
   const [hostKeyRequest, setHostKeyRequest] = createSignal<HostKeyRequest | null>(null);
   const [changedKeyRequest, setChangedKeyRequest] = createSignal<ChangedKeyRequest | null>(null);
   const [confirmRequest, setConfirmRequest] = createSignal<ConfirmRequest | null>(null);
   const [textRequest, setTextRequest] = createSignal<TextRequest | null>(null);
+  const [unattendedWritesRequest, setUnattendedWritesRequest] = createSignal<UnattendedWritesRequest | null>(null);
+
+  function askToAllowUnattendedWrites(target: UnattendedWritesTarget): Promise<boolean> {
+    return new Promise(resolve => {
+      setUnattendedWritesRequest({
+        ...target,
+        resolve: allowed => {
+          setUnattendedWritesRequest(null);
+          resolve(allowed);
+        },
+      });
+    });
+  }
 
   function askForText(options: TextPromptOptions): Promise<string | null> {
     return new Promise(resolve => {
@@ -137,6 +155,8 @@ function usePromptStateInner() {
     changedKeyRequest,
     confirmRequest,
     textRequest,
+    unattendedWritesRequest,
+    askToAllowUnattendedWrites,
     askForSecrets,
     askToTrustHostKey,
     askToReplaceHostKey,

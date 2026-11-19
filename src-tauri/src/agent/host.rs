@@ -86,8 +86,13 @@ impl CloseReason {
 pub struct Live {
     pub session: Arc<AgentSession>,
     pub access: AgentAccess,
-    pub mode: AgentMode,
     pub config: AgentConfig,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Gate {
+    Ask,
+    Unattended,
 }
 
 pub fn refused(log: &CallLog, message: impl Into<String>) -> AppError {
@@ -459,14 +464,14 @@ impl AgentHost {
             .find(&session.connection_id)
             .map(|profile| profile.agent_access)
             .unwrap_or_default();
-        let mode = access.effective_mode(&config);
-        if mode == AgentMode::Off {
+        let hidden = session.catalog.as_deref().is_some_and(|catalog| !access.allows(catalog));
+        if access.effective_mode(&config) == AgentMode::Off || hidden {
             self.close_session(id, CloseReason::Access).await;
             return Err(refused(log, format!("{} isn't shared with agents anymore", session.connection_name)));
         }
 
         session.touch();
-        Ok(Live { session, access, mode, config })
+        Ok(Live { session, access, config })
     }
 
     pub fn require_raw_sql(&self, live: &Live, log: &CallLog) -> AppResult<()> {
@@ -477,11 +482,29 @@ impl AgentHost {
         }
     }
 
-    pub fn require_changes(&self, live: &Live, log: &CallLog) -> AppResult<()> {
-        match live.mode {
-            AgentMode::Ask => Ok(()),
-            _ if !live.config.allow_changes => Err(refused(log, "Changes are turned off for all agents in Fran")),
-            _ => Err(refused(log, format!("{} is read only for agents", live.session.connection_name))),
+    /// Whether a change in `database` waits for the user. Raw SQL on a server where it can name other databases
+    /// only skips approval when every database there does.
+    pub fn require_changes(&self, live: &Live, database: Option<&str>, raw: bool, log: &CallLog) -> AppResult<Gate> {
+        let (access, config) = (&live.access, &live.config);
+        if !config.allow_changes {
+            return Err(refused(log, "Changes are turned off for all agents in Fran"));
+        }
+        let level = match (live.session.catalog.as_deref(), database) {
+            (Some(catalog), _) => access.level(catalog, config),
+            (None, Some(database)) => match access.level(database, config) {
+                AgentMode::Write if raw && !access.writes_everywhere(config) => AgentMode::Ask,
+                level => level,
+            },
+            (None, None) if access.writes_everywhere(config) => AgentMode::Write,
+            (None, None) => access.highest(config).min(AgentMode::Ask),
+        };
+        match level {
+            AgentMode::Write => Ok(Gate::Unattended),
+            AgentMode::Ask => Ok(Gate::Ask),
+            _ => {
+                let name = live.session.catalog.as_deref().or(database).unwrap_or(&live.session.connection_name);
+                Err(refused(log, format!("{name} is read only for agents")))
+            }
         }
     }
 
@@ -506,7 +529,7 @@ impl AgentHost {
         if live.session.catalog.is_none() && !live.access.allows(database) {
             return Err(refused(
                 log,
-                format!("{database} isn't shared with agents. Shared: {}", live.access.databases.join(", ")),
+                format!("{database} isn't shared with agents. list_databases shows the ones you can use."),
             ));
         }
         Ok(())
@@ -542,17 +565,19 @@ impl AgentHost {
         Err(AppError::general(message))
     }
 
-    /// Asks the user in Fran, then runs the statements with `execute_batch`.
+    /// Asks the user in Fran unless the gate says otherwise, then runs the statements with `execute_batch`.
+    #[allow(clippy::too_many_arguments)]
     pub async fn run_changes(
         &self,
         live: &Live,
+        gate: Gate,
         database: Option<&str>,
         tool: &str,
         statements: Vec<String>,
+        row_changes: bool,
         preview: Option<RowPreview>,
         log: &CallLog,
     ) -> AppResult<Value> {
-        let row_changes = preview.is_some();
         if statements.is_empty() {
             return Err(AppError::general("There's nothing to change"));
         }
@@ -567,23 +592,25 @@ impl AgentHost {
             ApplySafety::Schema { atomic: server.atomic_ddl }
         };
 
-        let session = &live.session;
-        let request = ApprovalRequest {
-            id: uuid::Uuid::new_v4().to_string(),
-            session_id: session.id.clone(),
-            agent: session.agent.clone(),
-            connection_id: session.connection_id.clone(),
-            connection_name: session.connection_name.clone(),
-            kind: session.kind,
-            database: database.map(str::to_string).or_else(|| session.catalog.clone()),
-            tool: tool.to_string(),
-            arguments: log.arguments.clone(),
-            statements: statements.clone(),
-            safety,
-            preview,
-            requested_at: now_ms(),
-        };
-        self.ask(live, request, log).await?;
+        if gate == Gate::Ask {
+            let session = &live.session;
+            let request = ApprovalRequest {
+                id: uuid::Uuid::new_v4().to_string(),
+                session_id: session.id.clone(),
+                agent: session.agent.clone(),
+                connection_id: session.connection_id.clone(),
+                connection_name: session.connection_name.clone(),
+                kind: session.kind,
+                database: database.map(str::to_string).or_else(|| session.catalog.clone()),
+                tool: tool.to_string(),
+                arguments: log.arguments.clone(),
+                statements: statements.clone(),
+                safety,
+                preview,
+                requested_at: now_ms(),
+            };
+            self.ask(live, request, log).await?;
+        }
 
         let outcome = live.session.session.execute_batch(database, &statements, transactional).await?;
         match outcome.error {

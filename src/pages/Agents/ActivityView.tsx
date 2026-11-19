@@ -16,7 +16,7 @@ import Spinner from "@core/components/Spinner/Spinner";
 import AgentMark from "./AgentMark";
 import CallRow from "./CallRow";
 import {
-  DAY_MS, MODE_LABELS, approvalSummary, formatClock, isChange, lowerFirst, startOfDay, tableOf, where,
+  DAY_MS, MODE_LABELS, accessLevel, approvalSummary, formatClock, isChange, lowerFirst, startOfDay, tableOf, where,
 } from "./agentText";
 
 type CallFilter = "all" | "changes" | "failed";
@@ -191,8 +191,9 @@ function ActivityView() {
   const mode = createMemo<AgentMode | null>(() => {
     const session = openSession();
     if (!session) return null;
-    const access = connections.find(session.connectionId)?.agentAccess.mode ?? "off";
-    return access === "ask" && !agent.config.allowChanges ? "readOnly" : access;
+    const access = connections.find(session.connectionId)?.agentAccess;
+    if (!access) return "off";
+    return accessLevel(access, session.catalog ?? session.defaultDatabase, agent.config.allowChanges);
   });
 
   const title = createMemo(() => {

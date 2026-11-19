@@ -99,6 +99,11 @@ async fn serves_tools_over_http() {
         json!({ "connections": [
             { "id": "c1", "name": "Local", "kind": "sqlite", "options": options, "agentAccess": { "mode": "ask" } },
             { "id": "c2", "name": "Private", "kind": "sqlite", "options": options },
+            { "id": "c3", "name": "Scratch", "kind": "sqlite", "options": options, "agentAccess": { "mode": "write" } },
+            {
+                "id": "c4", "name": "Hidden", "kind": "sqlite", "options": options,
+                "agentAccess": { "mode": "write", "allDatabases": true, "exceptions": [{ "name": "main", "mode": "off" }] },
+            },
         ]}),
     );
     write_json(&dir.0.join("agent.json"), json!({ "enabled": true, "port": port, "historyEnabled": false }));
@@ -149,7 +154,7 @@ async fn serves_tools_over_http() {
     }
 
     let connections = data(&call(&client, "list_connections", json!({})).await);
-    assert_eq!(connections["connections"].as_array().unwrap().len(), 1);
+    assert_eq!(connections["connections"].as_array().unwrap().len(), 3);
     assert!(call(&client, "open_session", json!({ "connection": "Private" })).await.is_error == Some(true));
 
     let opened = data(&call(&client, "open_session", json!({ "connection": "local", "database": "main" })).await);
@@ -202,6 +207,19 @@ async fn serves_tools_over_http() {
     assert!(text(&rejected).contains("rejected"));
     let count = data(&call(&client, "count_rows", json!({ "session": session, "table": "users" })).await);
     assert_eq!(count["count"], 4);
+
+    let hidden = call(&client, "open_session", json!({ "connection": "Hidden", "database": "main" })).await;
+    assert!(text(&hidden).contains("isn't shared"), "{}", text(&hidden));
+
+    let scratch = data(&call(&client, "open_session", json!({ "connection": "Scratch", "database": "main" })).await);
+    let unattended = tokio::time::timeout(
+        Duration::from_secs(10),
+        call(&client, "delete_rows", json!({ "session": scratch["session"], "table": "users", "keys": [{ "id": 2 }] })),
+    )
+    .await
+    .expect("a change in a database that doesn't ask waited for approval");
+    assert_eq!(data(&unattended)["executed"], 1);
+    assert!(host.approvals.list().is_empty());
 
     host.set_config(AgentConfig { enabled: true, port, history_enabled: false, allow_changes: false, ..AgentConfig::default() })
         .await

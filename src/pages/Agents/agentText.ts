@@ -1,4 +1,4 @@
-import { AgentApproval, AgentHistoryEntry, AgentMode, ColumnMeta } from "@core/types";
+import { AgentAccess, AgentApproval, AgentHistoryEntry, AgentMode, ColumnMeta } from "@core/types";
 import { plural } from "@core/helpers";
 
 export const DAY_MS = 86_400_000;
@@ -11,7 +11,16 @@ export const MODE_LABELS: Record<AgentMode, string> = {
   off: "not shared anymore",
   readOnly: "read only",
   ask: "read and ask to change",
+  write: "changes without asking",
 };
+
+// Matches AgentAccess::level in Rust.
+export function accessLevel(access: AgentAccess, database: string | null, allowChanges: boolean): AgentMode {
+  if (access.mode === "off") return "off";
+  const rule = access.exceptions.find(existing => existing.name === database);
+  const level = database === null ? access.mode : rule?.mode ?? (access.allDatabases ? access.mode : "off");
+  return !allowChanges && (level === "ask" || level === "write") ? "readOnly" : level;
+}
 
 export type OutcomeTone = "ok" | "fail" | "warn";
 

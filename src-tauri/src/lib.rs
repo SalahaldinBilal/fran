@@ -364,6 +364,7 @@ pub fn run() {
             agent::commands::get_agent_history_entry,
             agent::commands::get_agent_history_size,
             agent::commands::clear_agent_history,
+            agent::commands::list_agent_databases,
         ])
         .build(tauri::generate_context!())
         .expect("error while building the app");

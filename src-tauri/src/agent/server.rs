@@ -27,8 +27,10 @@ const INSTRUCTIONS: &str = "Fran gives you the database connections its user cho
 Call list_connections, then open_session on one, pass the session id to every other tool, and call \
 close_session when you're done. Learn the schema with list_databases, list_objects, describe_table, \
 search_schema and get_relationships, and read data with read_rows, count_rows and column_values before \
-reaching for raw SQL. slow_queries shows which statements the server spends its time on. A connection is either read only or lets you make changes, and every change waits \
-for the user to approve it in Fran, so say what you're about to change and why.";
+reaching for raw SQL. slow_queries shows which statements the server spends its time on. Each database is \
+read only, lets you make changes that wait for the user to approve them in Fran, or lets you make changes that \
+run right away. open_session says which. Say what you're about to change and why, and be careful where changes \
+aren't reviewed.";
 
 const RAW_SQL_TOOLS: [&str; 3] = ["run_query", "explain_query", "execute_sql"];
 const CHANGE_TOOLS: [&str; 8] = [
@@ -263,7 +265,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Inserts rows into a table. Waits for the user to approve it in Fran",
+        description = "Inserts rows into a table. Waits for the user to approve it in Fran, unless the database lets changes run without asking",
         annotations(destructive_hint = false)
     )]
     async fn insert_rows(
@@ -276,7 +278,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Updates rows found by their full primary key. Waits for the user to approve it in Fran",
+        description = "Updates rows found by their full primary key. Waits for the user to approve it in Fran, unless the database lets changes run without asking",
         annotations(destructive_hint = true)
     )]
     async fn update_rows(
@@ -289,7 +291,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Deletes rows found by their full primary key. Waits for the user to approve it in Fran",
+        description = "Deletes rows found by their full primary key. Waits for the user to approve it in Fran, unless the database lets changes run without asking",
         annotations(destructive_hint = true)
     )]
     async fn delete_rows(
@@ -316,7 +318,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Creates a table from a design. Waits for the user to approve it in Fran",
+        description = "Creates a table from a design. Waits for the user to approve it in Fran, unless the database lets changes run without asking",
         annotations(destructive_hint = false)
     )]
     async fn create_table(
@@ -329,7 +331,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Changes a table to match an edited design from get_table_design. Waits for the user to approve it in Fran",
+        description = "Changes a table to match an edited design from get_table_design. Waits for the user to approve it in Fran, unless the database lets changes run without asking",
         annotations(destructive_hint = true)
     )]
     async fn alter_table(
@@ -342,7 +344,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Drops a table, view, routine, trigger or other object. Waits for the user to approve it in Fran",
+        description = "Drops a table, view, routine, trigger or other object. Waits for the user to approve it in Fran, unless the database lets changes run without asking",
         annotations(destructive_hint = true)
     )]
     async fn drop_object(
@@ -355,7 +357,7 @@ impl AgentServer {
     }
 
     #[tool(
-        description = "Runs SQL that changes data or schema, when no other tool fits. Waits for the user to approve it in Fran",
+        description = "Runs SQL that changes data or schema, when no other tool fits. Waits for the user to approve it in Fran, unless the database lets changes run without asking",
         annotations(destructive_hint = true)
     )]
     async fn execute_sql(

@@ -1,7 +1,7 @@
 import styles from "./Prompts.module.scss";
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
-import { ShieldAlert, ShieldCheck, ShieldQuestionMark } from "@core/icons";
+import { ShieldAlert, ShieldCheck, ShieldQuestionMark, TriangleAlert } from "@core/icons";
 import usePromptState from "@core/states/promptState";
 import { HopPosition } from "@core/types";
 import Modal from "../Modal/Modal";
@@ -293,6 +293,76 @@ function TextPrompt() {
   );
 }
 
+function UnattendedWritesPrompt() {
+  const { unattendedWritesRequest } = usePromptState;
+  const [typed, setTyped] = createSignal("");
+
+  createEffect(() => {
+    if (unattendedWritesRequest()) setTyped("");
+  });
+
+  const name = createMemo(() => {
+    const request = unattendedWritesRequest();
+    return request?.database ?? request?.connectionName ?? "";
+  });
+  const matches = createMemo(() => name() !== "" && typed().trim() === name());
+
+  function allow() {
+    if (matches()) unattendedWritesRequest()?.resolve(true);
+  }
+
+  return (
+    <Modal
+      show={unattendedWritesRequest() !== null}
+      onHide={() => unattendedWritesRequest()?.resolve(false)}
+      title="Let agents change data without asking?"
+      width={540}
+      footer={
+        <>
+          <Button variant="subtle" onClick={() => unattendedWritesRequest()?.resolve(false)}>Cancel</Button>
+          <Button variant="danger" disabled={!matches()} onClick={allow}>Allow changes without asking</Button>
+        </>
+      }
+    >
+      <Show when={unattendedWritesRequest()}>
+        {request => (
+          <form
+            class={styles.HostKey}
+            onSubmit={event => {
+              event.preventDefault();
+              allow();
+            }}
+          >
+            <div class={styles.BigWarning}>
+              <TriangleAlert size={28} />
+              <div>
+                <strong>Nothing will be reviewed.</strong>
+                <p>
+                  <Show
+                    when={request().database}
+                    fallback={<>Agents will be able to change every database on <b>{request().connectionName}</b> the moment they decide to.</>}
+                  >
+                    {database => <>Agents will be able to change <b>{database()}</b> on <b>{request().connectionName}</b> the moment they decide to.</>}
+                  </Show>
+                </p>
+              </div>
+            </div>
+            <ul class={styles.Risks}>
+              <li>Rows can be updated or deleted, and tables altered or dropped, without you seeing the SQL first.</li>
+              <li>An agent that misreads the task, or follows instructions planted in data it reads, can destroy data.</li>
+              <li>Fran can't undo a change once it ran. Only use this where you have a backup or the data doesn't matter.</li>
+            </ul>
+            <Field label={`Type ${name()} to allow it`}>
+              <Input value={typed()} onValue={setTyped} placeholder={name()} mono autofocus />
+            </Field>
+            <button type="submit" hidden />
+          </form>
+        )}
+      </Show>
+    </Modal>
+  );
+}
+
 function Prompts() {
   return (
     <>
@@ -301,6 +371,7 @@ function Prompts() {
       <ChangedKeyPrompt />
       <ConfirmPrompt />
       <TextPrompt />
+      <UnattendedWritesPrompt />
     </>
   );
 }

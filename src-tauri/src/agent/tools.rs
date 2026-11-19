@@ -13,7 +13,7 @@ use super::args::{
 use super::call::CallLog;
 use super::format;
 use super::history::Outcome;
-use super::host::{AgentHost, CloseReason, Live, refused};
+use super::host::{AgentHost, CloseReason, Gate, Live, refused};
 use super::sessions::AgentSession;
 use crate::db::activity::{HISTORY_LIMIT, HistoryOrder, StatementStats};
 use crate::db::classify::{ClassifiedStatement, StatementAccess};
@@ -137,12 +137,23 @@ async fn choose_database(
     wanted: Option<String>,
     log: &CallLog,
 ) -> AppResult<Option<String>> {
-    let shared = || access.databases.join(", ");
     match session.catalog() {
         Some(current) => {
             let target = wanted.unwrap_or_else(|| current.clone());
             if !access.allows(&target) {
-                return Err(refused(log, format!("{target} isn't shared with agents. Pass database, one of: {}", shared())));
+                let shared: Vec<String> = session
+                    .list_catalogs()
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|name| access.allows(name))
+                    .collect();
+                let hint = if shared.is_empty() {
+                    "No database on it is shared.".to_string()
+                } else {
+                    format!("Pass database, one of: {}", shared.join(", "))
+                };
+                return Err(refused(log, format!("{target} isn't shared with agents. {hint}")));
             }
             if target != current {
                 session.switch_catalog(&target).await?;
@@ -150,9 +161,10 @@ async fn choose_database(
             Ok(None)
         }
         None => match wanted {
-            Some(database) if !access.allows(&database) => {
-                Err(refused(log, format!("{database} isn't shared with agents. Shared: {}", shared())))
-            }
+            Some(database) if !access.allows(&database) => Err(refused(
+                log,
+                format!("{database} isn't shared with agents. list_databases shows the ones you can use."),
+            )),
             wanted => Ok(wanted),
         },
     }
@@ -294,14 +306,29 @@ impl AgentHost {
         let shared: Vec<Value> = profiles
             .iter()
             .filter_map(|profile| {
-                let mode = profile.agent_access.effective_mode(&config);
+                let access = &profile.agent_access;
+                let mode = access.effective_mode(&config);
                 (mode != AgentMode::Off).then(|| {
+                    let databases = if access.sees_everything() {
+                        json!("all")
+                    } else if access.all_databases {
+                        json!("all but some hidden ones")
+                    } else {
+                        json!(access.exceptions.iter().filter(|rule| access.allows(&rule.name)).map(|rule| &rule.name).collect::<Vec<_>>())
+                    };
+                    let modes: Map<String, Value> = access
+                        .exceptions
+                        .iter()
+                        .filter(|rule| access.allows(&rule.name))
+                        .map(|rule| (rule.name.clone(), json!(access.level(&rule.name, &config))))
+                        .collect();
                     json!({
                         "id": profile.id,
                         "name": profile.name,
                         "kind": profile.driver.kind(),
                         "mode": mode,
-                        "databases": profile.agent_access.databases,
+                        "databases": databases,
+                        "databaseModes": modes,
                     })
                 })
             })
@@ -353,23 +380,43 @@ impl AgentHost {
                 .collect(),
             None => Vec::new(),
         };
-        let note = match mode {
-            AgentMode::Ask => "Changes wait for the user to approve them in Fran.",
-            _ => "This connection is read only for agents.",
+        let session_mode = match live.catalog.as_deref().or(default_database.as_deref()) {
+            Some(database) => access.level(database, &config),
+            None => mode,
         };
+        let mut notes = vec![match session_mode {
+            AgentMode::Write => "Changes run right away, without asking the user.",
+            AgentMode::Ask => "Changes wait for the user to approve them in Fran.",
+            _ => "This is read only for agents.",
+        }];
+        if live.catalog.is_none() {
+            if databases.iter().any(|database| access.level(database, &config) != session_mode) {
+                notes.push("Databases have their own access levels, listed in databaseModes.");
+            }
+            if access.highest(&config) == AgentMode::Write && !access.writes_everywhere(&config) {
+                notes.push("execute_sql still waits for approval in databases that don't ask, since raw SQL can reach the others.");
+            }
+        }
 
         let mut reply = json!({
             "session": live.id,
             "connection": live.connection_name,
             "kind": live.kind,
             "server": format!("{} {}", live.server.product, live.server.version).trim(),
-            "mode": mode,
+            "mode": session_mode,
             "database": live.catalog,
             "defaultDatabase": default_database,
             "otherDatabases": others,
-            "note": note,
+            "note": notes.join(" "),
         });
-        reply[if live.catalog.is_some() { "schemas" } else { "databases" }] = json!(databases);
+        if live.catalog.is_some() {
+            reply["schemas"] = json!(databases);
+        } else {
+            let modes: Map<String, Value> =
+                databases.iter().map(|database| (database.clone(), json!(access.level(database, &config)))).collect();
+            reply["databases"] = json!(databases);
+            reply["databaseModes"] = json!(modes);
+        }
         Ok(reply)
     }
 
@@ -595,7 +642,7 @@ impl AgentHost {
         log.statements(&statements.iter().map(|statement| statement.text.clone()).collect::<Vec<_>>());
         let refusals = refused_statements(&statements);
         if !refusals.is_empty() {
-            let hint = if live.mode == AgentMode::Ask { " Use execute_sql for changes." } else { "" };
+            let hint = if live.access.highest(&live.config) >= AgentMode::Ask { " Use execute_sql for changes." } else { "" };
             return Err(refused(log, format!("run_query only runs reads. {}.{hint}", refusals.join(". "))));
         }
 
@@ -635,8 +682,8 @@ impl AgentHost {
 
     pub async fn insert_rows(&self, args: InsertRowsArgs, log: &CallLog) -> AppResult<Value> {
         let live = self.live(&args.session, log).await?;
-        self.require_changes(&live, log)?;
         let database = self.database(&live, args.database, log)?;
+        let gate = self.require_changes(&live, Some(&database), false, log)?;
         let columns = self.table_columns(&live, &database, &args.table, log).await?;
         let changes = args
             .rows
@@ -644,7 +691,7 @@ impl AgentHost {
             .map(|row| Ok(RowChange::Insert { values: edits(&columns, row, &args.table)? }))
             .collect::<AppResult<Vec<_>>>()?;
         let statements = live.session.session.row_changes_sql(&database, &args.table, &columns, &changes)?;
-        let preview = RowPreview {
+        let preview = (gate == Gate::Ask).then(|| RowPreview {
             table: args.table.clone(),
             rows: args
                 .rows
@@ -665,14 +712,14 @@ impl AgentHost {
                 })
                 .collect(),
             more: args.rows.len().saturating_sub(PREVIEW_ROWS),
-        };
-        self.run_changes(&live, Some(&database), "insert_rows", statements, Some(preview), log).await
+        });
+        self.run_changes(&live, gate, Some(&database), "insert_rows", statements, true, preview, log).await
     }
 
     pub async fn update_rows(&self, args: UpdateRowsArgs, log: &CallLog) -> AppResult<Value> {
         let live = self.live(&args.session, log).await?;
-        self.require_changes(&live, log)?;
         let database = self.database(&live, args.database, log)?;
+        let gate = self.require_changes(&live, Some(&database), false, log)?;
         let columns = self.table_columns(&live, &database, &args.table, log).await?;
         let changes = args
             .rows
@@ -685,14 +732,17 @@ impl AgentHost {
             })
             .collect::<AppResult<Vec<_>>>()?;
         let statements = live.session.session.row_changes_sql(&database, &args.table, &columns, &changes)?;
-        let preview = self.update_preview(&live, &database, &args.table, &args.rows, log).await;
-        self.run_changes(&live, Some(&database), "update_rows", statements, Some(preview), log).await
+        let preview = match gate {
+            Gate::Ask => Some(self.update_preview(&live, &database, &args.table, &args.rows, log).await),
+            Gate::Unattended => None,
+        };
+        self.run_changes(&live, gate, Some(&database), "update_rows", statements, true, preview, log).await
     }
 
     pub async fn delete_rows(&self, args: DeleteRowsArgs, log: &CallLog) -> AppResult<Value> {
         let live = self.live(&args.session, log).await?;
-        self.require_changes(&live, log)?;
         let database = self.database(&live, args.database, log)?;
+        let gate = self.require_changes(&live, Some(&database), false, log)?;
         let columns = self.table_columns(&live, &database, &args.table, log).await?;
         let changes = args
             .keys
@@ -700,8 +750,11 @@ impl AgentHost {
             .map(|key| Ok(RowChange::Delete { key: key_row(&columns, key, &args.table)? }))
             .collect::<AppResult<Vec<_>>>()?;
         let statements = live.session.session.row_changes_sql(&database, &args.table, &columns, &changes)?;
-        let preview = self.delete_preview(&live, &database, &args.table, &args.keys, log).await;
-        self.run_changes(&live, Some(&database), "delete_rows", statements, Some(preview), log).await
+        let preview = match gate {
+            Gate::Ask => Some(self.delete_preview(&live, &database, &args.table, &args.keys, log).await),
+            Gate::Unattended => None,
+        };
+        self.run_changes(&live, gate, Some(&database), "delete_rows", statements, true, preview, log).await
     }
 
     pub async fn get_table_design(&self, args: TableArgs, log: &CallLog) -> AppResult<Value> {
@@ -713,37 +766,37 @@ impl AgentHost {
 
     pub async fn create_table(&self, args: CreateTableArgs, log: &CallLog) -> AppResult<Value> {
         let live = self.live(&args.session, log).await?;
-        self.require_changes(&live, log)?;
         let database = self.database(&live, args.database, log)?;
+        let gate = self.require_changes(&live, Some(&database), false, log)?;
         let design = parse_design(args.design)?;
         let statements = live.session.session.table_design_sql(&database, None, &design)?;
-        self.run_changes(&live, Some(&database), "create_table", statements, None, log).await
+        self.run_changes(&live, gate, Some(&database), "create_table", statements, false, None, log).await
     }
 
     pub async fn alter_table(&self, args: AlterTableArgs, log: &CallLog) -> AppResult<Value> {
         let live = self.live(&args.session, log).await?;
-        self.require_changes(&live, log)?;
         let database = self.database(&live, args.database, log)?;
+        let gate = self.require_changes(&live, Some(&database), false, log)?;
         let original = live.session.session.table_design(&database, &args.table).await?;
         let edited = parse_design(args.design)?;
         let statements = live.session.session.table_design_sql(&database, Some(&original), &edited)?;
         if statements.is_empty() {
             return Err(AppError::general("The design is the same as the table, so there's nothing to change"));
         }
-        self.run_changes(&live, Some(&database), "alter_table", statements, None, log).await
+        self.run_changes(&live, gate, Some(&database), "alter_table", statements, false, None, log).await
     }
 
     pub async fn drop_object(&self, args: DropObjectArgs, log: &CallLog) -> AppResult<Value> {
         let live = self.live(&args.session, log).await?;
-        self.require_changes(&live, log)?;
         let database = self.database(&live, args.database, log)?;
+        let gate = self.require_changes(&live, Some(&database), false, log)?;
         let sql = live
             .session
             .session
             .object_sql(&database, &args.name, args.kind.into(), args.signature.as_deref(), SqlTemplate::Drop)
             .await?;
         let statement = sql.trim().trim_end_matches(';').to_string();
-        self.run_changes(&live, Some(&database), "drop_object", vec![statement], None, log).await
+        self.run_changes(&live, gate, Some(&database), "drop_object", vec![statement], false, None, log).await
     }
 
     pub async fn slow_queries(&self, args: SlowQueriesArgs, log: &CallLog) -> AppResult<Value> {
@@ -789,8 +842,8 @@ impl AgentHost {
     pub async fn execute_sql(&self, args: SqlArgs, log: &CallLog) -> AppResult<Value> {
         let live = self.live(&args.session, log).await?;
         self.require_raw_sql(&live, log)?;
-        self.require_changes(&live, log)?;
         let database = self.optional_database(&live, args.database, log)?;
+        let gate = self.require_changes(&live, database.as_deref(), true, log)?;
         let statements: Vec<String> = live
             .session
             .session
@@ -798,14 +851,14 @@ impl AgentHost {
             .into_iter()
             .map(|statement| statement.text)
             .collect();
-        self.run_changes(&live, database.as_deref(), "execute_sql", statements, None, log).await
+        self.run_changes(&live, gate, database.as_deref(), "execute_sql", statements, false, None, log).await
     }
 }
 
 /// Server statistics cover every database, so only those shared with agents are kept.
-/// With a database list set, statements that name no database are dropped, since they could have run anywhere.
+/// With any database hidden, statements that name no database are dropped, since they could have run anywhere.
 fn shared_statements(statements: Vec<StatementStats>, access: &AgentAccess) -> Vec<StatementStats> {
-    if access.databases.is_empty() {
+    if access.sees_everything() {
         return statements;
     }
     statements
@@ -823,6 +876,7 @@ fn parse_design(design: Value) -> AppResult<TableDesign> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent::access::DatabaseRule;
     use crate::db::types::ValueCategory;
 
     fn column(name: &str, primary_key: bool) -> ColumnMeta {
@@ -875,11 +929,24 @@ mod tests {
     fn slow_queries_only_show_shared_databases() {
         let all = || vec![stats(Some("shop")), stats(Some("payroll")), stats(None)];
 
-        let everything = AgentAccess { mode: AgentMode::ReadOnly, databases: Vec::new() };
+        let everything = AgentAccess { mode: AgentMode::ReadOnly, ..AgentAccess::default() };
         assert_eq!(shared_statements(all(), &everything).len(), 3);
 
-        let shop_only = AgentAccess { mode: AgentMode::ReadOnly, databases: vec!["shop".to_string()] };
+        let shop_only = AgentAccess {
+            mode: AgentMode::ReadOnly,
+            all_databases: false,
+            exceptions: vec![DatabaseRule { name: "shop".to_string(), mode: AgentMode::ReadOnly }],
+        };
         let shared = shared_statements(all(), &shop_only);
+        assert_eq!(shared.len(), 1);
+        assert_eq!(shared[0].database.as_deref(), Some("shop"));
+
+        let payroll_hidden = AgentAccess {
+            mode: AgentMode::ReadOnly,
+            all_databases: true,
+            exceptions: vec![DatabaseRule { name: "payroll".to_string(), mode: AgentMode::Off }],
+        };
+        let shared = shared_statements(all(), &payroll_hidden);
         assert_eq!(shared.len(), 1);
         assert_eq!(shared[0].database.as_deref(), Some("shop"));
     }
