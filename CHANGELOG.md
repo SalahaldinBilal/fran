@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-19
+
 ### Added
 
 - A system notification when an agent is waiting for you to approve a change and Fran isn't the window in front. Turn it off in Settings > Agents.
