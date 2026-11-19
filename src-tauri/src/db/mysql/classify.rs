@@ -1,6 +1,6 @@
 use super::splitter;
 use super::sqlgen::Dialect;
-use crate::db::classify::{ClassifiedStatement, Rules, Syntax, classify_statement};
+use crate::db::classify::{self as shared, ClassifiedStatement, Rules, SchemaChange, Syntax, classify_statement};
 
 const DENIED_FUNCTIONS: [&str; 12] = [
     "GET_LOCK",
@@ -35,6 +35,10 @@ fn rules(dialect: Dialect) -> Rules<'static> {
         denied_functions: &DENIED_FUNCTIONS,
         inspect: None,
     }
+}
+
+pub fn schema_change(sql: &str, dialect: Dialect) -> Option<SchemaChange> {
+    shared::schema_change(sql, rules(dialect).syntax)
 }
 
 pub fn classify(sql: &str, dialect: Dialect) -> Vec<ClassifiedStatement> {

@@ -23,7 +23,7 @@ use super::sqlgen::{self, Dialect};
 use super::types::TypeCache;
 use crate::connections::SecretBag;
 use crate::db::activity::{ActivitySupport, HistoryOrder, QueryHistory, RunningQueries};
-use crate::db::classify::ClassifiedStatement;
+use crate::db::classify::{ClassifiedStatement, SchemaChange};
 use crate::db::read_query;
 use crate::db::session::{ContextAccess, ContextId, DatabaseSession, OutcomeSink};
 use crate::db::types::{
@@ -403,6 +403,10 @@ impl DatabaseSession for PostgresSession {
 
     fn classify(&self, sql: &str) -> Vec<ClassifiedStatement> {
         classify::classify(sql, self.dialect())
+    }
+
+    fn schema_change(&self, sql: &str) -> Option<SchemaChange> {
+        classify::schema_change(sql, self.dialect())
     }
 
     fn read_sql(&self, database: &str, query: &ReadQuery) -> AppResult<String> {

@@ -1,5 +1,7 @@
 use super::splitter;
-use crate::db::classify::{self as shared, ClassifiedStatement, Rules, StatementAccess, Syntax, Token, classify_statement};
+use crate::db::classify::{
+    self as shared, ClassifiedStatement, Rules, SchemaChange, StatementAccess, Syntax, Token, classify_statement,
+};
 
 const DENIED_FUNCTIONS: [&str; 5] = ["LOAD_EXTENSION", "WRITEFILE", "READFILE", "EDIT", "FTS3_TOKENIZER"];
 
@@ -89,6 +91,10 @@ const RULES: Rules = Rules {
 
 pub fn with_row_limit(sql: &str, row_limit: usize) -> Option<String> {
     shared::with_row_limit(sql, SYNTAX, row_limit, RULES.queries, &["LIMIT"])
+}
+
+pub fn schema_change(sql: &str) -> Option<SchemaChange> {
+    shared::schema_change(sql, SYNTAX)
 }
 
 pub fn classify(sql: &str) -> Vec<ClassifiedStatement> {

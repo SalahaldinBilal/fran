@@ -6,11 +6,13 @@ use std::{
     },
 };
 
+use serde::Serialize;
 use tauri::{State, ipc::Channel};
 
 use super::{
     DatabaseKind,
     activity::{HistoryOrder, QueryHistory, RunningQueries},
+    classify::SchemaChange,
     session::{ContextAccess, ContextId},
     sessions::{OpenSession, SessionInfo, SessionManager},
     split_statements,
@@ -211,19 +213,29 @@ pub async fn execute_query(
     context_id: ContextId,
     sql: String,
     row_limit: usize,
-    on_outcome: Channel<StatementOutcome>,
+    on_outcome: Channel<RunOutcome>,
 ) -> AppResult<usize> {
     let sent = AtomicUsize::new(0);
-    sessions
-        .get(&session_id)?
-        .session
+    let open = sessions.get(&session_id)?;
+    let session = &open.session;
+    session
         .execute_streaming(context_id, &sql, row_limit, &|outcome| {
-            if on_outcome.send(outcome).is_ok() {
+            let schema_change = if outcome.error.is_none() { session.schema_change(&outcome.sql) } else { None };
+            if on_outcome.send(RunOutcome { outcome, schema_change }).is_ok() {
                 sent.fetch_add(1, Ordering::SeqCst);
             }
         })
         .await?;
     Ok(sent.into_inner())
+}
+
+/// A statement's outcome in a query tab, with what it changed in the schema tree so the tab can refresh it.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunOutcome {
+    #[serde(flatten)]
+    outcome: StatementOutcome,
+    schema_change: Option<SchemaChange>,
 }
 
 #[tauri::command]

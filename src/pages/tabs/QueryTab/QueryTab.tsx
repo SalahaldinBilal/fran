@@ -19,7 +19,7 @@ import useWorkspaceState, { QueryTabState } from "@core/states/workspaceState";
 import useSavedQueriesState from "@core/states/savedQueriesState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";
-import { ResultSet, StatementOutcome, StatementRange } from "@core/types";
+import { ResultSet, RunOutcome, StatementOutcome, StatementRange } from "@core/types";
 import { statementAt } from "@core/helpers/statements";
 import SqlEditor, { SqlEditorApi } from "@core/components/SqlEditor/SqlEditor";
 import ResultGrid, { GridEditing } from "@core/components/ResultGrid/ResultGrid";
@@ -326,13 +326,13 @@ function QueryTab(props: QueryTabProps) {
     setRunError(null);
     setHasRun(true);
 
-    const received: StatementOutcome[] = [];
+    const received: RunOutcome[] = [];
     let expected = Infinity;
     let finished = false;
     let allReceived!: () => void;
     const receivedAll = new Promise<void>(resolve => { allReceived = resolve; });
 
-    const channel = new Channel<StatementOutcome>();
+    const channel = new Channel<RunOutcome>();
     channel.onmessage = outcome => {
       if (finished) return;
       if (received.length === 0) {
@@ -363,8 +363,8 @@ function QueryTab(props: QueryTabProps) {
       const only = received.length === 1 ? received[0] : null;
       if (only && only.resultSets.length > 0 && !only.error) setView(0);
 
-      const changedSchema = received.some(outcome => !outcome.error && /^\s*(create|alter|drop|rename)\b/i.test(outcome.sql));
-      if (changedSchema) workspace.refreshCatalog(props.sessionId, props.database);
+      const changes = received.flatMap(outcome => (outcome.schemaChange ? [outcome.schemaChange] : []));
+      void workspace.applySchemaChanges(props.sessionId, props.database, changes);
     } catch (error) {
       if (isAppError(error) && error.detail.kind === "notFound") contextId = null;
       if (received.length === 0) clearResults();

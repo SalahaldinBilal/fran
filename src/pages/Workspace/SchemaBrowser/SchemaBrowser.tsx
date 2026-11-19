@@ -1,11 +1,9 @@
 import styles from "./SchemaBrowser.module.scss";
-import { Match, Show, Switch, createMemo, createSignal, onMount, untrack } from "solid-js";
+import { Match, Show, Switch, createMemo, createSignal, untrack } from "solid-js";
 import { Cable, Database, Gauge, RefreshCw, Unplug } from "@core/icons";
 import useWorkspaceState from "@core/states/workspaceState";
-import useToastState from "@core/states/toastState";
 import usePortForwardState from "@core/states/portForwardState";
 import { databaseModule, withDatabaseModule } from "@core/databases";
-import { safeInvoke } from "@core/helpers/safeInvoke";
 import Button from "@core/components/Button/Button";
 import Select from "@core/components/Select/Select";
 import Spinner from "@core/components/Spinner/Spinner";
@@ -21,36 +19,23 @@ type Panel = "schemas" | "queries";
 
 function SchemaBrowser(props: { sessionId: string }) {
   const workspace = useWorkspaceState;
-  const { pushError } = useToastState;
   const forwards = usePortForwardState;
   const [width, setWidth] = createSignal(280);
   const [panel, setPanel] = createSignal<Panel>("schemas");
-  const [catalogs, setCatalogs] = createSignal<string[]>([]);
   const session = createMemo(() => workspace.store.sessions[props.sessionId]);
   const module = databaseModule(untrack(() => workspace.store.sessions[props.sessionId].info.kind));
 
   const catalog = createMemo(() => (module.catalogLabel ? session()?.info.catalog ?? null : null));
   const catalogItems = createMemo(() => {
     const current = catalog();
-    const names = current && !catalogs().includes(current) ? [current, ...catalogs()] : catalogs();
+    const catalogs = session()?.catalogs ?? [];
+    const names = current && !catalogs.includes(current) ? [current, ...catalogs] : catalogs;
     return names.map(name => ({ value: name, label: name }));
   });
 
-  async function loadCatalogs() {
-    if (!module.catalogLabel) return;
-    try {
-      setCatalogs(await safeInvoke("list_catalogs", { sessionId: props.sessionId }));
-    } catch (error) {
-      pushError(error);
-    }
-  }
-
   function refresh() {
-    workspace.loadDatabases(props.sessionId);
-    loadCatalogs();
+    void workspace.refreshDatabaseList(props.sessionId);
   }
-
-  onMount(loadCatalogs);
 
   function startResize(event: MouseEvent) {
     event.preventDefault();

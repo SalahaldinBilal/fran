@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Running CREATE, ALTER or DROP DATABASE (or SCHEMA) in a query tab now refreshes the database list and the database picker.
+- Table, view and other schema changes from a query tab now refresh the database they happened in, also when the name is qualified with another database or the statement starts with a comment.
 - A VPN that dropped and got stuck reconnecting made every later connect through it fail until Fran was restarted.
 
 ## [0.3.0] - 2026-11-14

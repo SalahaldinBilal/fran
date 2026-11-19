@@ -283,6 +283,116 @@ pub fn with_row_limit(sql: &str, syntax: Syntax, row_limit: usize, reads: &[&str
     Some(format!("{sql}\nLIMIT {}", row_limit.saturating_add(1)))
 }
 
+/// What a statement that ran changed in the schema tree.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SchemaChange {
+    /// A database or schema was created, changed or dropped, or a file attached or detached.
+    Databases,
+    /// Objects changed in the named databases (schemas on Postgres), uppercased like every name the tokenizer
+    /// reads, and in the one the statement ran in when `current` is set.
+    Objects { databases: Vec<String>, current: bool },
+}
+
+const DATABASE_KINDS: [&str; 2] = ["DATABASE", "SCHEMA"];
+const OBJECT_KINDS: [&str; 11] =
+    ["TABLE", "VIEW", "INDEX", "SEQUENCE", "FUNCTION", "PROCEDURE", "TRIGGER", "EVENT", "TYPE", "DOMAIN", "EXTENSION"];
+const NAME_PREFIXES: [&str; 5] = ["IF", "NOT", "EXISTS", "ONLY", "CONCURRENTLY"];
+
+/// A dotted name starting at `start`, as its parts.
+fn dotted_name(tokens: &[Token], start: usize) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut index = start;
+    while let Some(name) = tokens.get(index).and_then(Token::name) {
+        parts.push(name.to_string());
+        if tokens.get(index + 1) != Some(&Token::Symbol('.')) {
+            break;
+        }
+        index += 2;
+    }
+    parts
+}
+
+/// What `sql` changes in the schema tree, read from its tokens so comments, quoting and qualified names count.
+pub fn schema_change(sql: &str, syntax: Syntax) -> Option<SchemaChange> {
+    let tokens = tokenize(sql, syntax).ok()?;
+    let first = match tokens.first()? {
+        Token::Word(word) => word.as_str(),
+        _ => return None,
+    };
+    if matches!(first, "ATTACH" | "DETACH") {
+        return Some(SchemaChange::Databases);
+    }
+    if !matches!(first, "CREATE" | "ALTER" | "DROP" | "RENAME") {
+        return None;
+    }
+
+    let mut kind_at = None;
+    for (index, token) in tokens.iter().enumerate().skip(1) {
+        match token {
+            Token::Symbol('(') => break,
+            Token::Word(word) if DATABASE_KINDS.contains(&word.as_str()) => return Some(SchemaChange::Databases),
+            Token::Word(word) if OBJECT_KINDS.contains(&word.as_str()) => {
+                kind_at = Some(index);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let kind_at = kind_at?;
+    let kind = tokens[kind_at].name().unwrap_or_default();
+
+    let mut starts = Vec::new();
+    let mut name_at = kind_at + 1;
+    while tokens.get(name_at).is_some_and(|token| NAME_PREFIXES.iter().any(|prefix| token.is_word(prefix))) {
+        name_at += 1;
+    }
+    starts.push(name_at);
+
+    let mut moved_to: Vec<String> = Vec::new();
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(name_at) {
+        match token {
+            Token::Symbol('(') => depth += 1,
+            Token::Symbol(')') => depth = depth.saturating_sub(1),
+            _ if depth > 0 => {}
+            Token::Word(word) if word == "ON" && matches!(kind, "INDEX" | "TRIGGER") => starts.push(index + 1),
+            Token::Word(word) if word == "TO" && (first == "RENAME" || index > 0 && tokens[index - 1].is_word("RENAME")) => {
+                starts.push(index + 1);
+            }
+            Token::Symbol(',') if matches!(first, "DROP" | "RENAME") => starts.push(index + 1),
+            Token::Word(word) if word == "SCHEMA" && tokens[index - 1].is_word("SET") => {
+                if let Some(name) = tokens.get(index + 1).and_then(Token::name) {
+                    moved_to.push(name.to_string());
+                }
+            }
+            Token::Word(word) if word == "AS" && first == "CREATE" => break,
+            _ => {}
+        }
+    }
+
+    let mut named: Vec<String> = Vec::new();
+    let mut current = false;
+    for start in starts {
+        let parts = dotted_name(&tokens, start);
+        match parts.len() {
+            0 => {}
+            1 => current = true,
+            count => named.push(parts[count - 2].clone()),
+        }
+    }
+    let mut databases: Vec<String> = Vec::new();
+    for database in named.into_iter().chain(moved_to) {
+        if !databases.contains(&database) {
+            databases.push(database);
+        }
+    }
+    if databases.is_empty() && !current {
+        current = true;
+    }
+    Some(SchemaChange::Objects { databases, current })
+}
+
 pub fn classify_statement(sql: &str, rules: &Rules) -> StatementAccess {
     let tokens = match tokenize(sql, rules.syntax) {
         Ok(tokens) => tokens,
@@ -445,6 +555,59 @@ mod tests {
         assert_eq!(limited("(select 1) union (select 2)"), None);
         assert_eq!(limited("select 'unclosed"), None);
         assert_eq!(with_row_limit("select 1", RULES.syntax, 0, RULES.queries, &["LIMIT"]), None);
+    }
+
+    const MYSQL: Syntax = Syntax {
+        hash_comments: true,
+        dash_comment_needs_space: true,
+        nested_comments: false,
+        executable_comments: true,
+        dollar_quotes: false,
+        escape_strings: false,
+        backslash_escapes: true,
+        double_quote_strings: true,
+        refuse_backslash_in_double_quotes: true,
+        backtick_identifiers: true,
+        bracket_identifiers: false,
+    };
+
+    fn objects(databases: &[&str], current: bool) -> Option<SchemaChange> {
+        Some(SchemaChange::Objects { databases: databases.iter().map(|name| name.to_string()).collect(), current })
+    }
+
+    #[test]
+    fn database_changes_count_behind_comments() {
+        assert_eq!(schema_change("-- make it\n/* for the shop */ CREATE DATABASE shop", MYSQL), Some(SchemaChange::Databases));
+        assert_eq!(schema_change("# old one\ndrop schema if exists `legacy`", MYSQL), Some(SchemaChange::Databases));
+        assert_eq!(schema_change("/* a /* nested */ note */ create schema sales", RULES.syntax), Some(SchemaChange::Databases));
+        assert_eq!(schema_change("ALTER DATABASE shop RENAME TO store", RULES.syntax), Some(SchemaChange::Databases));
+    }
+
+    #[test]
+    fn object_changes_name_the_database_they_land_in() {
+        assert_eq!(schema_change("/* new */ CREATE TABLE orders (id int)", MYSQL), objects(&[], true));
+        assert_eq!(schema_change("create table if not exists `shop`.`orders` (id int)", MYSQL), objects(&["SHOP"], false));
+        assert_eq!(schema_change("CREATE TABLE \"Sales\".orders (id int)", RULES.syntax), objects(&["SALES"], false));
+        assert_eq!(schema_change("create table app.public.orders (id int)", RULES.syntax), objects(&["PUBLIC"], false));
+        assert_eq!(schema_change("DROP TABLE shop.a, crm.b, c", MYSQL), objects(&["SHOP", "CRM"], true));
+        assert_eq!(schema_change("RENAME TABLE shop.a TO archive.a", MYSQL), objects(&["SHOP", "ARCHIVE"], false));
+        assert_eq!(schema_change("create unique index idx on crm.people (email)", RULES.syntax), objects(&["CRM"], true));
+        assert_eq!(schema_change("alter table shop.orders set schema archive", RULES.syntax), objects(&["SHOP", "ARCHIVE"], false));
+    }
+
+    #[test]
+    fn a_view_body_doesnt_count_as_a_changed_database() {
+        assert_eq!(
+            schema_change("create or replace view v as select o.id from shop.orders o join crm.people p on p.id = o.person", RULES.syntax),
+            objects(&[], true)
+        );
+    }
+
+    #[test]
+    fn statements_that_leave_the_tree_alone() {
+        assert_eq!(schema_change("insert into shop.orders values (1)", MYSQL), None);
+        assert_eq!(schema_change("CREATE USER 'ana'@'%' IDENTIFIED BY 'x'", MYSQL), None);
+        assert_eq!(schema_change("select 'create database x'", MYSQL), None);
     }
 
     #[test]

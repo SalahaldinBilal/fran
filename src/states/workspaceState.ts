@@ -5,7 +5,7 @@ import { withConnectPrompts } from "@core/helpers/connectFlow";
 import { generateId } from "@core/helpers";
 import { databaseModule, withDatabaseModule } from "@core/databases";
 import {
-  CatalogColumn, ConnectionProfile, DatabaseInfo, DatabaseKind, ObjectInfo, ObjectKind, SavedQuery, SessionInfo,
+  CatalogColumn, ConnectionProfile, DatabaseInfo, DatabaseKind, ObjectInfo, ObjectKind, SavedQuery, SchemaChange, SessionInfo,
 } from "@core/types";
 import useToastState from "./toastState";
 import useSettingsState, { RECENT_LIMIT, isRowLimit } from "./settingsState";
@@ -83,6 +83,8 @@ export type SessionState = {
   objects: Record<string, Loadable<ObjectInfo[]>>,
   columns: Record<string, Loadable<CatalogColumn[]>>,
   expanded: Record<string, boolean>,
+  // The other databases a session can switch to, for kinds with a catalog picker.
+  catalogs: string[],
   switchingCatalog: boolean,
 };
 
@@ -332,11 +334,13 @@ function useWorkspaceStateInner() {
       objects: {},
       columns: {},
       expanded,
+      catalogs: [],
       switchingCatalog: false,
     };
   }
 
   async function loadTree(sessionId: string) {
+    void loadCatalogs(sessionId);
     await loadDatabases(sessionId);
     const session = store.sessions[sessionId];
     if (!session) return;
@@ -404,7 +408,7 @@ function useWorkspaceStateInner() {
         for (const tab of scope.tabs) queryTexts.delete(tab.id);
       }
       const persisted = await loadPersisted(current.profile.id);
-      const next = sessionState(info, current.profile, persisted.catalogs[catalogKey(info)]);
+      const next = { ...sessionState(info, current.profile, persisted.catalogs[catalogKey(info)]), catalogs: [...current.catalogs] };
       setStore(produce(workspace => {
         workspace.sessions[sessionId] = next;
       }));
@@ -499,6 +503,45 @@ function useWorkspaceStateInner() {
       if (!store.sessions[sessionId]) return;
       setStore("sessions", sessionId, "databases", { status: "error", error });
     }
+  }
+
+  async function loadCatalogs(sessionId: string) {
+    const session = store.sessions[sessionId];
+    if (!session || !databaseModule(session.info.kind).catalogLabel) return;
+    try {
+      const catalogs = await safeInvoke("list_catalogs", { sessionId });
+      if (store.sessions[sessionId]) setStore("sessions", sessionId, "catalogs", catalogs);
+    } catch (error) {
+      if (store.sessions[sessionId]) pushError(error);
+    }
+  }
+
+  // After CREATE or DROP DATABASE and the like, so the tree and the catalog picker show the change.
+  async function refreshDatabaseList(sessionId: string) {
+    await Promise.all([loadDatabases(sessionId), loadCatalogs(sessionId)]);
+  }
+
+  // What the statements of one run changed, as Rust read them. The database they ran in is always refreshed, other
+  // named ones only once their objects are loaded, since the rest load fresh when expanded.
+  async function applySchemaChanges(sessionId: string, current: string, changes: SchemaChange[]) {
+    const session = store.sessions[sessionId];
+    if (!session || changes.length === 0) return;
+
+    const refreshes: Promise<void>[] = [];
+    if (changes.some(change => change.kind === "databases")) refreshes.push(refreshDatabaseList(sessionId));
+
+    const targets = new Set<string>();
+    for (const change of changes) {
+      if (change.kind !== "objects") continue;
+      if (change.current) targets.add(current);
+      for (const named of change.databases) {
+        for (const database of session.databases.items) {
+          if (database.name.toUpperCase() === named && session.objects[database.name]) targets.add(database.name);
+        }
+      }
+    }
+    for (const database of targets) refreshes.push(refreshCatalog(sessionId, database));
+    await Promise.all(refreshes);
   }
 
   async function loadDatabaseSizes(sessionId: string) {
@@ -778,6 +821,8 @@ function useWorkspaceStateInner() {
     loadColumns,
     ensureCatalog,
     refreshCatalog,
+    refreshDatabaseList,
+    applySchemaChanges,
     toggleExpanded,
     selectDatabase,
     newQueryTab,

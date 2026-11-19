@@ -151,6 +151,13 @@ export type StatementOutcome = {
   error: AppError | null,
 };
 
+// Names are uppercased, so they're matched against the tree without case.
+export type SchemaChange =
+  | { kind: "databases" }
+  | { kind: "objects", databases: string[], current: boolean };
+
+export type RunOutcome = StatementOutcome & { schemaChange: SchemaChange | null };
+
 export type StatementRange = {
   start: number,
   end: number,

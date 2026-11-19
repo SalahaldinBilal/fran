@@ -3,7 +3,7 @@ use std::sync::{Mutex, PoisonError};
 use async_trait::async_trait;
 
 use super::activity::{ActivitySupport, HistoryOrder, QueryHistory, RunningQueries};
-use super::classify::ClassifiedStatement;
+use super::classify::{ClassifiedStatement, SchemaChange};
 use super::types::{
     BatchOutcome, CatalogColumn, ColumnChoices, ColumnMeta, DatabaseInfo, DatabaseSize, DesignOptions, ObjectInfo, ObjectKind,
     ObjectStructure, ReadQuery, RowChange, ServerInfo, SqlTemplate, StatementOutcome, TableDesign, TableForeignKey,
@@ -81,6 +81,9 @@ pub trait DatabaseSession: Send + Sync {
 
     /// Splits `sql` into statements and tells which ones only read, by this session's quoting rules.
     fn classify(&self, sql: &str) -> Vec<ClassifiedStatement>;
+
+    /// What one statement that ran changed in the schema tree, by this session's quoting rules.
+    fn schema_change(&self, sql: &str) -> Option<SchemaChange>;
 
     fn read_sql(&self, database: &str, query: &ReadQuery) -> AppResult<String>;
 
