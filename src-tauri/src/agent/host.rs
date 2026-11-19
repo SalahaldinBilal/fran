@@ -16,7 +16,8 @@ use rmcp::{
 };
 use serde::Serialize;
 use serde_json::{Value, json};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -98,11 +99,22 @@ pub fn refused(log: &CallLog, message: impl Into<String>) -> AppError {
 pub trait Notifier: Send + Sync {
     fn emit(&self, event: &str, payload: Value);
     fn bring_to_front(&self);
+    fn notify_unless_focused(&self, title: &str, body: &str);
 }
 
 impl Notifier for AppHandle {
     fn emit(&self, event: &str, payload: Value) {
         let _ = Emitter::emit(self, event, payload);
+    }
+
+    fn notify_unless_focused(&self, title: &str, body: &str) {
+        let focused = self
+            .get_webview_window(crate::tray::MAIN)
+            .and_then(|main| main.is_focused().ok())
+            .unwrap_or(false);
+        if !focused {
+            let _ = self.notification().builder().title(title).body(body).show();
+        }
     }
 
     fn bring_to_front(&self) {
@@ -595,6 +607,12 @@ impl AgentHost {
         let session = &live.session;
         let receiver = self.approvals.open(request.clone());
         self.emit_approvals_changed();
+        if live.config.notify_approvals {
+            self.app.notify_unless_focused(
+                "An agent needs your approval",
+                &format!("{} wants to change {}", session.agent, session.connection_name),
+            );
+        }
         self.app.bring_to_front();
 
         let answer = tokio::select! {

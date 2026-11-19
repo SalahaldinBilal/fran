@@ -28,6 +28,8 @@ impl Notifier for Events {
     }
 
     fn bring_to_front(&self) {}
+
+    fn notify_unless_focused(&self, _title: &str, _body: &str) {}
 }
 
 struct TempDir(PathBuf);

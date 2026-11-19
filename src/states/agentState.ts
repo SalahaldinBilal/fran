@@ -15,6 +15,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   historyEnabled: true,
   historyDays: 30,
   queryTimeoutSecs: 60,
+  notifyApprovals: true,
 };
 
 function useAgentStateInner() {

@@ -12,7 +12,7 @@ use tauri_plugin_notification::NotificationExt;
 use crate::error::{AppError, AppResult};
 
 const TRAY_ID: &str = "main";
-const MAIN: &str = "main";
+pub(crate) const MAIN: &str = "main";
 
 /// Closing the window hides it while this is on, so VPNs, forwards, terminals and the MCP server keep running.
 #[derive(Default)]

@@ -15,6 +15,7 @@ pub struct AgentConfig {
     pub history_enabled: bool,
     pub history_days: u32,
     pub query_timeout_secs: u32,
+    pub notify_approvals: bool,
 }
 
 pub const MAX_QUERY_TIMEOUT_SECS: u32 = 3600;
@@ -29,6 +30,7 @@ impl Default for AgentConfig {
             history_enabled: true,
             history_days: 30,
             query_timeout_secs: 60,
+            notify_approvals: true,
         }
     }
 }

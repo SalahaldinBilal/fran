@@ -29,6 +29,9 @@ function AgentSettings(props: AgentSettingsProps) {
           </Button>
           <Toggle checked={agent.config.enabled} onChange={checked => agent.update({ enabled: checked })} />
         </SettingRow>
+        <SettingRow name="Notify when an agent asks" hint="Shows a system notification when an agent waits for you to approve a change and Fran isn't the window in front.">
+          <Toggle checked={agent.config.notifyApprovals} onChange={checked => agent.update({ notifyApprovals: checked })} />
+        </SettingRow>
       </SettingGroup>
     </SettingsPage>
   );

@@ -16,6 +16,7 @@ export type AgentConfig = {
   historyEnabled: boolean,
   historyDays: number,
   queryTimeoutSecs: number,
+  notifyApprovals: boolean,
 };
 
 export type AgentServerStatus = {
