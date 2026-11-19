@@ -14,6 +14,7 @@ import { startTray } from "./helpers/tray";
 import LockScreen from "./components/LockScreen/LockScreen";
 import useLockState from "./states/lockState";
 import TabStrip, { TabStripItem } from "./components/TabStrip/TabStrip";
+import { sessionTransactionFlag } from "./helpers/transactions";
 import Button from "./components/Button/Button";
 import Toasts from "./components/Toasts/Toasts";
 import ContextMenuHost from "./components/ContextMenu/ContextMenuHost";
@@ -165,6 +166,7 @@ function App() {
         tint: useSettingsState.settings.colorFill ? session?.profile.color : null,
         closable: true,
         movable: true,
+        flag: sessionTransactionFlag(session?.transactions ?? {}),
       };
     }),
   );

@@ -123,6 +123,52 @@ pub struct StatementOutcome {
     pub error: Option<AppError>,
 }
 
+/// Whether a query tab's connection has a transaction open, as the server last reported it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransactionState {
+    #[default]
+    None,
+    Open,
+    /// Postgres after an error inside a transaction: everything is refused until ROLLBACK.
+    Failed,
+}
+
+/// A query context's transaction state, read without waiting for the context's connection.
+#[derive(Default)]
+pub struct TransactionCell(std::sync::atomic::AtomicU8);
+
+impl TransactionCell {
+    pub fn get(&self) -> TransactionState {
+        match self.0.load(std::sync::atomic::Ordering::SeqCst) {
+            1 => TransactionState::Open,
+            2 => TransactionState::Failed,
+            _ => TransactionState::None,
+        }
+    }
+
+    pub fn set(&self, state: TransactionState) {
+        let value = match state {
+            TransactionState::None => 0,
+            TransactionState::Open => 1,
+            TransactionState::Failed => 2,
+        };
+        self.0.store(value, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+pub const TRANSACTION_LOST: &str =
+    "The connection dropped while a transaction was open, so the server rolled it back. Nothing ran. Run it again to start over.";
+
+/// For a statement that failed because the connection closed while a transaction was open.
+pub fn transaction_rolled_back(mut error: AppError) -> AppError {
+    error.message = format!(
+        "{} The connection closed while a transaction was open, so the server rolled it back.",
+        error.message.trim_end()
+    );
+    error
+}
+
 /// Offsets are UTF-16 code units so the editor can use them directly.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

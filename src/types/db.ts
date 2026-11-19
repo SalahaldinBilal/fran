@@ -156,7 +156,11 @@ export type SchemaChange =
   | { kind: "databases" }
   | { kind: "objects", databases: string[], current: boolean };
 
-export type RunOutcome = StatementOutcome & { schemaChange: SchemaChange | null };
+// "failed" is Postgres after an error inside a transaction: only ROLLBACK works until then.
+export type TransactionState = "none" | "open" | "failed";
+
+// `transaction` is the tab's state right after this statement.
+export type RunOutcome = StatementOutcome & { schemaChange: SchemaChange | null, transaction: TransactionState };
 
 export type StatementRange = {
   start: number,

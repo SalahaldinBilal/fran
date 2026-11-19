@@ -40,6 +40,38 @@
   font-variant-numeric: tabular-nums;
 }
 
+.Transaction {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  margin-right: 6px;
+  padding: 0 2px 0 10px;
+  border-radius: var(--radius-md);
+  background-color: rgb(from var(--warning) r g b / 12%);
+  box-shadow: inset 0 0 0 1px rgb(from var(--warning) r g b / 35%);
+
+  &.TransactionFailed {
+    background-color: rgb(from var(--danger) r g b / 12%);
+    box-shadow: inset 0 0 0 1px rgb(from var(--danger) r g b / 35%);
+
+    .TransactionLabel {
+      color: var(--danger);
+    }
+  }
+}
+
+.TransactionLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  color: var(--warning);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .Body {
   display: flex;
   flex-direction: column;
@@ -252,6 +284,16 @@
 
     .MessageText {
       color: var(--danger);
+    }
+  }
+
+  // Consecutive rows join into one bar, so a transaction reads as a group.
+  &.InTransaction {
+    background-color: rgb(from var(--warning) r g b / 5%);
+    box-shadow: inset 3px 0 0 rgb(from var(--warning) r g b / 70%);
+
+    &:hover {
+      background-color: rgb(from var(--warning) r g b / 9%);
     }
   }
 }

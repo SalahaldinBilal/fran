@@ -2,6 +2,7 @@ import styles from "./TabStrip.module.scss";
 import { For, JSX, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { LucideIcon, X } from "@core/icons";
+import { tooltip } from "../Tooltip/Tooltip";
 
 export type TabStripItem = {
   id: string,
@@ -17,6 +18,8 @@ export type TabStripItem = {
   movable?: boolean,
   count?: number,
   countTone?: "warning",
+  // A short label after the title for a state worth noticing, like an open transaction.
+  flag?: { label: string, tone: "warning" | "danger", hint: string } | null,
 };
 
 export type TabStripApi = {
@@ -302,6 +305,17 @@ function TabStrip(props: TabStripProps) {
               </Show>
               <Show when={item.count !== undefined}>
                 <span class={styles.Count} classList={{ [styles.Warning]: item.countTone === "warning" }}>{item.count}</span>
+              </Show>
+              <Show when={item.flag}>
+                {flag => (
+                  <span
+                    class={styles.Flag}
+                    classList={{ [styles.FlagDanger]: flag().tone === "danger" }}
+                    ref={element => tooltip(element, () => flag().hint)}
+                  >
+                    {flag().label}
+                  </span>
+                )}
               </Show>
               <Show when={item.modified}>
                 <span class={styles.Modified} aria-label="Unsaved changes" />

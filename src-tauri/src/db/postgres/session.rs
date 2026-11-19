@@ -28,7 +28,8 @@ use crate::db::read_query;
 use crate::db::session::{ContextAccess, ContextId, DatabaseSession, OutcomeSink};
 use crate::db::types::{
     BatchOutcome, CatalogColumn, ColumnChoices, ColumnMeta, DatabaseInfo, DatabaseSize, DesignOptions, ObjectInfo, ObjectKind,
-    ObjectStructure, ReadQuery, RowChange, ServerInfo, SqlTemplate, StatementOutcome, TableDesign, TableForeignKey,
+    ObjectStructure, ReadQuery, RowChange, ServerInfo, SqlTemplate, StatementOutcome, TRANSACTION_LOST, TableDesign,
+    TableForeignKey, TransactionCell, TransactionState, transaction_rolled_back,
 };
 use crate::error::{AppError, AppResult};
 use crate::ssh::SshAccess;
@@ -38,6 +39,8 @@ const PING_AFTER_IDLE: Duration = Duration::from_secs(60);
 struct LiveConn {
     conn: PgConnection,
     last_used: Instant,
+    /// Tells a reconnect apart from the same connection, since a reconnect loses an open transaction.
+    opened: Instant,
 }
 
 struct QueryContext {
@@ -45,6 +48,7 @@ struct QueryContext {
     read_only: bool,
     slot: Mutex<Option<LiveConn>>,
     cancel_key: StdMutex<Option<CancelKey>>,
+    transaction: TransactionCell,
 }
 
 impl QueryContext {
@@ -156,6 +160,7 @@ impl PostgresSession {
             meta: Mutex::new(Some(LiveConn {
                 conn,
                 last_used: Instant::now(),
+                opened: Instant::now(),
             })),
             contexts: StdMutex::new(HashMap::new()),
             next_context: AtomicU32::new(1),
@@ -201,6 +206,7 @@ impl PostgresSession {
             *slot = Some(LiveConn {
                 conn: target.connector.connect_as(schema, read_only).await?,
                 last_used: Instant::now(),
+                opened: Instant::now(),
             });
         }
 
@@ -303,6 +309,7 @@ impl DatabaseSession for PostgresSession {
         *meta = Some(LiveConn {
             conn,
             last_used: Instant::now(),
+            opened: Instant::now(),
         });
 
         if let Ok(mut types) = self.types.lock() {
@@ -409,6 +416,34 @@ impl DatabaseSession for PostgresSession {
         classify::schema_change(sql, self.dialect())
     }
 
+    fn transaction_state(&self, context: ContextId) -> TransactionState {
+        self.context(context).map(|context| context.transaction.get()).unwrap_or_default()
+    }
+
+    /// Asked over the metadata connection, since a query on the tab's own connection would reset
+    /// `idle_in_transaction_session_timeout` and keep a forgotten transaction alive.
+    async fn check_transaction(&self, id: ContextId) -> AppResult<TransactionState> {
+        let context = self.context(id)?;
+        let state = context.transaction.get();
+        let Some(key) = context.key().filter(|_| state != TransactionState::None) else {
+            return Ok(state);
+        };
+
+        let pid = key.process_id.to_string();
+        let mut meta = self.meta.lock().await;
+        let live = self.ensure_live(&mut meta, None).await?;
+        let found = live.conn.query_text("SELECT 1 FROM pg_stat_activity WHERE pid = $1::int", &[Some(&pid)]).await;
+        if !settle(&mut meta, found)?.is_empty() {
+            return Ok(state);
+        }
+        context.transaction.set(TransactionState::None);
+        // The next run opens a new connection instead of failing on the dead one.
+        if let Ok(mut tab) = context.slot.try_lock() {
+            *tab = None;
+        }
+        Ok(TransactionState::None)
+    }
+
     fn read_sql(&self, database: &str, query: &ReadQuery) -> AppResult<String> {
         read_query::read_sql(&self.dialect(), database, query)
     }
@@ -482,6 +517,7 @@ impl DatabaseSession for PostgresSession {
             read_only: access == ContextAccess::ReadOnly,
             slot: Mutex::new(None),
             cancel_key: StdMutex::new(None),
+            transaction: TransactionCell::default(),
         });
 
         {
@@ -522,10 +558,16 @@ impl DatabaseSession for PostgresSession {
         let statements = splitter::split(sql);
 
         let mut slot = context.slot.lock().await;
+        let had_transaction = context.transaction.get() != TransactionState::None;
+        let opened_before = slot.as_ref().map(|live| live.opened);
         let live = self
             .ensure_live_as(&mut slot, context.schema.as_deref(), context.read_only)
             .await?;
         context.remember_key(live.conn.cancel_key());
+        if had_transaction && opened_before != Some(live.opened) {
+            context.transaction.set(TransactionState::None);
+            return Err(AppError::general(TRANSACTION_LOST));
+        }
 
         // An empty query does no server work, so its time is the network round trip on its own.
         let ping_started = Instant::now();
@@ -541,6 +583,9 @@ impl DatabaseSession for PostgresSession {
             let result = live.conn.run_statement(limited.as_deref().unwrap_or(&statement.text), row_limit).await;
             let finished = Instant::now();
             let notices = live.conn.take_notices();
+            let lost = result.as_ref().is_err_and(PgError::connection_lost);
+            let before = context.transaction.get();
+            context.transaction.set(if lost { TransactionState::None } else { live.conn.transaction_state() });
 
             match result {
                 Ok(raw) => {
@@ -558,7 +603,9 @@ impl DatabaseSession for PostgresSession {
                     on_outcome(outcome);
                 }
                 Err(error) => {
-                    lost_connection = error.connection_lost();
+                    lost_connection = lost;
+                    let error = AppError::from(error);
+                    let error = if lost && before != TransactionState::None { transaction_rolled_back(error) } else { error };
                     let elapsed_ms = milliseconds(finished - started);
                     let info = results::notice_text(&notices);
                     on_outcome(StatementOutcome {
@@ -572,7 +619,7 @@ impl DatabaseSession for PostgresSession {
                         execution_ms: without_network(elapsed_ms),
                         network_ms,
                         fetch_ms: 0.0,
-                        error: Some(error.into()),
+                        error: Some(error),
                     });
                     break;
                 }

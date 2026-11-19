@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::db::activity::{ActivitySupport, HistoryOrder, QueryHistory};
-use crate::db::types::BatchOutcome;
+use crate::db::types::{BatchOutcome, TransactionState};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,6 +42,11 @@ pub trait SqliteConnection: Send + Sync {
     async fn query(&self, sql: &str, params: &[SqlValue], row_limit: usize) -> AppResult<RawResult>;
 
     fn interrupt(&self) {}
+
+    /// D1 refuses BEGIN and COMMIT, so nothing stays open between its calls.
+    fn transaction_state(&self) -> TransactionState {
+        TransactionState::None
+    }
 
     /// Backends without BEGIN and COMMIT across calls override this with their own batch.
     async fn run_batch(&self, statements: &[String], transactional: bool) -> BatchOutcome {

@@ -9,8 +9,9 @@ import SqlEditor from "../SqlEditor/SqlEditor";
 import Spinner from "../Spinner/Spinner";
 
 // "transaction": the app wraps the statements in one. "schema": DDL, committed statement by statement,
-// with `atomic` saying whether this server applies each one completely or not at all.
-export type ApplySafety = { kind: "transaction" } | { kind: "schema", atomic: boolean };
+// with `atomic` saying whether this server applies each one completely or not at all. "openTransaction": they join
+// the transaction the user has open in the tab.
+export type ApplySafety = { kind: "transaction" } | { kind: "schema", atomic: boolean } | { kind: "openTransaction" };
 
 export type ReviewSqlModalProps = {
   statements: string[] | null,
@@ -30,6 +31,12 @@ export type SafetyNote = { safe: boolean, text: string };
 export function safetyNote(safety: ApplySafety, count: number): SafetyNote {
   if (safety.kind === "transaction") {
     return { safe: true, text: "Runs in a single transaction. If any statement fails, everything is rolled back and nothing changes." };
+  }
+  if (safety.kind === "openTransaction") {
+    return {
+      safe: true,
+      text: "Runs inside the transaction open in this tab. Other connections don't see it until you commit, and Rollback undoes it.",
+    };
   }
   if (safety.atomic && count <= 1) {
     return { safe: true, text: "Table changes can't run in a transaction, but this is one statement and this server applies it completely or not at all." };

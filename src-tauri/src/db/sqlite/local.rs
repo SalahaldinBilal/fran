@@ -9,6 +9,7 @@ use rusqlite::{Connection, InterruptHandle, OpenFlags, types::ValueRef};
 
 use super::connection::{RawColumn, RawResult, SqlValue, SqliteConnection, SqliteConnector};
 use super::options::SqliteOptions;
+use crate::db::types::TransactionState;
 use crate::error::{AppError, AppResult, ErrorDetail};
 
 fn sqlite_error(error: rusqlite::Error) -> AppError {
@@ -203,5 +204,12 @@ impl SqliteConnection for LocalConnection {
 
     fn interrupt(&self) {
         self.interrupt.interrupt();
+    }
+
+    fn transaction_state(&self) -> TransactionState {
+        match self.conn.lock() {
+            Ok(conn) if !conn.is_autocommit() => TransactionState::Open,
+            _ => TransactionState::None,
+        }
     }
 }

@@ -11,6 +11,7 @@ import Button from "@core/components/Button/Button";
 import EmptyState from "@core/components/EmptyState/EmptyState";
 import { tooltip } from "@core/components/Tooltip/Tooltip";
 import { keepOrder } from "@core/helpers";
+import { transactionFlag } from "@core/helpers/transactions";
 import QueryTab from "../../tabs/QueryTab/QueryTab";
 import StructureTab from "../../tabs/StructureTab/StructureTab";
 import TableDesignerTab from "../../tabs/TableDesignerTab/TableDesignerTab";
@@ -42,6 +43,7 @@ function DatabaseTabs(props: DatabaseTabsProps) {
   let strip: TabStripApi | undefined;
 
   const scope = createMemo(() => workspace.store.sessions[props.sessionId]?.scopes[props.database]);
+  const transactions = createMemo(() => workspace.store.sessions[props.sessionId]?.transactions ?? {});
   const items = createMemo<TabStripItem[]>(() =>
     (scope()?.tabs ?? []).map(tab => ({
       id: tab.id,
@@ -50,6 +52,7 @@ function DatabaseTabs(props: DatabaseTabsProps) {
       closable: true,
       renamable: true,
       movable: true,
+      flag: transactionFlag(transactions()[tab.id]),
     })),
   );
   // Panels keep their DOM order when tabs move, since moving a node resets its scroll.
@@ -65,8 +68,19 @@ function DatabaseTabs(props: DatabaseTabsProps) {
     return scope()?.tabs.find(tab => tab.id === id);
   }
 
+  async function closeOthers(keepId: string) {
+    const others = (scope()?.tabs ?? []).filter(tab => tab.id !== keepId).map(tab => tab.id);
+    if (!(await workspace.confirmRollback(props.sessionId, others, "Closing them", "Close and roll back"))) return;
+    workspace.closeOtherTabs(props.sessionId, props.database, keepId);
+  }
+
   async function closeTab(id: string) {
     const tab = findTab(id);
+    if (transactions()[id]) {
+      if (!(await workspace.confirmRollback(props.sessionId, [id], "Closing it", "Close and roll back"))) return;
+      workspace.closeTab(props.sessionId, props.database, id);
+      return;
+    }
     const text = tab?.kind === "query" ? workspace.queryText(tab) : "";
     const kept = savedQueries.queries.some(query => query.sql === text);
     if (text.trim() !== "" && !kept) {
@@ -104,7 +118,7 @@ function DatabaseTabs(props: DatabaseTabsProps) {
             { label: "Rename", hint: "F2", onSelect: () => strip?.startRename(id) },
             { separator: true },
             { label: "Close", icon: X, onSelect: () => closeTab(id) },
-            { label: "Close others", onSelect: () => workspace.closeOtherTabs(props.sessionId, props.database, id) },
+            { label: "Close others", onSelect: () => void closeOthers(id) },
           ])}
           trailing={
             <Button icon size="sm" tooltip="New query" onClick={newQuery}>

@@ -11,10 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A system notification when an agent is waiting for you to approve a change and Fran isn't the window in front. Turn it off in Settings > Agents.
 - Read + write access for agents: changes run without asking you first. Fran shows a big warning and asks you to type the name before turning it on.
 - Agent access per database. Expand a connection on the Access tab to see its databases, then hide each one or give it its own access level. Databases you don't set either follow the connection or stay hidden.
+- Open transactions are shown. A query tab with one gets a TX flag, so does its connection's tab, and its toolbar offers Commit and Rollback. Messages that ran inside a transaction are marked. Closing the tab, disconnecting, switching databases or quitting asks first, since that rolls it back. Grid edits made while a transaction is open become part of it. If the server closes the connection, the tab says the transaction was rolled back.
 - A log for each VPN, with what Fran did and what OpenVPN or WireGuard said. Open it from a VPN's menu, or by clicking its Failed badge.
 
 ### Fixed
 
+- A query tab whose connection dropped while a transaction was open used to reconnect and run the next statements outside it. It now says the transaction was rolled back and runs nothing.
+- A Postgres connection ended by the server (`pg_terminate_backend`, a restart) failed one extra run before Fran reconnected.
 - Running CREATE, ALTER or DROP DATABASE (or SCHEMA) in a query tab now refreshes the database list and the database picker.
 - Table, view and other schema changes from a query tab now refresh the database they happened in, also when the name is qualified with another database or the statement starts with a comment.
 - A VPN that dropped and got stuck reconnecting made every later connect through it fail until Fran was restarted.

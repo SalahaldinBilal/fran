@@ -14,6 +14,7 @@ use postgres_protocol::{
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
+use crate::db::types::TransactionState;
 use crate::error::{AppError, ErrorDetail};
 
 pub use auth::StartupParams;
@@ -58,8 +59,14 @@ impl PgError {
         Self::Transport(error.to_string())
     }
 
+    /// A FATAL or PANIC report means the server ends the session right after sending it, like after
+    /// `pg_terminate_backend` or a shutdown.
     pub fn connection_lost(&self) -> bool {
-        matches!(self, Self::Transport(_))
+        match self {
+            Self::Transport(_) => true,
+            Self::Server(report) => matches!(report.severity.as_str(), "FATAL" | "PANIC"),
+            _ => false,
+        }
     }
 }
 
@@ -145,6 +152,8 @@ pub struct PgConnection {
     parameters: HashMap<String, String>,
     key: Option<CancelKey>,
     notices: Vec<Report>,
+    /// The status byte of the last ReadyForQuery: idle, in a transaction block or in a failed one.
+    transaction: u8,
 }
 
 fn report(mut fields: ErrorFields<'_>) -> Result<Report, PgError> {
@@ -212,6 +221,15 @@ impl PgConnection {
             parameters: HashMap::new(),
             key: None,
             notices: Vec::new(),
+            transaction: b'I',
+        }
+    }
+
+    pub fn transaction_state(&self) -> TransactionState {
+        match self.transaction {
+            b'T' => TransactionState::Open,
+            b'E' => TransactionState::Failed,
+            _ => TransactionState::None,
         }
     }
 
@@ -316,7 +334,10 @@ impl PgConnection {
                         "COPY TO STDOUT isn't supported here, so its output was discarded. Use a SELECT instead.".to_string(),
                     ));
                 }
-                Message::ReadyForQuery(_) => break,
+                Message::ReadyForQuery(body) => {
+                    self.transaction = body.status();
+                    break;
+                }
                 _ => {}
             }
         }
@@ -399,7 +420,10 @@ impl PgConnection {
                         "COPY TO STDOUT isn't supported here, so its output was discarded. Use a SELECT instead.".to_string(),
                     ));
                 }
-                Message::ReadyForQuery(_) => break,
+                Message::ReadyForQuery(body) => {
+                    self.transaction = body.status();
+                    break;
+                }
                 _ => {}
             }
         }
@@ -439,7 +463,10 @@ impl PgConnection {
                     frontend::sync(&mut self.write_buf);
                     self.send().await?;
                 }
-                Message::ReadyForQuery(_) => break,
+                Message::ReadyForQuery(body) => {
+                    self.transaction = body.status();
+                    break;
+                }
                 _ => {}
             }
         }

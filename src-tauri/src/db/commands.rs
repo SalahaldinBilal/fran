@@ -19,6 +19,7 @@ use super::{
     types::{
         BatchOutcome, CatalogColumn, ColumnChoices, ColumnMeta, DatabaseInfo, DatabaseSize, DesignOptions, ObjectInfo, ObjectKind,
         ObjectStructure, RowChange, ServerInfo, SqlTemplate, StatementOutcome, StatementRange, TableDesign,
+        TransactionState,
     },
 };
 use crate::connections::{ConnectionProfile, ConnectionStore, prepare::prepare_connect};
@@ -221,7 +222,8 @@ pub async fn execute_query(
     session
         .execute_streaming(context_id, &sql, row_limit, &|outcome| {
             let schema_change = if outcome.error.is_none() { session.schema_change(&outcome.sql) } else { None };
-            if on_outcome.send(RunOutcome { outcome, schema_change }).is_ok() {
+            let transaction = session.transaction_state(context_id);
+            if on_outcome.send(RunOutcome { outcome, schema_change, transaction }).is_ok() {
                 sent.fetch_add(1, Ordering::SeqCst);
             }
         })
@@ -236,6 +238,28 @@ pub struct RunOutcome {
     #[serde(flatten)]
     outcome: StatementOutcome,
     schema_change: Option<SchemaChange>,
+    /// The tab's transaction right after this statement.
+    transaction: TransactionState,
+}
+
+/// For a run that failed before any statement, like a reconnect that lost the open transaction.
+#[tauri::command]
+pub async fn get_transaction_state(
+    sessions: State<'_, SessionManager>,
+    session_id: String,
+    context_id: ContextId,
+) -> AppResult<TransactionState> {
+    Ok(sessions.get(&session_id)?.session.transaction_state(context_id))
+}
+
+/// Polled while a tab has a transaction open, so the tab notices when the server closed its connection.
+#[tauri::command]
+pub async fn check_transaction(
+    sessions: State<'_, SessionManager>,
+    session_id: String,
+    context_id: ContextId,
+) -> AppResult<TransactionState> {
+    sessions.get(&session_id)?.session.check_transaction(context_id).await
 }
 
 #[tauri::command]

@@ -1,11 +1,12 @@
 import styles from "./QueryTab.module.scss";
 import {
-  Accessor, For, Match, Owner, Show, Switch, createEffect, createMemo, createRoot, createSignal, getOwner, onCleanup, runWithOwner, untrack,
+  Accessor, For, Match, Owner, Show, Switch, createEffect, createMemo, createRoot, createSignal, getOwner, on, onCleanup, runWithOwner,
+  untrack,
 } from "solid-js";
 import { Channel } from "@tauri-apps/api/core";
 import {
-  ArrowDownToLine, CircleAlert, CircleCheck, Lock, Pencil, Play, Plus, Save, Search, Square, StepForward, Table2,
-  WandSparkles,
+  ArrowDownToLine, Check, CircleAlert, CircleCheck, Layers, Lock, Pencil, Play, Plus, Save, Search, Square, StepForward,
+  Table2, Undo2, WandSparkles,
 } from "@core/icons";
 import { databaseModule } from "@core/databases";
 import { safeInvoke } from "@core/helpers/safeInvoke";
@@ -19,11 +20,11 @@ import useWorkspaceState, { QueryTabState } from "@core/states/workspaceState";
 import useSavedQueriesState from "@core/states/savedQueriesState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";
-import { ResultSet, RunOutcome, StatementOutcome, StatementRange } from "@core/types";
+import { ResultSet, RunOutcome, StatementOutcome, StatementRange, TransactionState } from "@core/types";
 import { statementAt } from "@core/helpers/statements";
 import SqlEditor, { SqlEditorApi } from "@core/components/SqlEditor/SqlEditor";
 import ResultGrid, { GridEditing } from "@core/components/ResultGrid/ResultGrid";
-import ReviewSqlModal from "@core/components/ReviewSqlModal/ReviewSqlModal";
+import ReviewSqlModal, { ApplySafety } from "@core/components/ReviewSqlModal/ReviewSqlModal";
 import PendingChanges from "@core/components/PendingChanges/PendingChanges";
 import Button from "@core/components/Button/Button";
 import Input from "@core/components/Input/Input";
@@ -50,11 +51,15 @@ type ResultEntry = {
   replaceRows: (rows: ResultSet["rows"]) => void,
 };
 
-type Review = { entry: ResultEntry, target: EditTarget, statements: string[] };
+// `inTransaction`: the tab had a transaction open when the review started, so the changes join it.
+type Review = { entry: ResultEntry, target: EditTarget, statements: string[], inTransaction: boolean };
+// `inTransaction`: a transaction was open before or after the statement, so it opened, ran in or ended one.
+type ShownOutcome = RunOutcome & { inTransaction: boolean };
 type RunMode = "current" | "after" | "all";
 type RunStat = { label: string, value: string, hint: string };
 
 const SPLIT_DELAY = 200;
+const TRANSACTION_CHECK_MS = 30_000;
 type View = number | "messages";
 
 function outcomeSummary(outcome: StatementOutcome): string {
@@ -88,7 +93,7 @@ function QueryTab(props: QueryTabProps) {
   const [startedAt, setStartedAt] = createSignal(0);
   const [now, setNow] = createSignal(Date.now());
   const rowLimit = createMemo(() => props.tab.rowLimit);
-  const [outcomes, setOutcomes] = createSignal<StatementOutcome[]>([]);
+  const [outcomes, setOutcomes] = createSignal<ShownOutcome[]>([]);
   const [runError, setRunError] = createSignal<unknown>(null);
   const [view, setView] = createSignal<View>("messages");
   const [editorShare, setEditorShare] = createSignal(0.45);
@@ -108,6 +113,10 @@ function QueryTab(props: QueryTabProps) {
   let body!: HTMLDivElement;
 
   const session = createMemo(() => workspace.store.sessions[props.sessionId]);
+  const transaction = createMemo<TransactionState>(() => session()?.transactions[props.tab.id] ?? "none");
+  const transactionHint = createMemo(() => (transaction() === "failed"
+    ? "A statement failed inside the transaction. Only ROLLBACK works on this tab's connection until then."
+    : "Changes made in this tab stay invisible to other connections and can be undone until COMMIT."));
   const kind = untrack(() => workspace.store.sessions[props.sessionId].info.kind);
   const dialect = databaseModule(kind).sqlDialect;
 
@@ -158,7 +167,7 @@ function QueryTab(props: QueryTabProps) {
     setResultEntries([]);
   }
 
-  function addOutcome(outcome: StatementOutcome) {
+  function addOutcome(outcome: ShownOutcome) {
     const count = resultEntries().length;
     const entries = runWithOwner(resultsOwner, () =>
       outcome.resultSets.map((set, index) => createResultEntry(set, `Result ${count + index + 1}`)),
@@ -187,6 +196,7 @@ function QueryTab(props: QueryTabProps) {
     return stats;
   });
   const failed = createMemo(() => runError() !== null || outcomes().some(outcome => outcome.error));
+  const reviewSafety = createMemo<ApplySafety>(() => (review()?.inTransaction ? { kind: "openTransaction" } : { kind: "transaction" }));
   const pendingChanges = createMemo(() => resultEntries().reduce((sum, entry) => sum + entry.edits.changeCount(), 0));
   const activeResult = createMemo(() => {
     const current = view();
@@ -202,6 +212,28 @@ function QueryTab(props: QueryTabProps) {
   createEffect(() => {
     if (props.active) queueMicrotask(() => editor?.focus());
   });
+
+  // The server can close an idle connection on its own (timeouts, restarts), which rolls the transaction back.
+  createEffect(on(transaction, state => {
+    if (state === "none") return;
+    const timer = setInterval(() => void checkTransaction(), TRANSACTION_CHECK_MS);
+    onCleanup(() => clearInterval(timer));
+  }));
+
+  async function checkTransaction() {
+    const id = contextId;
+    if (id === null || running() || transaction() === "none") return;
+    let state: TransactionState;
+    try {
+      state = await safeInvoke("check_transaction", { sessionId: props.sessionId, contextId: id });
+    } catch {
+      return;
+    }
+    if (state === "none" && transaction() !== "none" && !running()) {
+      workspace.setTabTransaction(props.sessionId, props.tab.id, "none");
+      pushToast(`The connection of ${props.tab.title} closed, so the server rolled back its open transaction.`, "error", 8000);
+    }
+  }
 
   onCleanup(() => {
     if (contextId !== null) {
@@ -298,7 +330,8 @@ function QueryTab(props: QueryTabProps) {
     return mode === "after" ? text.slice(ranges[index].start) : ranges[index].text;
   }
 
-  async function run(mode: RunMode) {
+  // `given` runs that SQL instead of the editor's, for Commit and Rollback.
+  async function run(mode: RunMode, given?: string) {
     if (running()) return;
 
     if (pendingChanges() > 0) {
@@ -313,7 +346,7 @@ function QueryTab(props: QueryTabProps) {
 
     let sql: string | null;
     try {
-      sql = await statementToRun(mode);
+      sql = given ?? await statementToRun(mode);
     } catch (error) {
       pushError(error);
       return;
@@ -327,6 +360,7 @@ function QueryTab(props: QueryTabProps) {
     setHasRun(true);
 
     const received: RunOutcome[] = [];
+    let before = transaction();
     let expected = Infinity;
     let finished = false;
     let allReceived!: () => void;
@@ -340,7 +374,9 @@ function QueryTab(props: QueryTabProps) {
         setView("messages");
       }
       received.push(outcome);
-      addOutcome(outcome);
+      addOutcome({ ...outcome, inTransaction: before !== "none" || outcome.transaction !== "none" });
+      before = outcome.transaction;
+      workspace.setTabTransaction(props.sessionId, props.tab.id, outcome.transaction);
       if (received.length >= expected) allReceived();
     };
 
@@ -370,9 +406,56 @@ function QueryTab(props: QueryTabProps) {
       if (received.length === 0) clearResults();
       setRunError(error);
       setView("messages");
+      void refreshTransaction();
     } finally {
       finished = true;
       setRunning(false);
+    }
+  }
+
+  // A separate connection would sit outside the user's transaction and wait on the rows it locked, so grid changes
+  // run on the tab's own connection and become part of it. Resolves to an error message, or null.
+  async function runInOpenTransaction(statements: string[]): Promise<string | null> {
+    const received: RunOutcome[] = [];
+    let expected = Infinity;
+    let allReceived!: () => void;
+    const receivedAll = new Promise<void>(resolve => { allReceived = resolve; });
+    const channel = new Channel<RunOutcome>();
+    channel.onmessage = outcome => {
+      received.push(outcome);
+      workspace.setTabTransaction(props.sessionId, props.tab.id, outcome.transaction);
+      if (received.length >= expected) allReceived();
+    };
+
+    try {
+      const id = await ensureContext();
+      const sql = statements.map(statement => `${statement};`).join("\n");
+      expected = await safeInvoke("execute_query", { sessionId: props.sessionId, contextId: id, sql, rowLimit: 0, onOutcome: channel });
+      if (received.length >= expected) allReceived();
+      await receivedAll;
+    } catch (error) {
+      void refreshTransaction();
+      return errorMessage(error);
+    }
+
+    const index = received.findIndex(outcome => outcome.error !== null);
+    if (index === -1) return null;
+    const kept = index > 0 ? " The ones before it are part of the transaction, so Rollback undoes them." : "";
+    return `Statement ${index + 1} failed: ${received[index].error?.message ?? "unknown error"}.${kept}`;
+  }
+
+  // A run can fail before any statement, like when a reconnect lost the open transaction, so Rust is asked.
+  async function refreshTransaction() {
+    const id = contextId;
+    if (id === null) {
+      workspace.setTabTransaction(props.sessionId, props.tab.id, "none");
+      return;
+    }
+    try {
+      const state = await safeInvoke("get_transaction_state", { sessionId: props.sessionId, contextId: id });
+      workspace.setTabTransaction(props.sessionId, props.tab.id, state);
+    } catch {
+      workspace.setTabTransaction(props.sessionId, props.tab.id, "none");
     }
   }
 
@@ -380,7 +463,8 @@ function QueryTab(props: QueryTabProps) {
     const target = entry.target();
     if (!target) return;
     try {
-      setReview({ entry, target, statements: await previewRowChanges(props.sessionId, target, entry.edits.changes()) });
+      const statements = await previewRowChanges(props.sessionId, target, entry.edits.changes());
+      setReview({ entry, target, statements, inTransaction: transaction() === "open" });
     } catch (error) {
       pushError(error);
     }
@@ -390,18 +474,21 @@ function QueryTab(props: QueryTabProps) {
     const current = review();
     if (!current) return null;
 
-    const failure = await runRowChanges(props.sessionId, current.target.database, current.statements);
+    const failure = current.inTransaction
+      ? await runInOpenTransaction(current.statements)
+      : await runRowChanges(props.sessionId, current.target.database, current.statements);
     if (failure) return failure;
 
     const applied = current.entry.edits.changeCount();
     const inserted = current.entry.edits.changes().some(change => change.kind === "insert");
     current.entry.replaceRows(current.entry.edits.savedRows());
+    const where = current.inTransaction ? " in the open transaction. Commit to keep them." : ".";
     pushToast(
       inserted
-        ? `Applied ${plural(applied, "change")}. Run the query again to see the new rows.`
-        : `Applied ${plural(applied, "change")}`,
+        ? `Applied ${plural(applied, "change")}${where} Run the query again to see the new rows.`
+        : `Applied ${plural(applied, "change")}${where}`,
       "success",
-      inserted ? 4000 : 2500,
+      inserted || current.inTransaction ? 4000 : 2500,
     );
     return null;
   }
@@ -464,6 +551,24 @@ function QueryTab(props: QueryTabProps) {
           Save as query
         </Button>
         <div class={styles.Spacer} />
+        <Show when={transaction() !== "none"}>
+          <div class={styles.Transaction} classList={{ [styles.TransactionFailed]: transaction() === "failed" }}>
+            <span class={styles.TransactionLabel} ref={element => tooltip(element, transactionHint)}>
+              <Layers size={13} />
+              {transaction() === "failed" ? "Transaction failed" : "Transaction open"}
+            </span>
+            <Show when={transaction() === "open"}>
+              <Button size="sm" variant="subtle" disabled={running()} onClick={() => run("all", "COMMIT")} tooltip="Run COMMIT in this tab">
+                <Check size={13} />
+                Commit
+              </Button>
+            </Show>
+            <Button size="sm" variant="subtle" disabled={running()} onClick={() => run("all", "ROLLBACK")} tooltip="Run ROLLBACK in this tab">
+              <Undo2 size={13} />
+              Rollback
+            </Button>
+          </div>
+        </Show>
         <Show when={running()}>
           <span class={styles.Status}>
             <Spinner size={12} />
@@ -633,7 +738,10 @@ function QueryTab(props: QueryTabProps) {
                     </Show>
                     <For each={outcomes()}>
                       {(outcome, index) => (
-                        <div class={styles.Message} classList={{ [styles.Failed]: outcome.error !== null }}>
+                        <div
+                          class={styles.Message}
+                          classList={{ [styles.Failed]: outcome.error !== null, [styles.InTransaction]: outcome.inTransaction }}
+                        >
                           {outcome.error ? <CircleAlert size={14} /> : <CircleCheck size={14} />}
                           <span class={styles.Index}>{index() + 1}</span>
                           <span class={styles.Sql} ref={element => tooltip(element, () => outcome.sql)}>
@@ -665,7 +773,7 @@ function QueryTab(props: QueryTabProps) {
         title="Apply changes"
         description={review() ? `Row changes to ${review()!.target.database}.${review()!.target.table}` : ""}
         dialect={dialect}
-        safety={{ kind: "transaction" }}
+        safety={reviewSafety()}
         onApply={applyReview}
         onClose={() => setReview(null)}
       />

@@ -7,6 +7,7 @@ use super::classify::{ClassifiedStatement, SchemaChange};
 use super::types::{
     BatchOutcome, CatalogColumn, ColumnChoices, ColumnMeta, DatabaseInfo, DatabaseSize, DesignOptions, ObjectInfo, ObjectKind,
     ObjectStructure, ReadQuery, RowChange, ServerInfo, SqlTemplate, StatementOutcome, TableDesign, TableForeignKey,
+    TransactionState,
 };
 use crate::error::{AppError, AppResult};
 
@@ -84,6 +85,13 @@ pub trait DatabaseSession: Send + Sync {
 
     /// What one statement that ran changed in the schema tree, by this session's quoting rules.
     fn schema_change(&self, sql: &str) -> Option<SchemaChange>;
+
+    /// Whether the query context has a transaction open, as of its last statement.
+    fn transaction_state(&self, context: ContextId) -> TransactionState;
+
+    /// Whether the context's connection still exists on the server, which can close it on its own (timeouts,
+    /// restarts) and roll back its transaction. Never sends anything on that connection.
+    async fn check_transaction(&self, context: ContextId) -> AppResult<TransactionState>;
 
     fn read_sql(&self, database: &str, query: &ReadQuery) -> AppResult<String>;
 

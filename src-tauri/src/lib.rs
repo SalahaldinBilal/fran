@@ -329,6 +329,8 @@ pub fn run() {
             db::commands::open_query_context,
             db::commands::close_query_context,
             db::commands::execute_query,
+            db::commands::get_transaction_state,
+            db::commands::check_transaction,
             db::commands::cancel_query,
             db::commands::split_sql,
             db::commands::list_columns,

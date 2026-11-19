@@ -26,6 +26,7 @@ use crate::db::session::{ContextAccess, ContextId, DatabaseSession, OutcomeSink}
 use crate::db::types::{
     BatchOutcome, CatalogColumn, ColumnChoices, ColumnMeta, DatabaseInfo, DatabaseSize, DesignOptions, ObjectInfo, ObjectKind,
     ObjectStructure, ReadQuery, RowChange, ServerInfo, SqlTemplate, StatementOutcome, TableDesign, TableForeignKey,
+    TransactionState,
 };
 use crate::error::{AppError, AppResult};
 
@@ -202,6 +203,15 @@ impl DatabaseSession for SqliteSession {
 
     fn schema_change(&self, sql: &str) -> Option<SchemaChange> {
         classify::schema_change(sql)
+    }
+
+    fn transaction_state(&self, context: ContextId) -> TransactionState {
+        self.context(context).map(|conn| conn.transaction_state()).unwrap_or_default()
+    }
+
+    /// A file connection can't be closed from outside, so its state is current.
+    async fn check_transaction(&self, context: ContextId) -> AppResult<TransactionState> {
+        Ok(self.context(context)?.transaction_state())
     }
 
     fn read_sql(&self, database: &str, query: &ReadQuery) -> AppResult<String> {

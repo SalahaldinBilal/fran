@@ -2,12 +2,14 @@ import { createRoot } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { withConnectPrompts } from "@core/helpers/connectFlow";
-import { generateId } from "@core/helpers";
+import { generateId, plural } from "@core/helpers";
 import { databaseModule, withDatabaseModule } from "@core/databases";
 import {
   CatalogColumn, ConnectionProfile, DatabaseInfo, DatabaseKind, ObjectInfo, ObjectKind, SavedQuery, SchemaChange, SessionInfo,
+  TransactionState,
 } from "@core/types";
 import useToastState from "./toastState";
+import usePromptState from "./promptState";
 import useSettingsState, { RECENT_LIMIT, isRowLimit } from "./settingsState";
 
 export const HOME_TAB_ID = "home";
@@ -86,6 +88,8 @@ export type SessionState = {
   // The other databases a session can switch to, for kinds with a catalog picker.
   catalogs: string[],
   switchingCatalog: boolean,
+  // Query tabs with a transaction open on their connection, by tab id.
+  transactions: Record<string, Exclude<TransactionState, "none">>,
 };
 
 type WorkspaceStore = {
@@ -336,6 +340,7 @@ function useWorkspaceStateInner() {
       expanded,
       catalogs: [],
       switchingCatalog: false,
+      transactions: {},
     };
   }
 
@@ -395,6 +400,7 @@ function useWorkspaceStateInner() {
   async function switchCatalog(sessionId: string, catalog: string) {
     const session = store.sessions[sessionId];
     if (!session || session.switchingCatalog || session.info.catalog === catalog) return;
+    if (!(await confirmRollback(sessionId, null, "Switching databases", "Switch and roll back"))) return;
 
     persistNow(sessionId);
     setStore("sessions", sessionId, "switchingCatalog", true);
@@ -471,6 +477,7 @@ function useWorkspaceStateInner() {
       removeGlobalTab(id);
       closer(id);
     } else if (tab.kind === "session") {
+      if (!force && !(await confirmRollback(tab.sessionId, null, "Disconnecting", "Disconnect and roll back"))) return;
       closeSession(id);
     } else {
       removeGlobalTab(id);
@@ -768,7 +775,30 @@ function useWorkspaceStateInner() {
     schedulePersist(sessionId);
   }
 
+  function setTabTransaction(sessionId: string, tabId: string, state: TransactionState) {
+    if (!store.sessions[sessionId]) return;
+    setStore("sessions", sessionId, "transactions", produce(transactions => {
+      if (state === "none") delete transactions[tabId];
+      else transactions[tabId] = state;
+    }));
+  }
+
+  // Closing a tab's connection makes the server roll back whatever it didn't commit, so that's asked first.
+  async function confirmRollback(sessionId: string, tabIds: string[] | null, action: string, confirmLabel: string): Promise<boolean> {
+    const transactions = store.sessions[sessionId]?.transactions ?? {};
+    const count = Object.keys(transactions).filter(id => tabIds === null || tabIds.includes(id)).length;
+    if (count === 0) return true;
+    const tabs = count === 1 ? "A query tab has a transaction open" : `${plural(count, "query tab")} have a transaction open`;
+    return usePromptState.confirm({
+      title: "Roll back open transactions?",
+      message: `${tabs}. ${action} closes the connection, and the server rolls back everything that wasn't committed.`,
+      confirmLabel,
+      danger: true,
+    });
+  }
+
   function closeTab(sessionId: string, database: string, tabId: string) {
+    setTabTransaction(sessionId, tabId, "none");
     setStore("sessions", sessionId, "scopes", database, produce(scope => {
       const index = scope.tabs.findIndex(tab => tab.id === tabId);
       if (index < 0) return;
@@ -784,6 +814,7 @@ function useWorkspaceStateInner() {
 
   function closeOtherTabs(sessionId: string, database: string, keepId: string) {
     const closing = store.sessions[sessionId]?.scopes[database]?.tabs.filter(tab => tab.id !== keepId) ?? [];
+    for (const tab of closing) setTabTransaction(sessionId, tab.id, "none");
     setStore("sessions", sessionId, "scopes", database, produce(scope => {
       scope.tabs = scope.tabs.filter(tab => tab.id === keepId);
       scope.activeTabId = keepId;
@@ -823,6 +854,8 @@ function useWorkspaceStateInner() {
     refreshCatalog,
     refreshDatabaseList,
     applySchemaChanges,
+    setTabTransaction,
+    confirmRollback,
     toggleExpanded,
     selectDatabase,
     newQueryTab,

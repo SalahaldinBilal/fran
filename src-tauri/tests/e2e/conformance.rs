@@ -3,7 +3,8 @@ use std::time::{Duration, Instant};
 use fran_lib::db::session::ContextAccess;
 use fran_lib::db::types::{
     CellEdit, ColumnDefinition, ColumnDesign, FilterOp, FilterValue, ForeignKeyDesign, IndexColumnDesign, IndexDefinition,
-    IndexDesign, IndexKind, ObjectKind, ReadQuery, RowChange, RowFilter, RowOrder, SqlTemplate, TableDesign, ValueCategory,
+    IndexDesign, IndexKind, ObjectKind, ReadQuery, RowChange, RowFilter, RowOrder, SqlTemplate, TableDesign, TransactionState,
+    ValueCategory,
 };
 
 use crate::support::{Case, Ctx, TestResult, cases, texts, values};
@@ -28,7 +29,85 @@ pub fn all() -> Vec<Case> {
         read_only_contexts_refuse_writes,
         runs_generated_reads,
         lists_foreign_keys_both_ways,
+        reports_transactions_per_context,
+        notices_a_killed_transaction,
     ]
+}
+
+async fn reports_transactions_per_context(ctx: &Ctx) -> TestResult {
+    let tab = ctx.session.open_context(Some(ctx.ns.clone()), ContextAccess::ReadWrite).await?;
+    let other = ctx.session.open_context(Some(ctx.ns.clone()), ContextAccess::ReadWrite).await?;
+    let begin = ctx.pick("START TRANSACTION", "BEGIN");
+
+    ctx.session.execute(tab, begin, 10).await?;
+    assert_eq!(ctx.session.transaction_state(tab), TransactionState::Open, "BEGIN didn't show an open transaction");
+    ctx.session.execute(tab, "UPDATE items SET name = 'changed' WHERE name = 'apple'", 10).await?;
+    let read = ctx.session.execute(tab, "SELECT name FROM items ORDER BY id", 10).await?;
+    assert!(read[0].error.is_none());
+    assert_eq!(ctx.session.transaction_state(tab), TransactionState::Open, "a result set hid the open transaction");
+    assert_eq!(ctx.session.transaction_state(other), TransactionState::None, "another tab showed this tab's transaction");
+    assert_eq!(ctx.session.check_transaction(tab).await?, TransactionState::Open);
+
+    ctx.session.execute(tab, "ROLLBACK", 10).await?;
+    assert_eq!(ctx.session.transaction_state(tab), TransactionState::None);
+    assert_eq!(texts(&ctx.query("SELECT name FROM items WHERE name = 'changed'").await?, "name").len(), 0);
+
+    ctx.session.execute(tab, begin, 10).await?;
+    let failed = ctx.session.execute(tab, "SELECT * FROM no_such_table", 10).await?;
+    assert!(failed[0].error.is_some());
+    // Postgres refuses everything after an error until ROLLBACK. MySQL keeps the transaction going.
+    let after_error = ctx.pick(TransactionState::Open, TransactionState::Failed);
+    assert_eq!(ctx.session.transaction_state(tab), after_error);
+    ctx.session.execute(tab, "ROLLBACK", 10).await?;
+    assert_eq!(ctx.session.transaction_state(tab), TransactionState::None);
+
+    ctx.session.close_context(tab).await;
+    ctx.session.close_context(other).await;
+    Ok(())
+}
+
+/// The server can end a connection on its own, which rolls back its transaction. Fran must say so instead of
+/// quietly reconnecting and running the next statements outside it.
+async fn notices_a_killed_transaction(ctx: &Ctx) -> TestResult {
+    let tab = ctx.session.open_context(Some(ctx.ns.clone()), ContextAccess::ReadWrite).await?;
+    let begin = ctx.pick("START TRANSACTION", "BEGIN");
+    let backend_sql = ctx.pick("SELECT CONNECTION_ID() AS id", "SELECT pg_backend_pid() AS id");
+    let kill = |id: &str| ctx.pick(format!("KILL {id}"), format!("SELECT pg_terminate_backend({id})"));
+
+    async fn backend(ctx: &Ctx, tab: u32, sql: &str) -> TestResult<String> {
+        let outcomes = ctx.session.execute(tab, sql, 10).await?;
+        let set = outcomes[0].result_sets.first().ok_or("no backend id came back")?;
+        texts(set, "id").into_iter().next().ok_or_else(|| "no backend id came back".into())
+    }
+
+    ctx.session.execute(tab, begin, 10).await?;
+    let id = backend(ctx, tab, backend_sql).await?;
+    ctx.run(&kill(&id)).await?;
+    // Depending on where the dead connection shows, the statement fails or the whole run is refused.
+    let message = match ctx.session.execute(tab, "SELECT 1 AS one", 10).await {
+        Ok(outcomes) => outcomes[0].error.as_ref().map(|error| error.message.clone()).unwrap_or_default(),
+        Err(error) => error.message,
+    };
+    assert!(message.contains("rolled it back"), "a killed transaction wasn't reported: {message:?}");
+    assert_eq!(ctx.session.transaction_state(tab), TransactionState::None);
+    let reconnected = ctx.session.execute(tab, "SELECT 1 AS one", 10).await?;
+    assert!(reconnected[0].error.is_none(), "the tab didn't reconnect after the kill");
+
+    ctx.session.execute(tab, begin, 10).await?;
+    assert_eq!(ctx.session.check_transaction(tab).await?, TransactionState::Open, "the check lost a live transaction");
+    let id = backend(ctx, tab, backend_sql).await?;
+    ctx.run(&kill(&id)).await?;
+    // A killed connection can stay listed for a moment while the server tears it down.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while ctx.session.check_transaction(tab).await? != TransactionState::None {
+        assert!(Instant::now() < deadline, "the check missed a killed connection");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let reconnected = ctx.session.execute(tab, "SELECT 1 AS one", 10).await?;
+    assert!(reconnected[0].error.is_none(), "the tab didn't reconnect after the check saw it was gone");
+
+    ctx.session.close_context(tab).await;
+    Ok(())
 }
 
 async fn read_only_contexts_refuse_writes(ctx: &Ctx) -> TestResult {

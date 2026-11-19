@@ -10,7 +10,7 @@ use std::{
 
 use async_trait::async_trait;
 use mysql_async::{
-    ClientIdentity, Compression, Conn, DriverError, Opts, OptsBuilder, SslOpts, prelude::Queryable,
+    ClientIdentity, Compression, Conn, DriverError, Opts, OptsBuilder, SslOpts, consts::StatusFlags, prelude::Queryable,
 };
 use tokio::sync::Mutex;
 
@@ -29,7 +29,8 @@ use crate::db::read_query;
 use crate::db::session::{ContextAccess, ContextId, DatabaseSession, OutcomeSink};
 use crate::db::types::{
     BatchOutcome, CatalogColumn, ColumnChoices, ColumnMeta, DatabaseInfo, DatabaseSize, DesignOptions, ObjectInfo, ObjectKind, ObjectStructure,
-    ReadQuery, RowChange, ServerInfo, SqlTemplate, StatementOutcome, TableDesign, TableForeignKey,
+    ReadQuery, RowChange, ServerInfo, SqlTemplate, StatementOutcome, TRANSACTION_LOST, TableDesign, TableForeignKey,
+    TransactionCell, TransactionState, transaction_rolled_back,
 };
 use crate::error::{AppError, AppResult, ErrorDetail};
 use crate::forward::LocalForward;
@@ -66,6 +67,7 @@ struct QueryContext {
     read_only: bool,
     slot: Mutex<Option<LiveConn>>,
     connection_id: AtomicU32,
+    transaction: TransactionCell,
 }
 
 pub struct MysqlSession {
@@ -383,6 +385,14 @@ impl MysqlSession {
     }
 }
 
+/// The server sets this flag in the OK packet that ends every reply, result sets included.
+fn transaction_state(conn: &Conn) -> TransactionState {
+    let open = conn
+        .last_ok_packet()
+        .is_some_and(|ok| ok.status_flags().contains(StatusFlags::SERVER_STATUS_IN_TRANS));
+    if open { TransactionState::Open } else { TransactionState::None }
+}
+
 async fn run_batch(conn: &mut Conn, statements: &[String], transactional: bool) -> BatchOutcome {
     let failure = |executed: usize, failed_index: Option<usize>, error: mysql_async::Error, rolled_back: bool| BatchOutcome {
         executed,
@@ -581,6 +591,37 @@ impl DatabaseSession for MysqlSession {
         classify::schema_change(sql, self.dialect)
     }
 
+    fn transaction_state(&self, context: ContextId) -> TransactionState {
+        self.context(context).map(|context| context.transaction.get()).unwrap_or_default()
+    }
+
+    /// Asked over the metadata connection, since anything sent on the tab's own connection would reset the
+    /// server's idle timeouts and keep a forgotten transaction alive.
+    async fn check_transaction(&self, id: ContextId) -> AppResult<TransactionState> {
+        let context = self.context(id)?;
+        let state = context.transaction.get();
+        let connection_id = context.connection_id.load(Ordering::SeqCst);
+        if state == TransactionState::None || connection_id == 0 {
+            return Ok(state);
+        }
+
+        let mut meta = self.meta.lock().await;
+        let live = self.ensure_live(&mut meta, None).await?;
+        let found = live
+            .conn
+            .exec_first::<u64, _, _>("SELECT COUNT(*) FROM information_schema.PROCESSLIST WHERE ID = ?", (connection_id,))
+            .await;
+        if settle(&mut meta, found)?.unwrap_or(0) > 0 {
+            return Ok(state);
+        }
+        context.transaction.set(TransactionState::None);
+        // The next run opens a new connection instead of failing on the dead one.
+        if let Ok(mut tab) = context.slot.try_lock() {
+            *tab = None;
+        }
+        Ok(TransactionState::None)
+    }
+
     fn read_sql(&self, database: &str, query: &ReadQuery) -> AppResult<String> {
         read_query::read_sql(&self.dialect, database, query)
     }
@@ -595,6 +636,7 @@ impl DatabaseSession for MysqlSession {
             read_only: access == ContextAccess::ReadOnly,
             slot: Mutex::new(None),
             connection_id: AtomicU32::new(0),
+            transaction: TransactionCell::default(),
         });
 
         {
@@ -635,10 +677,16 @@ impl DatabaseSession for MysqlSession {
         let statements = splitter::split(sql);
 
         let mut slot = context.slot.lock().await;
+        let had_transaction = context.transaction.get() != TransactionState::None;
+        let connection_before = context.connection_id.load(Ordering::SeqCst);
         let live = self
             .ensure_live_as(&mut slot, context.database.as_deref(), context.read_only)
             .await?;
         context.connection_id.store(live.conn.id(), Ordering::SeqCst);
+        if had_transaction && connection_before != live.conn.id() {
+            context.transaction.set(TransactionState::None);
+            return Err(AppError::general(TRANSACTION_LOST));
+        }
 
         // A ping does no server work, so its time is the network round trip on its own.
         let ping_started = Instant::now();
@@ -653,6 +701,10 @@ impl DatabaseSession for MysqlSession {
         if let Err(error) = live.conn.query_drop(format!("SET SESSION sql_select_limit = {select_limit}")).await {
             if !is_server_error(&error) {
                 *slot = None;
+                if context.transaction.get() != TransactionState::None {
+                    context.transaction.set(TransactionState::None);
+                    return Err(AppError::general(TRANSACTION_LOST));
+                }
             }
             return Err(db_error(error));
         }
@@ -663,6 +715,18 @@ impl DatabaseSession for MysqlSession {
             let started = Instant::now();
             let result = run_statement(&mut live.conn, &statement.text, row_limit).await;
             let elapsed_ms = milliseconds(started.elapsed());
+            let before = context.transaction.get();
+            // An error can end the transaction (a deadlock rolls it back), so the flags are read fresh. A server
+            // that kills the connection sends an error packet first, so a failing `DO 0` is what shows it's gone.
+            let (state, dead) = match &result {
+                Err(error) if !is_server_error(error) => (TransactionState::None, true),
+                Err(_) => match live.conn.query_drop("DO 0").await {
+                    Ok(()) => (transaction_state(&live.conn), false),
+                    Err(error) => (TransactionState::None, !is_server_error(&error)),
+                },
+                Ok(_) => (transaction_state(&live.conn), false),
+            };
+            context.transaction.set(state);
 
             match result {
                 Ok(mut outcome) => {
@@ -672,7 +736,9 @@ impl DatabaseSession for MysqlSession {
                     on_outcome(outcome);
                 }
                 Err(error) => {
-                    lost_connection = !is_server_error(&error);
+                    lost_connection = dead;
+                    let error = db_error(error);
+                    let error = if dead && before != TransactionState::None { transaction_rolled_back(error) } else { error };
                     on_outcome(StatementOutcome {
                         sql: statement.text,
                         result_sets: Vec::new(),
@@ -684,7 +750,7 @@ impl DatabaseSession for MysqlSession {
                         execution_ms: without_network(elapsed_ms),
                         network_ms,
                         fetch_ms: 0.0,
-                        error: Some(db_error(error)),
+                        error: Some(error),
                     });
                     break;
                 }

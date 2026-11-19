@@ -159,6 +159,28 @@
   }
 }
 
+.Flag {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: var(--radius-sm);
+  background-color: rgb(from var(--warning) r g b / 18%);
+  box-shadow: inset 0 0 0 1px rgb(from var(--warning) r g b / 35%);
+  color: var(--warning);
+  font-size: var(--font-xs);
+  font-weight: 650;
+  letter-spacing: .04em;
+  line-height: 1;
+
+  &.FlagDanger {
+    background-color: rgb(from var(--danger) r g b / 16%);
+    box-shadow: inset 0 0 0 1px rgb(from var(--danger) r g b / 35%);
+    color: var(--danger);
+  }
+}
+
 .Modified {
   width: 8px;
   height: 8px;
