@@ -5,6 +5,7 @@ use serde_json::Value;
 
 pub use crate::daylog::now_ms;
 use crate::daylog::{DAY_MS, DayLog};
+use crate::db::DatabaseKind;
 use crate::error::AppResult;
 use crate::vault::Vault;
 
@@ -56,6 +57,9 @@ pub struct HistoryEntry {
     pub session_id: Option<String>,
     pub connection_id: Option<String>,
     pub connection_name: Option<String>,
+    /// For showing the SQL in the connection's dialect. Missing on entries written before it was kept.
+    #[serde(default)]
+    pub kind: Option<DatabaseKind>,
     pub database: Option<String>,
     pub tool: Option<String>,
     pub arguments: Option<Value>,
@@ -141,6 +145,7 @@ mod tests {
             session_id: None,
             connection_id: None,
             connection_name: None,
+            kind: None,
             database: None,
             tool: Some("run_query".to_string()),
             arguments: None,

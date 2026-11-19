@@ -89,6 +89,8 @@ export type AgentHistoryEntry = {
   sessionId: string | null,
   connectionId: string | null,
   connectionName: string | null,
+  // Null on entries written before the kind was kept.
+  kind: DatabaseKind | null,
   database: string | null,
   tool: string | null,
   arguments: unknown,

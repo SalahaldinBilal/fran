@@ -6,6 +6,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { bracketMatching, foldGutter, foldKeymap, syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import { json } from "@codemirror/lang-json";
+import { SQLDialect, StandardSQL, sql } from "@codemirror/lang-sql";
 import { editorTheme, highlightStyle } from "../SqlEditor/theme";
 
 export type CodeViewApi = {
@@ -16,7 +17,9 @@ export type CodeViewApi = {
 
 export type CodeViewProps = {
   value: string,
-  language: "json" | "text",
+  language: "json" | "sql" | "text",
+  // For "sql". Standard SQL when the database isn't known.
+  dialect?: SQLDialect,
   readOnly?: boolean,
   onChange?: (text: string) => void,
   onReady?: (api: CodeViewApi) => void,
@@ -25,6 +28,14 @@ export type CodeViewProps = {
 function CodeView(props: CodeViewProps) {
   let container!: HTMLDivElement;
   let view: EditorView | undefined;
+
+  function language() {
+    switch (props.language) {
+      case "json": return json();
+      case "sql": return sql({ dialect: props.dialect ?? StandardSQL });
+      case "text": return [];
+    }
+  }
 
   onMount(() => {
     const readOnly = props.readOnly ?? false;
@@ -41,7 +52,7 @@ function CodeView(props: CodeViewProps) {
           history(),
           syntaxHighlighting(highlightStyle),
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, ...foldKeymap, indentWithTab]),
-          props.language === "json" ? json() : [],
+          language(),
           EditorView.lineWrapping,
           EditorState.readOnly.of(readOnly),
           EditorView.updateListener.of(update => {

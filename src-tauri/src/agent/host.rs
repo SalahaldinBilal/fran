@@ -367,6 +367,7 @@ impl AgentHost {
                 session_id: Some(session.id.clone()),
                 connection_id: Some(session.connection_id.clone()),
                 connection_name: Some(session.connection_name.clone()),
+                kind: Some(session.kind),
                 database: session.catalog.clone(),
                 tool: None,
                 arguments: None,

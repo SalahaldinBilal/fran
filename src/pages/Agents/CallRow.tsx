@@ -3,6 +3,8 @@ import { For, Show, createMemo, createResource } from "solid-js";
 import { ChevronDown, ChevronRight, CircleAlert, ShieldCheck } from "@core/icons";
 import { AgentHistoryEntry } from "@core/types";
 import { safeInvoke } from "@core/helpers/safeInvoke";
+import { databaseModule } from "@core/databases";
+import useConnectionsState from "@core/states/connectionsState";
 import { errorMessage } from "@core/helpers/errors";
 import { formatDuration, plural } from "@core/helpers";
 import CodeView from "@core/components/CodeView/CodeView";
@@ -46,6 +48,10 @@ function CallDetail(props: { entry: AgentHistoryEntry }) {
   });
   const argumentsJson = createMemo(() => JSON.stringify(props.entry.arguments ?? {}, null, 2));
   const sql = createMemo(() => props.entry.statements.map(statement => `${statement};`).join("\n\n"));
+  const dialect = createMemo(() => {
+    const kind = props.entry.kind ?? useConnectionsState.find(props.entry.connectionId ?? "")?.kind;
+    return kind ? databaseModule(kind).sqlDialect : undefined;
+  });
   const hasSql = createMemo(() => props.entry.statements.length > 0);
   const failed = createMemo(() => props.entry.outcome !== "ok");
 
@@ -85,7 +91,7 @@ function CallDetail(props: { entry: AgentHistoryEntry }) {
         <div class={styles.Block}>
           <div class={styles.Label}>SQL <span class={styles.Hint}>{sqlHint(props.entry)}</span></div>
           <div class={styles.Code}>
-            <CodeView value={sql()} language="text" readOnly />
+            <CodeView value={sql()} language="sql" dialect={dialect()} readOnly />
           </div>
         </div>
       </Show>

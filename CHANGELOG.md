@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The SQL of agent calls on the Agents tab is colored like in the editor, in the connection's own dialect.
 - A query tab whose connection dropped while a transaction was open used to reconnect and run the next statements outside it. It now says the transaction was rolled back and runs nothing.
 - A Postgres connection ended by the server (`pg_terminate_backend`, a restart) failed one extra run before Fran reconnected.
 - Running CREATE, ALTER or DROP DATABASE (or SCHEMA) in a query tab now refreshes the database list and the database picker.

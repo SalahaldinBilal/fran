@@ -5,12 +5,14 @@ use tokio_util::sync::CancellationToken;
 
 use super::history::{ApprovalRecord, Outcome};
 use super::sessions::AgentSession;
+use crate::db::DatabaseKind;
 
 #[derive(Debug, Default)]
 pub struct CallState {
     pub session_id: Option<String>,
     pub connection_id: Option<String>,
     pub connection_name: Option<String>,
+    pub kind: Option<DatabaseKind>,
     pub database: Option<String>,
     pub statements: Vec<String>,
     pub approval: Option<ApprovalRecord>,
@@ -47,6 +49,7 @@ impl CallLog {
             state.session_id = Some(session.id.clone());
             state.connection_id = Some(session.connection_id.clone());
             state.connection_name = Some(session.connection_name.clone());
+            state.kind = Some(session.kind);
         });
     }
 
