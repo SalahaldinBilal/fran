@@ -1,4 +1,4 @@
-import { createRoot } from "solid-js";
+import { createRoot, createSignal } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { withConnectPrompts } from "@core/helpers/connectFlow";
@@ -211,6 +211,7 @@ function moveItem<T extends { id: string }>(items: T[], id: string, toIndex: num
 }
 
 function useWorkspaceStateInner() {
+  const [settingsPage, setSettingsPage] = createSignal<string | null>(null, { equals: false });
   const { pushError, pushToast } = useToastState;
   const [store, setStore] = createStore<WorkspaceStore>({
     globalTabs: [{ id: HOME_TAB_ID, kind: "home" }],
@@ -433,7 +434,9 @@ function useWorkspaceStateInner() {
     }));
   }
 
-  function openSettings() {
+  // `page` is a section id, like "updates". Not equal-checked, so asking for the same page again still switches to it.
+  function openSettings(page?: string) {
+    if (page) setSettingsPage(page);
     setStore(produce(state => {
       if (!state.globalTabs.some(tab => tab.kind === "settings")) state.globalTabs.push({ id: SETTINGS_TAB_ID, kind: "settings" });
       state.activeGlobalTabId = SETTINGS_TAB_ID;
@@ -845,6 +848,7 @@ function useWorkspaceStateInner() {
     activateGlobalTab,
     openAgents,
     openSettings,
+    settingsPage,
     openSecrets,
     openSync,
     addGlobalTab,

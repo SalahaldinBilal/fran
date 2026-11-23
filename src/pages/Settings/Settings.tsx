@@ -1,5 +1,5 @@
 import styles from "./Settings.module.scss";
-import { createMemo, createSignal, For, JSX, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, JSX, on, Show } from "solid-js";
 import {
   Bot, CircleAlert, Download, LucideIcon, Palette, Shield, ShieldCheck, SlidersHorizontal, SquareTerminal, Table2, Terminal as TerminalIcon, WandSparkles,
 } from "@core/icons";
@@ -7,6 +7,7 @@ import VpnSettings from "./VpnSettings";
 import SecuritySettings from "./SecuritySettings";
 import useSettingsState from "@core/states/settingsState";
 import useUpdaterState from "@core/states/updaterState";
+import useWorkspaceState from "@core/states/workspaceState";
 import { errorMessage } from "@core/helpers/errors";
 import { Feature, featureOn } from "@core/helpers/features";
 import GeneralSettings from "./GeneralSettings";
@@ -51,7 +52,10 @@ function Settings(props: SettingsProps) {
   ];
 
   const visibleSections = createMemo(() => sections.filter(section => featureOn(section.feature)));
-  const [chosenId, setChosenId] = createSignal(sections[0].id);
+  const [chosenId, setChosenId] = createSignal(useWorkspaceState.settingsPage() ?? sections[0].id);
+  createEffect(on(useWorkspaceState.settingsPage, page => {
+    if (page) setChosenId(page);
+  }, { defer: true }));
   const activeId = createMemo(() => (visibleSections().some(section => section.id === chosenId()) ? chosenId() : visibleSections()[0].id));
 
   return (

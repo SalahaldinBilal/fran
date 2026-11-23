@@ -1,0 +1,100 @@
+.Banner {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 10px 8px 14px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--accent-line);
+  background:
+    linear-gradient(90deg, rgb(from var(--accent) r g b / 26%), rgb(from var(--accent) r g b / 10%) 60%, var(--accent-soft)),
+    var(--bg);
+  box-shadow: var(--highlight);
+}
+
+.Icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  box-shadow: 0 0 0 4px rgb(from var(--accent) r g b / 22%);
+  color: var(--text-strong);
+}
+
+.Text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.Title {
+  color: var(--text-strong);
+  font-size: var(--font-lg);
+  font-weight: 600;
+}
+
+.Detail {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.Actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.Failed {
+  border-bottom-color: rgb(from var(--danger) r g b / 55%);
+  background:
+    linear-gradient(90deg, rgb(from var(--danger) r g b / 22%), var(--danger-soft) 60%),
+    var(--bg);
+
+  .Icon {
+    background-color: var(--danger);
+    box-shadow: 0 0 0 4px rgb(from var(--danger) r g b / 22%);
+  }
+}
+
+.Progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  overflow: hidden;
+  background-color: rgb(from var(--accent) r g b / 18%);
+}
+
+.Fill {
+  height: 100%;
+  background-color: var(--accent-strong);
+  transition: width var(--duration) var(--ease);
+
+  &.Indeterminate {
+    position: absolute;
+    animation: sweep 1.2s var(--ease) infinite;
+  }
+}
+
+@keyframes sweep {
+  from {
+    left: -30%;
+  }
+
+  to {
+    left: 100%;
+  }
+}

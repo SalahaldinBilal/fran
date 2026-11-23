@@ -55,9 +55,9 @@ import useVaultState from "./states/vaultState";
 import useSavedQueriesState from "./states/savedQueriesState";
 import useSettingsState from "./states/settingsState";
 import useUpdaterState from "./states/updaterState";
-import useToastState from "./states/toastState";
 import useModalState from "./states/modalState";
 import WindowControls from "./components/WindowControls/WindowControls";
+import UpdateBanner from "./components/UpdateBanner/UpdateBanner";
 import { installGlobalContextMenu } from "./helpers/globalContextMenu";
 import { IS_MAC, skipsConfirm } from "./helpers/platform";
 import { safeInvoke } from "./helpers/safeInvoke";
@@ -193,13 +193,6 @@ function App() {
     workspace.openAgents();
   }
 
-  async function checkForUpdates() {
-    const found = await useUpdaterState.checkForUpdate();
-    if (!found) return;
-    const hint = useUpdaterState.selfUpdate ? "Open Settings to install it." : "Update it through Nix.";
-    useToastState.pushToast(`Fran ${found.version} is available. ${hint}`, "info", 8000);
-  }
-
   onMount(() => {
     // Two frames so the first paint is done before the window swaps in, otherwise it shows blank.
     requestAnimationFrame(() => requestAnimationFrame(() => safeInvoke("show_main_window")));
@@ -207,7 +200,7 @@ function App() {
       void safeInvoke("prune_terminal_logs", { keepDays: useSettingsState.settings.terminal.logDays }).catch(() => undefined);
     });
     useLockState.start();
-    checkForUpdates();
+    void useUpdaterState.checkForUpdate();
     useConnectionsState.load();
     useSshState.load();
     useVpnState.load();
@@ -319,6 +312,7 @@ function App() {
           </>
         }
       />
+      <UpdateBanner />
       <main class={styles.Content}>
         <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== HOME_TAB_ID }}>
           <Home />

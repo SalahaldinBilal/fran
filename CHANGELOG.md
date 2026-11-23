@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - The review dialog for SQL changes only explains how a failure is handled when one could leave things half done, or when the change joins a transaction open in the tab. A single statement that applies fully or not at all gets no note.
 - A VPN card shows why the VPN failed in place of its server, not just a Failed badge. It also shows what went wrong while OpenVPN is still retrying. Click it to open the log.
+- A new version shows as a banner under the title bar on every page, with Install, Restart once it's installed, and What's new. Closing it hides it until Fran starts again.
 
 ### Fixed
 
