@@ -1,12 +1,13 @@
-import { createRoot, createSignal } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createRoot, createSignal, createStore, reconcile } from "solid-js";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { Snippet } from "@core/types";
 
 type SnippetEditorRequest = { snippet: Snippet | null };
 
 function useSnippetsStateInner() {
-  const [snippets, setSnippets] = createStore<Snippet[]>([]);
+  const [snippets, writeSnippets] = createStore<Snippet[]>([]);
+  const setSnippets = immediateWrite(writeSnippets);
   const [loaded, setLoaded] = createSignal(false);
   const [loadError, setLoadError] = createSignal<unknown>(null);
   const [editorRequest, setEditorRequest] = createSignal<SnippetEditorRequest | null>(null);

@@ -1,10 +1,11 @@
-import { createRoot, createSignal } from "solid-js";
-import { createStore, reconcile, unwrap } from "solid-js/store";
+import { createRoot, createSignal, createStore, reconcile, snapshot } from "solid-js";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { ConnectionProfile } from "@core/types";
 
 function useConnectionsStateInner() {
-  const [connections, setConnections] = createStore<ConnectionProfile[]>([]);
+  const [connections, writeConnections] = createStore<ConnectionProfile[]>([]);
+  const setConnections = immediateWrite(writeConnections);
   const [groupOrder, setGroupOrder] = createSignal<string[]>([]);
   const [loaded, setLoaded] = createSignal(false);
   const [loadError, setLoadError] = createSignal<unknown>(null);
@@ -30,9 +31,11 @@ function useConnectionsStateInner() {
     const saved = await safeInvoke("save_connection", { profile });
     const index = connections.findIndex(existing => existing.id === saved.id);
     if (index >= 0) {
-      setConnections(index, reconcile(saved));
+      setConnections(reconcile(snapshot(connections).map((item, position) => (position === index ? saved : item))));
     } else {
-      setConnections(connections.length, saved);
+      setConnections(list => {
+        list.push(saved);
+      });
     }
     return saved;
   }
@@ -47,7 +50,7 @@ function useConnectionsStateInner() {
       const index = ids.indexOf(id);
       return index >= 0 ? index : ids.length;
     }
-    setConnections(reconcile([...unwrap(connections)].sort((a, b) => rank(a.id) - rank(b.id))));
+    setConnections(reconcile([...snapshot(connections)].sort((a, b) => rank(a.id) - rank(b.id))));
     setGroupOrder(groups);
     await safeInvoke("save_connection_order", { ids, groups });
   }

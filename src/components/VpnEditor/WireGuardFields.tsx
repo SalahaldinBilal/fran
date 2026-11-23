@@ -1,7 +1,6 @@
 import hostStyles from "../HostEditor/HostEditor.module.scss";
 import styles from "./VpnEditor.module.scss";
-import { Show, createMemo, createSignal } from "solid-js";
-import { SetStoreFunction } from "solid-js/store";
+import { Show, StoreSetter, createMemo, createSignal, untrack } from "solid-js";
 import { Copy, KeyRound, Server } from "@core/icons";
 import { VpnProfile } from "@core/types";
 import { PendingSecret } from "@core/databases/types";
@@ -17,9 +16,9 @@ export const WIREGUARD_PORT = 51820;
 
 export type WireGuardFieldsProps = {
   draft: VpnProfile,
-  setDraft: SetStoreFunction<VpnProfile>,
+  setDraft: StoreSetter<VpnProfile>,
   pending: Record<string, PendingSecret>,
-  setPending: SetStoreFunction<Record<string, PendingSecret>>,
+  setPending: (slot: string, value: PendingSecret) => void,
   refs?: SecretRefsEditor,
   stored: string[],
   generate: boolean,
@@ -45,9 +44,15 @@ function toNumber(text: string): number | null {
 
 // Mounted fresh for each profile the editor opens, so the list fields keep what's typed, spaces and all.
 function WireGuardFields(props: WireGuardFieldsProps) {
-  const [allowedIps, setAllowedIps] = createSignal(listText(props.draft.wireGuard.allowedIps));
-  const [addresses, setAddresses] = createSignal(listText(props.draft.wireGuard.addresses));
-  const [dns, setDns] = createSignal(listText([...props.draft.wireGuard.dns, ...props.draft.wireGuard.searchDomains]));
+  const [allowedIps, setAllowedIps] = createSignal(untrack(() => listText(props.draft.wireGuard.allowedIps)));
+  const [addresses, setAddresses] = createSignal(untrack(() => listText(props.draft.wireGuard.addresses)));
+  const [dns, setDns] = createSignal(untrack(() => listText([...props.draft.wireGuard.dns, ...props.draft.wireGuard.searchDomains])));
+
+  function setWireGuard<K extends keyof VpnProfile["wireGuard"]>(key: K, value: VpnProfile["wireGuard"][K]) {
+    props.setDraft(profile => {
+      profile.wireGuard[key] = value;
+    });
+  }
 
   const remote = createMemo(() => props.draft.remotes[0] ?? { host: "", port: WIREGUARD_PORT, proto: "udp" as const });
   const pendingKey = createMemo(() => props.pending.private);
@@ -64,14 +69,17 @@ function WireGuardFields(props: WireGuardFieldsProps) {
   const presharedPlaceholder = createMemo(() => (presharedStored() ? "Saved in the vault. Paste a new one to replace it." : "Optional"));
 
   function setRemote(change: Partial<VpnProfile["remotes"][number]>) {
-    props.setDraft("remotes", [{ ...remote(), ...change, proto: "udp" }]);
+    const next = { ...remote(), ...change, proto: "udp" as const };
+    props.setDraft(profile => {
+      profile.remotes = [next];
+    });
   }
 
   function setDnsText(text: string) {
     setDns(text);
     const items = listItems(text);
-    props.setDraft("wireGuard", "dns", items.filter(looksLikeIp));
-    props.setDraft("wireGuard", "searchDomains", items.filter(item => !looksLikeIp(item)));
+    setWireGuard("dns", items.filter(looksLikeIp));
+    setWireGuard("searchDomains", items.filter(item => !looksLikeIp(item)));
   }
 
   function generateKey() {
@@ -93,14 +101,14 @@ function WireGuardFields(props: WireGuardFieldsProps) {
           <SecretInput path="remotes.0.port" refs={props.refs} class={styles.Port} type="number" value={remote().port} onValue={value => setRemote({ port: toPort(value) })} />
         </div>
         <Field label="Server's public key">
-          <Input value={props.draft.wireGuard.peerPublicKey} onValue={value => props.setDraft("wireGuard", "peerPublicKey", value)} mono />
+          <Input value={props.draft.wireGuard.peerPublicKey} onValue={value => setWireGuard("peerPublicKey", value)} mono />
         </Field>
         <Field label="Allowed IPs" hint="Networks reached through this VPN. 0.0.0.0/0, ::/0 means everything.">
           <Input
             value={allowedIps()}
             onValue={value => {
               setAllowedIps(value);
-              props.setDraft("wireGuard", "allowedIps", listItems(value));
+              setWireGuard("allowedIps", listItems(value));
             }}
             placeholder="10.0.0.0/8, 192.168.50.0/24"
             mono
@@ -134,7 +142,7 @@ function WireGuardFields(props: WireGuardFieldsProps) {
             <Input
               type="number"
               value={props.draft.wireGuard.keepaliveSecs ?? ""}
-              onValue={value => props.setDraft("wireGuard", "keepaliveSecs", toNumber(value))}
+              onValue={value => setWireGuard("keepaliveSecs", toNumber(value))}
               placeholder="Off"
             />
           </Field>
@@ -145,7 +153,7 @@ function WireGuardFields(props: WireGuardFieldsProps) {
         <h3><KeyRound size={14} />This side</h3>
         <Field label="Private key" hint="Goes straight to the vault. Give the server the public key below.">
           <div class={styles.KeyStatus}>
-            <KeyRound size={14} class={keySaved() ? styles.Saved : undefined} />
+            <div class={[styles.KeyIcon, { [styles.Saved]: keySaved() }]}><KeyRound size={14} /></div>
             <span>{keyStatus()}</span>
             <Show
               when={props.generate}
@@ -178,7 +186,7 @@ function WireGuardFields(props: WireGuardFieldsProps) {
               value={addresses()}
               onValue={value => {
                 setAddresses(value);
-                props.setDraft("wireGuard", "addresses", listItems(value));
+                setWireGuard("addresses", listItems(value));
               }}
               placeholder="10.64.0.2/32"
               mono
@@ -188,7 +196,7 @@ function WireGuardFields(props: WireGuardFieldsProps) {
             <Input
               type="number"
               value={props.draft.wireGuard.mtu ?? ""}
-              onValue={value => props.setDraft("wireGuard", "mtu", toNumber(value))}
+              onValue={value => setWireGuard("mtu", toNumber(value))}
               placeholder="1420"
             />
           </Field>

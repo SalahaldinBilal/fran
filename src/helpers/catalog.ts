@@ -1,3 +1,4 @@
+import { snapshot } from "solid-js";
 import { SQLNamespace } from "@codemirror/lang-sql";
 import { SessionState } from "@core/states/workspaceState";
 import { SchemaCatalog } from "@core/components/SqlEditor/schemaLinter";
@@ -14,7 +15,8 @@ export function buildCatalog(session: SessionState, database: string): SchemaCat
     const columns = session.columns[name];
     const columnsByTable = new Map<string, Set<string>>();
     if (columns?.status === "ready") {
-      for (const column of columns.items) {
+      // Snapshots because a load replaces the whole list, so tracking every row is wasted.
+      for (const column of snapshot(columns.items)) {
         const table = column.table.toLowerCase();
         if (!columnsByTable.has(table)) columnsByTable.set(table, new Set());
         columnsByTable.get(table)!.add(column.name.toLowerCase());
@@ -22,7 +24,7 @@ export function buildCatalog(session: SessionState, database: string): SchemaCat
     }
 
     const entries = new Map<string, Set<string> | null>();
-    for (const object of objects.items) {
+    for (const object of snapshot(objects.items)) {
       if (object.kind !== "table" && object.kind !== "view") continue;
       const key = object.name.toLowerCase();
       entries.set(key, columns?.status === "ready" ? columnsByTable.get(key) ?? new Set() : null);
@@ -47,9 +49,9 @@ export function buildCompletionSchema(session: SessionState): SQLNamespace {
   for (const [name, objects] of Object.entries(session.objects)) {
     if (objects.status !== "ready") continue;
 
-    const columns = session.columns[name]?.items ?? [];
+    const columns = snapshot(session.columns[name]?.items ?? []);
     const tables: Record<string, string[]> = {};
-    for (const object of objects.items) {
+    for (const object of snapshot(objects.items)) {
       if (object.kind === "table" || object.kind === "view") tables[object.name] = [];
     }
     for (const column of columns) {

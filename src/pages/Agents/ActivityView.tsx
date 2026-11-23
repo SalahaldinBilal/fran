@@ -1,7 +1,8 @@
 import styles from "./Activity.module.scss";
-import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { ChevronLeft, ChevronRight, CircleAlert, History, Plug, Search, TriangleAlert, X } from "@core/icons";
 import { AgentApproval, AgentHistoryEntry, AgentMode } from "@core/types";
+import { createLoader } from "@core/helpers/createLoader";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage } from "@core/helpers/errors";
 import { formatAgo, plural } from "@core/helpers";
@@ -149,7 +150,7 @@ function ActivityView() {
     return isToday() ? `Today, ${date}` : date;
   });
 
-  const [entries, { mutate, refetch }] = createResource(
+  const [entries, { mutate, refetch }] = createLoader(
     () => (agent.config.historyEnabled ? day() : null),
     from => safeInvoke("list_agent_history", { from, to: from + DAY_MS - 1 }),
   );
@@ -159,9 +160,9 @@ function ActivityView() {
     mutate(list => [entry, ...(list ?? [])]);
   }));
 
-  createEffect(on(() => agent.config.historyEnabled, enabled => {
-    if (enabled) refetch();
-  }, { defer: true }));
+  createEffect(() => agent.config.historyEnabled, enabled => {
+    if (enabled) void refetch();
+  }, { defer: true });
 
   const openIds = createMemo(() => new Set(agent.sessions.map(session => session.id)));
   const past = createMemo(() => pastSessions(entries() ?? [], openIds()));
@@ -173,7 +174,9 @@ function ActivityView() {
 
   createEffect(() => {
     const settled = entries.state === "ready" || !agent.config.historyEnabled;
-    if (selected() !== ALL && sessionId() === null && settled) setSelected(ALL);
+    return selected() !== ALL && sessionId() === null && settled;
+  }, gone => {
+    if (gone) setSelected(ALL);
   });
 
   const approvals = createMemo(() => agent.approvals.filter(approval => sessionId() === null || approval.sessionId === sessionId()));
@@ -251,7 +254,7 @@ function ActivityView() {
     <div class={styles.Activity}>
       <aside class={styles.Rail}>
         <div class={styles.RailBody}>
-          <button class={styles.SessionRow} classList={{ [styles.Selected]: selected() === ALL }} onClick={() => select(ALL)}>
+          <button class={[styles.SessionRow, { [styles.Selected]: selected() === ALL }]} onClick={() => select(ALL)}>
             <AgentMark agent={null} />
             <div class={styles.SessionText}>
               <div class={styles.SessionName}>All activity</div>
@@ -271,10 +274,9 @@ function ActivityView() {
             <For each={agent.sessions}>
               {session => (
                 <div
-                  class={styles.SessionRow}
-                  classList={{ [styles.Selected]: selected() === session.id }}
+                  class={[styles.SessionRow, { [styles.Selected]: selected() === session.id }]}
                   role="button"
-                  tabIndex={0}
+                  tabindex={0}
                   onClick={() => select(session.id)}
                   onKeyDown={event => {
                     if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) select(session.id);
@@ -315,8 +317,7 @@ function ActivityView() {
             <For each={past()}>
               {session => (
                 <button
-                  class={styles.SessionRow}
-                  classList={{ [styles.Selected]: selected() === session.id, [styles.Closed]: true }}
+                  class={[styles.SessionRow, { [styles.Selected]: selected() === session.id, [styles.Closed]: true }]}
                   onClick={() => select(session.id)}
                 >
                   <AgentMark agent={session.agent} dim />

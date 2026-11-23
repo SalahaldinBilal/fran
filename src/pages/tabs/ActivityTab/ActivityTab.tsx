@@ -1,5 +1,5 @@
 import styles from "./ActivityTab.module.scss";
-import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal, snapshot, untrack } from "solid-js";
 import { ArrowDown, ArrowUp, CircleAlert, Copy, Info, Pause, Play, RefreshCw, Search, SquareTerminal } from "@core/icons";
 import useWorkspaceState from "@core/states/workspaceState";
 import { safeInvoke } from "@core/helpers/safeInvoke";
@@ -54,7 +54,7 @@ function SortHeader(props: { label: string, sortKey: SortKey, sort: Sort, onSort
   const current = createMemo(() => props.sort.key === props.sortKey);
   return (
     <th class={styles.Numeric}>
-      <button type="button" class={styles.SortButton} classList={{ [styles.Sorted]: current() }} onClick={() => props.onSort(props.sortKey)}>
+      <button type="button" class={[styles.SortButton, { [styles.Sorted]: current() }]} onClick={() => props.onSort(props.sortKey)}>
         {props.label}
         <Show when={current()}>
           {props.sort.descending ? <ArrowDown size={12} /> : <ArrowUp size={12} />}
@@ -66,7 +66,7 @@ function SortHeader(props: { label: string, sortKey: SortKey, sort: Sort, onSort
 
 function ActivityTab(props: ActivityTabProps) {
   const workspace = useWorkspaceState;
-  const support = untrack(() => workspace.store.sessions[props.sessionId].info.activity);
+  const support = untrack(() => snapshot(workspace.store.sessions[props.sessionId].info.activity));
 
   const [view, setView] = createSignal<View>(support.history ? "history" : "running");
   const [history, setHistory] = createSignal<QueryHistory | null>(null);
@@ -146,17 +146,15 @@ function ActivityTab(props: ActivityTabProps) {
     }
   }
 
-  createEffect(() => {
-    if (visible() && view() === "history" && untrack(history) === null && untrack(errors).history === null) {
-      void load("history");
-    }
+  createEffect(() => visible() && view() === "history" && untrack(history) === null && untrack(errors).history === null, needed => {
+    if (needed) queueMicrotask(() => void load("history"));
   });
 
-  createEffect(() => {
-    if (!visible() || view() !== "running" || paused()) return;
-    untrack(() => void load("running"));
+  createEffect(() => visible() && view() === "running" && !paused(), live => {
+    if (!live) return;
+    queueMicrotask(() => void load("running"));
     const timer = setInterval(() => void load("running"), RUNNING_REFRESH_MS);
-    onCleanup(() => clearInterval(timer));
+    return () => clearInterval(timer);
   });
 
   function changeSort(key: SortKey) {
@@ -286,7 +284,7 @@ function ActivityTab(props: ActivityTabProps) {
                         <For each={statements()}>
                           {stats => (
                             <>
-                              <tr class={styles.Row} classList={{ [styles.Open]: expanded() === stats.id }} onClick={() => toggle(stats.id)}>
+                              <tr class={[styles.Row, { [styles.Open]: expanded() === stats.id }]} onClick={() => toggle(stats.id)}>
                                 <td class={styles.Statement}><span>{stats.text}</span></td>
                                 <td class={styles.Muted}>{stats.database ?? ""}</td>
                                 <Show when={hasUser()}><td class={styles.Muted}>{stats.user ?? ""}</td></Show>
@@ -305,7 +303,7 @@ function ActivityTab(props: ActivityTabProps) {
                               </tr>
                               <Show when={expanded() === stats.id}>
                                 <tr class={styles.DetailRow}>
-                                  <td colSpan={historyColumns()}>
+                                  <td colspan={historyColumns()}>
                                     <div class={styles.Detail}>
                                       <pre class={styles.Sql}>{stats.text}</pre>
                                       <Show when={stats.sample && stats.sample !== stats.text}>
@@ -368,7 +366,7 @@ function ActivityTab(props: ActivityTabProps) {
                       <For each={queries()}>
                         {query => (
                           <>
-                            <tr class={styles.Row} classList={{ [styles.Open]: expanded() === query.id }} onClick={() => toggle(query.id)}>
+                            <tr class={[styles.Row, { [styles.Open]: expanded() === query.id }]} onClick={() => toggle(query.id)}>
                               <td class={`${styles.Numeric} ${styles.Strong}`}>
                                 {query.runningMs === null ? "" : formatRunning(query.runningMs, current().wholeSeconds)}
                               </td>
@@ -376,7 +374,7 @@ function ActivityTab(props: ActivityTabProps) {
                                 <span>{query.text ?? ""}</span>
                               </td>
                               <td class={styles.Muted}>
-                                <span class={styles.Ellipsis} ref={element => tooltip(element, () => query.state ?? "")}>{query.state ?? ""}</span>
+                                <span class={styles.Ellipsis} ref={tooltip(() => query.state ?? "")}>{query.state ?? ""}</span>
                               </td>
                               <td class={styles.Muted}>{query.user ?? ""}</td>
                               <td class={styles.Muted}>{query.database ?? ""}</td>
@@ -385,7 +383,7 @@ function ActivityTab(props: ActivityTabProps) {
                             <Show when={expanded() === query.id && query.text}>
                               {text => (
                                 <tr class={styles.DetailRow}>
-                                  <td colSpan={6}>
+                                  <td colspan={6}>
                                     <div class={styles.Detail}>
                                       <pre class={styles.Sql}>{text()}</pre>
                                       <div class={styles.DetailBar}>

@@ -1,6 +1,5 @@
 import styles from "./ConnectionForm.module.scss";
-import { Match, Show, Switch, createMemo } from "solid-js";
-import { unwrap } from "solid-js/store";
+import { Match, Show, Switch, createMemo, snapshot } from "solid-js";
 import { Pencil, Server } from "@core/icons";
 import { IdentityAuth, SecretRefs, SshAuthMethod, SshOptions } from "@core/types";
 import useSecretsState from "@core/states/secretsState";
@@ -104,7 +103,7 @@ function SshSection(props: SshSectionProps) {
 
   // Moves the typed SSH secrets from this connection to the new host, identity and key, named secrets included.
   async function saveAsHost() {
-    const ssh = unwrap(props.ssh);
+    const ssh = snapshot(props.ssh);
     if (["keyFile", "agentSocket"].some(path => props.refs?.get(path))) {
       pushError(new Error("A saved host needs the key file or agent socket typed in. Take the secret off it first."));
       return;

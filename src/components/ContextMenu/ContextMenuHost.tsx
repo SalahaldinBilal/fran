@@ -1,11 +1,10 @@
 import styles from "./ContextMenu.module.scss";
-import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
-import { Dynamic, Portal } from "solid-js/web";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { Dynamic, Portal } from "@solidjs/web";
 import { ChevronRight } from "@core/icons";
 import useContextMenuState, { MenuAction, MenuItem, isSeparator } from "@core/states/contextMenuState";
 import { Position } from "@core/types";
 import { clickOutside } from "@core/directives/clickOutside";
-clickOutside;
 
 const EDGE_MARGIN = 4;
 
@@ -18,7 +17,8 @@ type MenuListProps = {
 
 function MenuList(props: MenuListProps) {
   const { closeContextMenu } = useContextMenuState;
-  const [position, setPosition] = createSignal<Position>(props.anchor);
+  const [placed, setPlaced] = createSignal<Position | null>(null);
+  const position = createMemo(() => placed() ?? props.anchor);
   const [openChild, setOpenChild] = createSignal<{ index: number, anchor: Position, flipX: number } | null>(null);
   let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -32,7 +32,7 @@ function MenuList(props: MenuListProps) {
         x = props.flipX !== undefined ? props.flipX - width : window.innerWidth - width - EDGE_MARGIN;
       }
       const y = Math.min(props.anchor.y, window.innerHeight - height - EDGE_MARGIN);
-      setPosition({ x: Math.max(EDGE_MARGIN, x), y: Math.max(EDGE_MARGIN, y) });
+      setPlaced({ x: Math.max(EDGE_MARGIN, x), y: Math.max(EDGE_MARGIN, y) });
     });
   }
 
@@ -61,11 +61,10 @@ function MenuList(props: MenuListProps) {
             {entry => (
               <>
                 <button
-                  class={styles.Item}
-                  classList={{
+                  class={[styles.Item, {
                     [styles.Danger]: entry().danger ?? false,
                     [styles.Open]: openChild()?.index === index(),
-                  }}
+                  }]}
                   role="menuitem"
                   disabled={entry().disabled}
                   onMouseDown={event => event.preventDefault()}
@@ -107,8 +106,8 @@ function MenuList(props: MenuListProps) {
 function ContextMenuHost() {
   const { menu, closeContextMenu } = useContextMenuState;
 
-  createEffect(() => {
-    if (!menu()) return;
+  createEffect(() => menu() !== null, open => {
+    if (!open) return;
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") closeContextMenu();
@@ -117,11 +116,11 @@ function ContextMenuHost() {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("blur", closeContextMenu);
     window.addEventListener("resize", closeContextMenu);
-    onCleanup(() => {
+    return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("blur", closeContextMenu);
       window.removeEventListener("resize", closeContextMenu);
-    });
+    };
   });
 
   return (
@@ -130,7 +129,7 @@ function ContextMenuHost() {
         <Portal>
           <div
             class={styles.Root}
-            use:clickOutside={closeContextMenu}
+            ref={clickOutside(closeContextMenu)}
             onContextMenu={event => event.preventDefault()}
           >
             <MenuList items={current.items} anchor={current.position} />

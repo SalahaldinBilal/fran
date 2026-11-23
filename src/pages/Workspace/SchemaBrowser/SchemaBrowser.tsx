@@ -71,7 +71,7 @@ function SchemaBrowser(props: { sessionId: string }) {
                 {current().profile.name.trim().charAt(0).toUpperCase()}
               </div>
               <div class={styles.ConnectionText}>
-                <div class={styles.ConnectionName} ref={element => tooltip(element, () => current().profile.name)}>
+                <div class={styles.ConnectionName} ref={tooltip(() => current().profile.name)}>
                   {current().profile.name}
                 </div>
                 <div class={styles.ServerVersion}>
@@ -104,7 +104,7 @@ function SchemaBrowser(props: { sessionId: string }) {
 
             <Show when={catalog()}>
               {name => (
-                <div class={styles.CatalogPicker} ref={element => tooltip(element, () => module.catalogLabel)}>
+                <div class={styles.CatalogPicker} ref={tooltip(() => module.catalogLabel)}>
                   <Database size={14} class={styles.CatalogIcon} />
                   <div class={styles.CatalogSelect}>
                     <Select

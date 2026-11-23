@@ -1,6 +1,6 @@
 import styles from "./CloudModals.module.scss";
-import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { Dynamic } from "@solidjs/web";
 import { ArrowLeft, ChevronRight } from "@core/icons";
 import { cloudModule, cloudModules } from "@core/clouds";
 import useSyncState from "@core/states/syncState";
@@ -25,11 +25,11 @@ function AddCloudModal() {
   });
   const subtitle = createMemo(() => (module() || again() ? undefined : "Pick where your items should sync to. You can add more later."));
 
-  createEffect(on(sync.addRequest, request => {
+  createEffect(sync.addRequest, request => {
     if (!request) return;
     setPicked(false);
     setKind(request.kind ?? (cloudModules.length === 1 ? cloudModules[0].kind : null));
-  }));
+  });
 
   function choose(next: CloudKind) {
     setPicked(true);

@@ -1,4 +1,4 @@
-import { createEffect, createRoot, on } from "solid-js";
+import { createEffect, createRoot } from "solid-js";
 import useVpnState from "@core/states/vpnState";
 import useSettingsState from "@core/states/settingsState";
 import usePromptState from "@core/states/promptState";
@@ -83,32 +83,43 @@ function reconnectUsers(profileId: string, users: Users) {
   const rules = new Map(users.rules.map(rule => [rule.id, rule]));
   createRoot(dispose => {
     watching.set(profileId, dispose);
-    createEffect(() => {
-      for (const [tabId, paneIds] of users.panes) {
+    createEffect(() => ({
+      panes: [...users.panes].flatMap(([tabId, paneIds]) => {
         const tab = useTerminalState.tabs().find(candidate => candidate.id === tabId);
-        for (const paneId of [...paneIds]) {
-          const status = tab?.panes[paneId]?.status;
-          if (status === undefined) paneIds.delete(paneId);
-          if (status === "closed") {
-            paneIds.delete(paneId);
-            void useTerminalState.connect(tabId, paneId);
-          }
+        return [...paneIds].map(paneId => ({ tabId, paneId, status: tab?.panes[paneId]?.status }));
+      }),
+      files: [...users.files].map(tabId => ({
+        tabId,
+        status: useSftpState.tabs().find(candidate => candidate.id === tabId)?.status,
+      })),
+      forwards: [...rules].map(([ruleId, rule]) => ({
+        ruleId,
+        rule,
+        exists: useSshState.forward(ruleId) !== undefined,
+        stopped: !useForwardRulesState.status(ruleId) && !useForwardRulesState.busy[ruleId],
+      })),
+    }), ({ panes, files, forwards }) => {
+      for (const { tabId, paneId, status } of panes) {
+        const paneIds = users.panes.get(tabId);
+        if (status === undefined) paneIds?.delete(paneId);
+        if (status === "closed") {
+          paneIds?.delete(paneId);
+          queueMicrotask(() => void useTerminalState.connect(tabId, paneId));
         }
-        if (paneIds.size === 0) users.panes.delete(tabId);
+        if (paneIds?.size === 0) users.panes.delete(tabId);
       }
-      for (const tabId of [...users.files]) {
-        const tab = useSftpState.tabs().find(candidate => candidate.id === tabId);
-        if (!tab) users.files.delete(tabId);
-        if (tab?.status === "closed") {
+      for (const { tabId, status } of files) {
+        if (status === undefined) users.files.delete(tabId);
+        if (status === "closed") {
           users.files.delete(tabId);
-          void useSftpState.connect(tabId);
+          queueMicrotask(() => void useSftpState.connect(tabId));
         }
       }
-      for (const [ruleId, rule] of [...rules]) {
-        if (!useSshState.forward(ruleId)) rules.delete(ruleId);
-        if (!useForwardRulesState.status(ruleId) && !useForwardRulesState.busy[ruleId]) {
+      for (const { ruleId, rule, exists, stopped } of forwards) {
+        if (!exists) rules.delete(ruleId);
+        if (stopped) {
           rules.delete(ruleId);
-          void useForwardRulesState.start(rule);
+          queueMicrotask(() => void useForwardRulesState.start(rule));
         }
       }
       if (users.panes.size === 0 && users.files.size === 0 && rules.size === 0) {
@@ -238,17 +249,17 @@ function promptKey(profileId: string): string | null {
 export function watchVpnPrompts() {
   createRoot(() => {
     const asked = new Set<string>();
-    createEffect(on(() => useVpnState.file.profiles.map(profile => promptKey(profile.id)), keys => {
+    createEffect(() => useVpnState.file.profiles.map(profile => ({ profile, key: promptKey(profile.id) })), prompts => {
       for (const key of [...asked]) {
-        if (!keys.includes(key)) asked.delete(key);
+        if (!prompts.some(prompt => prompt.key === key)) asked.delete(key);
       }
-      useVpnState.file.profiles.forEach((profile, index) => {
-        const key = keys[index];
+      for (const { profile, key } of prompts) {
         if (key && !asked.has(key)) {
           asked.add(key);
-          void answerPrompt(profile, key);
+          // answerPrompt reads and writes state, which an effect callback can't do.
+          queueMicrotask(() => void answerPrompt(profile, key));
         }
-      });
-    }));
+      }
+    });
   });
 }

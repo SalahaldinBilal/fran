@@ -1,6 +1,6 @@
 import styles from "./QueryTab.module.scss";
 import {
-  Accessor, For, Match, Owner, Show, Switch, createEffect, createMemo, createRoot, createSignal, getOwner, on, onCleanup, runWithOwner,
+  Accessor, For, Match, Owner, Show, Switch, createEffect, createMemo, createRoot, createSignal, flush, getOwner, onCleanup, runWithOwner,
   untrack,
 } from "solid-js";
 import { Channel } from "@tauri-apps/api/core";
@@ -164,8 +164,10 @@ function QueryTab(props: QueryTabProps) {
       disposeResults = dispose;
       resultsOwner = getOwner();
     });
-    setOutcomes([]);
-    setResultEntries([]);
+    flush(() => {
+      setOutcomes([]);
+      setResultEntries([]);
+    });
   }
 
   function addOutcome(outcome: ShownOutcome) {
@@ -173,8 +175,10 @@ function QueryTab(props: QueryTabProps) {
     const entries = runWithOwner(resultsOwner, () =>
       outcome.resultSets.map((set, index) => createResultEntry(set, `Result ${count + index + 1}`)),
     ) ?? [];
-    setOutcomes(current => [...current, outcome]);
-    setResultEntries(current => [...current, ...entries]);
+    flush(() => {
+      setOutcomes(current => [...current, outcome]);
+      setResultEntries(current => [...current, ...entries]);
+    });
   }
 
   const runStats = createMemo<RunStat[]>(() => {
@@ -204,22 +208,22 @@ function QueryTab(props: QueryTabProps) {
     return typeof current === "number" ? resultEntries()[current] : undefined;
   });
 
-  createEffect(() => {
-    if (!running()) return;
+  createEffect(running, isRunning => {
+    if (!isRunning) return;
     const timer = setInterval(() => setNow(Date.now()), 100);
-    onCleanup(() => clearInterval(timer));
+    return () => clearInterval(timer);
   });
 
-  createEffect(() => {
-    if (props.active) queueMicrotask(() => editor?.focus());
+  createEffect(() => props.active, active => {
+    if (active) queueMicrotask(() => editor?.focus());
   });
 
   // The server can close an idle connection on its own (timeouts, restarts), which rolls the transaction back.
-  createEffect(on(transaction, state => {
+  createEffect(transaction, state => {
     if (state === "none") return;
     const timer = setInterval(() => void checkTransaction(), TRANSACTION_CHECK_MS);
-    onCleanup(() => clearInterval(timer));
-  }));
+    return () => clearInterval(timer);
+  });
 
   async function checkTransaction() {
     const id = contextId;
@@ -553,8 +557,8 @@ function QueryTab(props: QueryTabProps) {
         </Button>
         <div class={styles.Spacer} />
         <Show when={transaction() !== "none"}>
-          <div class={styles.Transaction} classList={{ [styles.TransactionFailed]: transaction() === "failed" }}>
-            <span class={styles.TransactionLabel} ref={element => tooltip(element, transactionHint)}>
+          <div class={[styles.Transaction, { [styles.TransactionFailed]: transaction() === "failed" }]}>
+            <span class={styles.TransactionLabel} ref={tooltip(transactionHint)}>
               <Layers size={13} />
               {transaction() === "failed" ? "Transaction failed" : "Transaction open"}
             </span>
@@ -600,8 +604,10 @@ function QueryTab(props: QueryTabProps) {
               scheduleSplit(api.text());
               if (props.active) api.focus();
               if (untrack(() => props.tab.runOnOpen)) {
-                workspace.clearRunOnOpen(props.sessionId, props.database, props.tab.id);
-                run("all");
+                queueMicrotask(() => {
+                  workspace.clearRunOnOpen(props.sessionId, props.database, props.tab.id);
+                  void run("all");
+                });
               }
             }}
           />
@@ -623,8 +629,7 @@ function QueryTab(props: QueryTabProps) {
               <For each={resultEntries()}>
                 {(entry, index) => (
                   <button
-                    class={styles.ResultTab}
-                    classList={{ [styles.Active]: view() === index() }}
+                    class={[styles.ResultTab, { [styles.Active]: view() === index() }]}
                     onClick={() => setView(index())}
                   >
                     <Table2 size={14} />
@@ -634,8 +639,7 @@ function QueryTab(props: QueryTabProps) {
                 )}
               </For>
               <button
-                class={styles.ResultTab}
-                classList={{ [styles.Active]: view() === "messages", [styles.HasError]: failed() }}
+                class={[styles.ResultTab, { [styles.Active]: view() === "messages", [styles.HasError]: failed() }]}
                 onClick={() => setView("messages")}
               >
                 {failed() ? <CircleAlert size={14} /> : <CircleCheck size={14} />}
@@ -658,7 +662,7 @@ function QueryTab(props: QueryTabProps) {
                       fallback={
                         <Show when={entry().readOnlyReason()}>
                           {reason => (
-                            <span class={styles.EditState} ref={element => tooltip(element, reason)}>
+                            <span class={styles.EditState} ref={tooltip(reason)}>
                               <Lock size={12} />
                               Read only
                             </span>
@@ -670,7 +674,7 @@ function QueryTab(props: QueryTabProps) {
                         <>
                           <span
                             class={styles.EditState}
-                            ref={element => tooltip(element, () => `Double-click a cell to edit. Changes are written to ${target().database}.${target().table}.`)}
+                            ref={tooltip(() => `Double-click a cell to edit. Changes are written to ${target().database}.${target().table}.`)}
                           >
                             <Pencil size={12} />
                             {target().table}
@@ -723,7 +727,7 @@ function QueryTab(props: QueryTabProps) {
                       <div class={styles.Stats}>
                         <For each={runStats()}>
                           {stat => (
-                            <span class={styles.Stat} ref={element => tooltip(element, () => stat.hint)}>
+                            <span class={styles.Stat} ref={tooltip(() => stat.hint)}>
                               <span class={styles.StatLabel}>{stat.label}</span>
                               <span class={styles.StatValue}>{stat.value}</span>
                             </span>
@@ -740,18 +744,17 @@ function QueryTab(props: QueryTabProps) {
                     <For each={outcomes()}>
                       {(outcome, index) => (
                         <div
-                          class={styles.Message}
-                          classList={{ [styles.Failed]: outcome.error !== null, [styles.InTransaction]: outcome.inTransaction }}
+                          class={[styles.Message, { [styles.Failed]: outcome.error !== null, [styles.InTransaction]: outcome.inTransaction }]}
                         >
                           {outcome.error ? <CircleAlert size={14} /> : <CircleCheck size={14} />}
                           <span class={styles.Index}>{index() + 1}</span>
-                          <span class={styles.Sql} ref={element => tooltip(element, () => outcome.sql)}>
+                          <span class={styles.Sql} ref={tooltip(() => outcome.sql)}>
                             {outcome.sql.replace(/\s+/g, " ")}
                           </span>
                           <span class={styles.MessageText}>{outcomeSummary(outcome)}</span>
                           <span
                             class={styles.Duration}
-                            ref={element => tooltip(element, () => `Server ${formatDuration(outcome.executionMs)}, fetch ${formatDuration(outcome.fetchMs)}`)}
+                            ref={tooltip(() => `Server ${formatDuration(outcome.executionMs)}, fetch ${formatDuration(outcome.fetchMs)}`)}
                           >
                             {formatDuration(outcome.executionMs)}
                             <Show when={outcome.fetchMs >= 1}>

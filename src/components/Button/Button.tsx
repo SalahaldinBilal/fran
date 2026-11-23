@@ -1,5 +1,5 @@
 import styles from "./Button.module.scss";
-import { JSX, splitProps } from "solid-js";
+import { JSX } from "@solidjs/web";
 import { tooltip } from "../Tooltip/Tooltip";
 
 export type ButtonVariant = "ghost" | "subtle" | "primary" | "danger";
@@ -20,24 +20,23 @@ export type ButtonProps = {
 };
 
 function Button(props: ButtonProps) {
-  const [local] = splitProps(props, ["variant", "size", "icon", "active", "tooltip"]);
+  const attachTooltip = tooltip(() => props.tooltip);
 
   return (
     <button
       ref={button => {
-        tooltip(button, () => local.tooltip);
+        attachTooltip(button);
         props.ref?.(button);
       }}
       type={props.type ?? "button"}
-      class={`${styles.Button} ${styles[local.variant ?? "ghost"]} ${props.class ?? ""}`}
-      classList={{
-        [styles.Small]: local.size === "sm",
-        [styles.Icon]: local.icon ?? false,
-        [styles.Active]: local.active ?? false,
-      }}
+      class={[styles.Button, styles[props.variant ?? "ghost"], props.class, {
+        [styles.Small]: props.size === "sm",
+        [styles.Icon]: props.icon ?? false,
+        [styles.Active]: props.active ?? false,
+      }]}
       style={props.style}
       disabled={props.disabled}
-      aria-label={local.icon ? local.tooltip : undefined}
+      aria-label={props.icon ? props.tooltip : undefined}
       onClick={event => props.onClick?.(event)}
     >
       {props.children}

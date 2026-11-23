@@ -18,16 +18,14 @@ function ColorSwatches(props: ColorSwatchesProps) {
   return (
     <div class={styles.Colors}>
       <button
-        class={`${styles.Swatch} ${styles.None}`}
-        classList={{ [styles.Selected]: props.value === null }}
+        class={[styles.Swatch, styles.None, { [styles.Selected]: props.value === null }]}
         aria-label="Default color"
         onClick={() => props.onChange(null)}
       />
       <For each={COLORS}>
         {color => (
           <button
-            class={styles.Swatch}
-            classList={{ [styles.Selected]: props.value === color }}
+            class={[styles.Swatch, { [styles.Selected]: props.value === color }]}
             style={{ "--swatch": color }}
             aria-label={color}
             onClick={() => props.onChange(color)}
@@ -35,12 +33,11 @@ function ColorSwatches(props: ColorSwatchesProps) {
         )}
       </For>
       <button
-        ref={element => tooltip(element, () => "Custom color")}
-        class={`${styles.Swatch} ${styles.Custom}`}
-        classList={{ [styles.Selected]: customColor() !== null }}
+        ref={tooltip(() => "Custom color")}
+        class={[styles.Swatch, styles.Custom, { [styles.Selected]: customColor() !== null }]}
         style={{ "--swatch": customColor() ?? undefined }}
         aria-label="Custom color"
-        aria-expanded={pickerAnchor() !== null}
+        aria-expanded={pickerAnchor() !== null ? "true" : "false"}
         onClick={event => setPickerAnchor(pickerAnchor() ? null : event.currentTarget)}
       >
         <Show when={customColor() === null}>

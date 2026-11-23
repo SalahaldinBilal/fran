@@ -70,11 +70,10 @@ function HostCard(props: HostCardProps) {
 
   return (
     <div
-      class={styles.Card}
-      classList={{ [styles.Filled]: filled() }}
+      class={[styles.Card, { [styles.Filled]: filled() }]}
       style={{ "--card-color": props.host.color ?? "var(--accent)" }}
       role="button"
-      tabIndex={0}
+      tabindex={0}
       aria-label={`${status()} ${props.host.label}`}
       onClick={() => activateHost(props.host)}
       onKeyDown={event => {
@@ -90,13 +89,13 @@ function HostCard(props: HostCardProps) {
           <Server size={18} />
         </ItemIcon>
         <div class={styles.Titles}>
-          <div class={styles.Name} ref={element => tooltip(element, () => props.host.label)}>{props.host.label}</div>
+          <div class={styles.Name} ref={tooltip(() => props.host.label)}>{props.host.label}</div>
           <div class={styles.Kind}>{kind()}</div>
         </div>
         <div class={styles.Tools} onClick={event => event.stopPropagation()}>
           <Show when={props.onGrab}>
             {grab => (
-              <span ref={element => tooltip(element, () => "Drag to reorder")} class={styles.Grip} onPointerDown={event => grab()(event)}>
+              <span ref={tooltip(() => "Drag to reorder")} class={styles.Grip} onPointerDown={event => grab()(event)}>
                 <GripVertical size={14} />
               </span>
             )}
@@ -123,7 +122,7 @@ function HostCard(props: HostCardProps) {
         </div>
       </div>
 
-      <div class={styles.Target} ref={element => tooltip(element, target)}>
+      <div class={styles.Target} ref={tooltip(target)}>
         <SquareTerminal size={14} />
         <span>{target()}</span>
       </div>

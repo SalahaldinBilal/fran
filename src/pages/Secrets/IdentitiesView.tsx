@@ -1,5 +1,5 @@
 import styles from "./Secrets.module.scss";
-import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on } from "solid-js";
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal, snapshot, untrack } from "solid-js";
 import { KeyRound, Lock, Pencil, Plus, ShieldCheck, Trash2, User } from "@core/icons";
 import useSshState from "@core/states/sshState";
 import usePromptState from "@core/states/promptState";
@@ -40,16 +40,18 @@ function IdentityModal(props: { identity: Identity | null, show: boolean, onClos
   const [socket, setSocket] = createSignal("");
   const [busy, setBusy] = createSignal(false);
 
-  createEffect(on(() => props.show, show => {
-    if (!show) return;
-    const identity = props.identity;
+  createEffect(() => (props.show
+    ? { identity: props.identity, firstKey: untrack(() => ssh.file.keys[0]?.id ?? null) }
+    : null), opened => {
+    if (!opened) return;
+    const identity = snapshot(opened.identity);
     setLabel(identity?.label ?? "");
     setUser(identity?.user ?? "");
-    setKind(identity?.auth.kind ?? (ssh.file.keys.length > 0 ? "key" : "agent"));
-    setKeyId(identity?.auth.kind === "key" ? identity.auth.keyId : ssh.file.keys[0]?.id ?? null);
+    setKind(identity?.auth.kind ?? (opened.firstKey ? "key" : "agent"));
+    setKeyId(identity?.auth.kind === "key" ? identity.auth.keyId : opened.firstKey);
     setSocket(identity?.auth.kind === "agent" ? identity.auth.socket : "");
     void secrets.reset(identity ? { kind: "identity", id: identity.id } : null, identity?.secretRefs);
-  }));
+  });
 
   const userFromSecret = createMemo(() => secrets.refs.editor.get("user") !== undefined);
   const canSave = createMemo(() => !busy() && (user().trim() !== "" || userFromSecret()));

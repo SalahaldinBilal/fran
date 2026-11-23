@@ -1,5 +1,5 @@
 import styles from "./Secrets.module.scss";
-import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, snapshot } from "solid-js";
 import { Globe, Pencil, Plus, Trash2 } from "@core/icons";
 import useSshState from "@core/states/sshState";
 import usePromptState from "@core/states/promptState";
@@ -36,9 +36,9 @@ function ProxyModal(props: { proxy: Proxy | null, show: boolean, onClose: () => 
   const [user, setUser] = createSignal("");
   const [busy, setBusy] = createSignal(false);
 
-  createEffect(on(() => props.show, show => {
-    if (!show) return;
-    const proxy = props.proxy;
+  createEffect(() => (props.show ? { proxy: props.proxy } : null), opened => {
+    if (!opened) return;
+    const proxy = snapshot(opened.proxy);
     setLabel(proxy?.label ?? "");
     setKind(proxy?.kind ?? "socks5");
     setHost(proxy?.host ?? "");
@@ -46,7 +46,7 @@ function ProxyModal(props: { proxy: Proxy | null, show: boolean, onClose: () => 
     setLogin((proxy?.user ?? "") !== "");
     setUser(proxy?.user ?? "");
     void secrets.reset(proxy ? { kind: "proxy", id: proxy.id } : null, proxy?.secretRefs);
-  }));
+  });
 
   const hostFromSecret = createMemo(() => secrets.refs.editor.get("host") !== undefined);
   const canSave = createMemo(() => !busy() && (host().trim() !== "" || hostFromSecret()));

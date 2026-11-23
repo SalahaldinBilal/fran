@@ -1,5 +1,6 @@
 import styles from "./Input.module.scss";
-import { JSX, Show, createMemo, createSignal, onMount } from "solid-js";
+import { Show, createMemo, createSignal, onSettled } from "solid-js";
+import { JSX } from "@solidjs/web";
 import { X } from "@core/icons";
 import { tooltip } from "../Tooltip/Tooltip";
 
@@ -31,7 +32,7 @@ function Input(props: InputProps) {
 
   const canClear = createMemo(() => (props.clearable ?? false) && String(props.value) !== "" && !props.disabled && !props.readOnly);
 
-  onMount(() => {
+  onSettled(() => {
     if (props.autofocus) input.focus();
   });
 
@@ -52,12 +53,11 @@ function Input(props: InputProps) {
 
   return (
     <div
-      class={`${styles.Input} ${props.class ?? ""}`}
-      classList={{
+      class={[styles.Input, props.class, {
         [styles.Focused]: focused(),
         [styles.Disabled]: props.disabled ?? false,
         [styles.Mono]: props.mono ?? false,
-      }}
+      }]}
       style={props.style}
       onMouseDown={event => {
         if (event.target !== input) {
@@ -76,10 +76,10 @@ function Input(props: InputProps) {
         value={props.value}
         placeholder={props.placeholder}
         disabled={props.disabled}
-        readOnly={props.readOnly}
+        readonly={props.readOnly}
         min={props.min}
         max={props.max}
-        spellcheck={false}
+        spellcheck="false"
         autocomplete="off"
         onInput={event => props.onValue?.(event.currentTarget.value)}
         onFocus={() => setFocused(true)}
@@ -94,9 +94,9 @@ function Input(props: InputProps) {
         <button
           type="button"
           class={styles.Clear}
-          tabIndex={-1}
+          tabindex={-1}
           aria-label="Clear"
-          ref={element => tooltip(element, () => "Clear")}
+          ref={tooltip(() => "Clear")}
           onClick={clear}
         >
           <X size={12} />

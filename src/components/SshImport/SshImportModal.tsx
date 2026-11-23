@@ -1,5 +1,5 @@
 import styles from "./SshImport.module.scss";
-import { Match, Switch, createEffect, createMemo, createSignal, on } from "solid-js";
+import { Match, Switch, createEffect, createMemo, createSignal } from "solid-js";
 import { CircleAlert, FileX } from "@core/icons";
 import useSshImportState from "@core/states/sshImportState";
 import useToastState from "@core/states/toastState";
@@ -18,9 +18,9 @@ function SshImportModal() {
   const importer = createSshImport();
   const [running, setRunning] = createSignal(false);
 
-  createEffect(on(dialog.shown, shown => {
+  createEffect(dialog.shown, shown => {
     if (shown) void importer.load();
-  }));
+  });
 
   const count = createMemo(() => importer.picked().size);
   const importLabel = createMemo(() => `Import ${plural(count(), "host")}`);

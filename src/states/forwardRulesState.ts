@@ -1,6 +1,6 @@
-import { createRoot, createSignal } from "solid-js";
-import { createStore, produce, reconcile } from "solid-js/store";
+import { createRoot, createSignal, createStore, reconcile } from "solid-js";
 import { listen } from "@tauri-apps/api/event";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { withConnectPrompts } from "@core/helpers/connectFlow";
 import { ForwardRule, RuleForwardInfo, RuleStopped } from "@core/types";
@@ -11,8 +11,10 @@ type RuleEditorRequest = { rule: ForwardRule | null, hostId?: string };
 
 function useForwardRulesStateInner() {
   const { pushToast, pushError } = useToastState;
-  const [running, setRunning] = createStore<Record<string, RuleForwardInfo>>({});
-  const [busy, setBusy] = createStore<Record<string, boolean>>({});
+  const [running, writeRunning] = createStore<Record<string, RuleForwardInfo>>({});
+  const setRunning = immediateWrite(writeRunning);
+  const [busy, writeBusy] = createStore<Record<string, boolean>>({});
+  const setBusy = immediateWrite(writeBusy);
   const [editorRequest, setEditorRequest] = createSignal<RuleEditorRequest | null>(null);
 
   async function load() {
@@ -26,25 +28,33 @@ function useForwardRulesStateInner() {
 
   async function start(rule: ForwardRule) {
     if (busy[rule.id]) return;
-    setBusy(rule.id, true);
+    setBusy(state => {
+      state[rule.id] = true;
+    });
     try {
       const label = useSshState.host(rule.hostId)?.label ?? rule.label;
       const info = await withConnectPrompts(
         { connectionId: null, connectionName: label },
         secrets => safeInvoke("start_forward_rule", { id: rule.id, secrets }),
       );
-      if (info) setRunning(info.ruleId, info);
+      if (info) {
+        setRunning(state => {
+          state[info.ruleId] = info;
+        });
+      }
     } catch (error) {
       pushError(error);
     } finally {
-      setBusy(rule.id, false);
+      setBusy(state => {
+        state[rule.id] = false;
+      });
     }
   }
 
   async function stop(ruleId: string) {
     try {
       await safeInvoke("stop_forward_rule", { id: ruleId });
-      setRunning(produce(all => { delete all[ruleId]; }));
+      setRunning(all => { delete all[ruleId]; });
     } catch (error) {
       pushError(error);
     }
@@ -57,7 +67,7 @@ function useForwardRulesStateInner() {
 
   listen<RuleStopped>("forward-rule-stopped", event => {
     const { ruleId, reason } = event.payload;
-    setRunning(produce(all => { delete all[ruleId]; }));
+    setRunning(all => { delete all[ruleId]; });
     const label = useSshState.forward(ruleId)?.label ?? "A port forward";
     pushToast(`${label} stopped. ${reason ?? "The SSH connection closed."}`, "error");
   });

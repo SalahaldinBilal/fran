@@ -1,6 +1,6 @@
 import styles from "./ColorPicker.module.scss";
-import { JSX, createMemo, createSignal, onMount } from "solid-js";
-import { Portal } from "solid-js/web";
+import { createMemo, createSignal, onSettled, untrack } from "solid-js";
+import { JSX, Portal } from "@solidjs/web";
 import { makeEventListener } from "@solid-primitives/event-listener";
 import { keepInViewport } from "@core/helpers/viewport";
 import Input from "@core/components/Input/Input";
@@ -50,14 +50,15 @@ function hexToHsv(hex: string): Hsv | null {
 
 function ColorPicker(props: ColorPickerProps) {
   // Kept as HSV so hue survives dragging to grey or black.
-  const [hsv, setHsv] = createSignal<Hsv>(hexToHsv(props.value) ?? { h: 0, s: 0, v: 1 });
-  const [hexText, setHexText] = createSignal(props.value);
+  const initial = untrack(() => props.value);
+  const [hsv, setHsv] = createSignal<Hsv>(hexToHsv(initial) ?? { h: 0, s: 0, v: 1 });
+  const [hexText, setHexText] = createSignal(initial);
   const hue = createMemo(() => hsvToHex({ h: hsv().h, s: 1, v: 1 }));
   const color = createMemo(() => hsvToHex(hsv()));
-  const rect = props.anchor.getBoundingClientRect();
+  const rect = untrack(() => props.anchor.getBoundingClientRect());
   let popover!: HTMLDivElement;
 
-  onMount(() => {
+  onSettled(() => {
     keepInViewport(popover);
     popover.focus();
   });
@@ -131,7 +132,7 @@ function ColorPicker(props: ColorPickerProps) {
         ref={popover}
         class={styles.Popover}
         style={{ left: `${rect.left}px`, top: `${rect.bottom + 8}px`, "--hue": hue(), "--color": color() }}
-        tabIndex={-1}
+        tabindex={-1}
         role="dialog"
         aria-label="Custom color"
         onKeyDown={event => {
@@ -143,7 +144,7 @@ function ColorPicker(props: ColorPickerProps) {
       >
         <div
           class={styles.Plane}
-          tabIndex={0}
+          tabindex={0}
           role="slider"
           aria-label="Saturation and brightness"
           aria-valuetext={`Saturation ${Math.round(hsv().s * 100)}%, brightness ${Math.round(hsv().v * 100)}%`}
@@ -154,7 +155,7 @@ function ColorPicker(props: ColorPickerProps) {
         </div>
         <div
           class={styles.Hue}
-          tabIndex={0}
+          tabindex={0}
           role="slider"
           aria-label="Hue"
           aria-valuemin={0}

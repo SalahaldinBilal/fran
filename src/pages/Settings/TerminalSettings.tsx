@@ -41,11 +41,11 @@ function TerminalLogs() {
   const [error, setError] = createSignal<string | null>(null);
   const [viewing, setViewing] = createSignal<Viewing | null>(null);
 
-  async function load() {
+  async function load(days = settings.terminal.logDays) {
     setError(null);
     try {
       const to = Date.now();
-      const from = to - settings.terminal.logDays * DAY_MS;
+      const from = to - days * DAY_MS;
       setSessions(await safeInvoke("list_terminal_logs", { from, to }));
       setSize(await safeInvoke("get_terminal_log_size"));
     } catch (failure) {
@@ -54,8 +54,8 @@ function TerminalLogs() {
     }
   }
 
-  createEffect(() => {
-    if (!useLockState.locked()) void load();
+  createEffect(() => (useLockState.locked() ? null : settings.terminal.logDays), days => {
+    if (days !== null) void load(days);
   });
 
   async function view(session: TerminalLogSession) {

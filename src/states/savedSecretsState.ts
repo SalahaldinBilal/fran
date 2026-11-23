@@ -1,5 +1,5 @@
-import { createEffect, createRoot, createSignal } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createEffect, createRoot, createSignal, createStore, reconcile } from "solid-js";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { withUserCheck } from "@core/helpers/revealSecret";
 import { SavedSecret } from "@core/types";
@@ -7,8 +7,10 @@ import useLockState from "./lockState";
 
 // What's in the vault, and while the passwords are unlocked, their values. Rust owns how long that lasts.
 function useSavedSecretsStateInner() {
-  const [secrets, setSecrets] = createStore<SavedSecret[]>([]);
-  const [values, setValues] = createStore<Record<string, string>>({});
+  const [secrets, writeSecrets] = createStore<SavedSecret[]>([]);
+  const setSecrets = immediateWrite(writeSecrets);
+  const [values, writeValues] = createStore<Record<string, string>>({});
+  const setValues = immediateWrite(writeValues);
   const [unlockedUntil, setUnlockedUntil] = createSignal<number | null>(null);
   const [loadError, setLoadError] = createSignal<unknown>(null);
   let expiry: ReturnType<typeof setTimeout> | undefined;
@@ -25,11 +27,12 @@ function useSavedSecretsStateInner() {
   function forget() {
     clearTimeout(expiry);
     setUnlockedUntil(null);
-    setValues(reconcile({}));
+    hideValues();
   }
 
+  // Not flushed, since this also runs from effects and nothing reads the values right after.
   function hideValues() {
-    setValues(reconcile({}));
+    writeValues(reconcile({}));
   }
 
   function startTimer(milliseconds: number) {
@@ -68,8 +71,8 @@ function useSavedSecretsStateInner() {
     await fetchValues().catch(forget);
   }
 
-  createEffect(() => {
-    if (useLockState.locked()) forget();
+  createEffect(useLockState.locked, locked => {
+    if (locked) forget();
   });
 
   return { secrets, values, unlockedUntil, loadError, load, unlock, lock, resume, hideValues };

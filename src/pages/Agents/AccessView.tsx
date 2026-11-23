@@ -1,5 +1,5 @@
 import styles from "./Agents.module.scss";
-import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, onSettled } from "solid-js";
 import { ChevronDown, Database, Info, Plus, RefreshCw, Search, ShieldAlert, TriangleAlert } from "@core/icons";
 import { AgentAccess, AgentMode, ConnectionProfile, DatabaseRule } from "@core/types";
 import { describeConnection, withDatabaseModule } from "@core/databases";
@@ -64,7 +64,7 @@ function DatabaseRow(props: DatabaseRowProps) {
   const writes = createMemo(() => choice() === "write" || (choice() === "default" && props.access.allDatabases && props.access.mode === "write"));
 
   return (
-    <div class={styles.DbRow} classList={{ [styles.DbWrite]: writes() }}>
+    <div class={[styles.DbRow, { [styles.DbWrite]: writes() }]}>
       <div class={styles.DbName}>
         <Show when={writes()}>
           <TriangleAlert size={13} />
@@ -139,7 +139,7 @@ function DatabasePanel(props: DatabasePanelProps) {
     void agent.listDatabases(props.profile, refresh);
   }
 
-  onMount(() => load());
+  onSettled(() => queueMicrotask(load));
 
   function addByName(name: string) {
     setExtra(names => [...names, name]);
@@ -281,7 +281,7 @@ function AccessRow(props: { profile: ConnectionProfile }) {
           <span class={styles.Badge} style={{ "--badge": props.profile.color ?? undefined }}>{initial()}</span>
           <div class={styles.ConnectionText}>
             <div class={styles.ConnectionName}>{props.profile.name}</div>
-            <div class={styles.ConnectionHost} ref={element => tooltip(element, () => details().target)}>{details().target}</div>
+            <div class={styles.ConnectionHost} ref={tooltip(() => details().target)}>{details().target}</div>
           </div>
         </div>
         <span class={styles.Kind}>{details().kind}</span>
@@ -293,9 +293,8 @@ function AccessRow(props: { profile: ConnectionProfile }) {
         <Show when={shared()} fallback={<span class={styles.Off}>Not shared</span>}>
           <button
             type="button"
-            class={styles.DbToggle}
-            classList={{ [styles.Open]: open() }}
-            aria-expanded={open()}
+            class={[styles.DbToggle, { [styles.Open]: open() }]}
+            aria-expanded={open() ? "true" : "false"}
             onClick={() => setOpen(!open())}
           >
             <Database size={14} />

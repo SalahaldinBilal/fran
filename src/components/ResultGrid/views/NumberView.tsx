@@ -104,17 +104,16 @@ function NumberView(props: NumberViewProps) {
     <div class={styles.View}>
       <div class={styles.ValueRow}>
         <input
-          class={styles.BigInput}
-          classList={{ [styles.Invalid]: problem() !== null }}
+          class={[styles.BigInput, { [styles.Invalid]: problem() !== null }]}
           value={props.value}
           placeholder={props.editable ? "Type a number" : "NULL"}
-          readOnly={!props.editable}
-          spellcheck={false}
+          readonly={!props.editable}
+          spellcheck="false"
           autocomplete="off"
-          inputMode="decimal"
-          ref={input => {
-            if (props.editable) queueMicrotask(() => input.focus());
-          }}
+          inputmode="decimal"
+          ref={input => queueMicrotask(() => {
+            if (props.editable) input.focus();
+          })}
           onInput={event => props.onChange(event.currentTarget.value)}
           onKeyDown={event => {
             if (!integer() || !props.editable) return;
@@ -137,11 +136,11 @@ function NumberView(props: NumberViewProps) {
       </div>
 
       <Show when={problem() ?? rangeNote()}>
-        {note => <div class={styles.Note} classList={{ [styles.NoteProblem]: problem() !== null }}>{note()}</div>}
+        {note => <div class={[styles.Note, { [styles.NoteProblem]: problem() !== null }]}>{note()}</div>}
       </Show>
 
       <Show when={bitCells().length > 0}>
-        <div class={styles.Bits} classList={{ [styles.ReadOnly]: !props.editable }}>
+        <div class={[styles.Bits, { [styles.ReadOnly]: !props.editable }]}>
           <For each={bitCells()}>
             {byte => (
               <div class={styles.BitByte}>
@@ -151,10 +150,9 @@ function NumberView(props: NumberViewProps) {
                       const set = createMemo(() => ((whole() ?? 0n) >> BigInt(index)) & 1n);
                       return (
                         <button
-                          class={styles.Bit}
-                          classList={{ [styles.BitSet]: set() === 1n }}
-                          ref={element => tooltip(element, () => `Bit ${index}`)}
-                          tabIndex={props.editable ? 0 : -1}
+                          class={[styles.Bit, { [styles.BitSet]: set() === 1n }]}
+                          ref={tooltip(() => `Bit ${index}`)}
+                          tabindex={props.editable ? 0 : -1}
                           onClick={() => toggleBit(index)}
                         >
                           {set().toString()}

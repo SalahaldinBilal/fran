@@ -1,5 +1,5 @@
 import styles from "./ValueViewer.module.scss";
-import { Match, Show, Switch, createComputed, createMemo, createSignal, on, onCleanup } from "solid-js";
+import { Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Copy } from "@core/icons";
 import { ColumnChoices, ColumnMeta } from "@core/types";
 import { copyText } from "@core/helpers/clipboard";
@@ -52,10 +52,25 @@ function viewKind(column: ColumnMeta | null, value: string | null): ViewKind {
 }
 
 function ValueViewer(props: ValueViewerProps) {
-  const [draft, setDraft] = createSignal("");
-  const [jsonMode, setJsonMode] = createSignal<JsonMode>("formatted");
-  const [binaryMode, setBinaryMode] = createSignal<BinaryMode>("bytes");
-  const [choices, setChoices] = createSignal<ColumnChoices | null | "loading">(null);
+  function choiceSource() {
+    const column = props.column;
+    const sessionId = props.sessionId;
+    if (!props.cell || !column || !sessionId || !column.hasChoices || !column.database || !column.table || !column.sourceName) return null;
+    return { sessionId, database: column.database, table: column.table, column: column.sourceName };
+  }
+
+  // These start over for each cell, and can then be changed until the next one.
+  const [jsonMode, setJsonMode] = createSignal<JsonMode>((): JsonMode => {
+    props.cell;
+    return "formatted";
+  });
+  const [binaryMode, setBinaryMode] = createSignal<BinaryMode>((): BinaryMode => {
+    props.cell;
+    return "bytes";
+  });
+  const [choices, setChoices] = createSignal<ColumnChoices | null | "loading">(() => {
+    return choiceSource() ? "loading" : null;
+  });
   const [slowChoices, setSlowChoices] = createSignal(false);
   let editor: CodeViewApi | undefined;
   let choicesRequest = 0;
@@ -76,21 +91,14 @@ function ValueViewer(props: ValueViewerProps) {
     return viewKind(props.column, props.value);
   });
 
-  function loadChoices() {
+  function loadChoices(source: ReturnType<typeof choiceSource>) {
     const request = ++choicesRequest;
-    const column = props.column;
-    const sessionId = props.sessionId;
-    if (!props.cell || !column || !sessionId || !column.hasChoices
-      || !column.database || !column.table || !column.sourceName) {
-      setChoices(null);
-      return;
-    }
+    if (!source) return;
 
-    setChoices("loading");
     setSlowChoices(false);
     clearTimeout(slowTimer);
     slowTimer = setTimeout(() => request === choicesRequest && setSlowChoices(true), SLOW_CHOICES_MS);
-    safeInvoke("get_column_choices", { sessionId, database: column.database, table: column.table, column: column.sourceName })
+    safeInvoke("get_column_choices", source)
       .then(
         result => request === choicesRequest && setChoices(result),
         () => request === choicesRequest && setChoices(null),
@@ -109,12 +117,12 @@ function ValueViewer(props: ValueViewerProps) {
     }
   });
 
-  createComputed(on(() => props.cell, () => {
-    setJsonMode("formatted");
-    setBinaryMode("bytes");
-    loadChoices();
-    setDraft(initialText());
-  }));
+  const [draft, setDraft] = createSignal(() => {
+    props.cell;
+    return initialText();
+  });
+
+  createEffect(choiceSource, source => loadChoices(source));
 
   const subtitle = createMemo(() => {
     if (!props.cell || !props.column) return undefined;

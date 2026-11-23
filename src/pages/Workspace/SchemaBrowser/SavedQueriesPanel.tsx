@@ -64,7 +64,7 @@ function SavedQueriesPanel(props: { sessionId: string }) {
   function QueryRow(rowProps: { query: SavedQuery }) {
     return (
       <div
-        ref={element => tooltip(element, () => rowProps.query.sql)}
+        ref={tooltip(() => rowProps.query.sql)}
         class={styles.QueryRow}
         onDblClick={() => workspace.openSavedQuery(props.sessionId, rowProps.query)}
         onContextMenu={event => openContextMenu(event, [

@@ -1,7 +1,7 @@
 import styles from "./Modal.module.scss";
-import { JSX, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
-import { Portal } from "solid-js/web";
-import { Transition } from "solid-transition-group";
+import { Show, children, createEffect, createMemo, createSignal, onSettled } from "solid-js";
+import { JSX, Portal } from "@solidjs/web";
+import { createSwitchTransition } from "@solid-primitives/transition-group";
 import { makeEventListener } from "@solid-primitives/event-listener";
 import { X } from "@core/icons";
 import Button from "../Button/Button";
@@ -23,62 +23,71 @@ function Modal(props: ModalProps) {
   const [layer, setLayer] = createSignal(0);
   const backdropStyle = createMemo(() => ({ "z-index": `calc(var(--z-modal) + ${layer()})` }));
 
-  createEffect(() => {
-    if (!props.show) return;
-    setLayer(useModalState.nextLayer());
-    onCleanup(useModalState.track());
+  onSettled(() => useModalState.track(() => props.show));
+
+  createEffect(() => props.show, show => {
+    if (!show) return;
+    const { layer: next, release } = useModalState.nextLayer();
+    setLayer(next);
+    return release;
   });
 
   makeEventListener(window, "keydown", event => {
     if (props.show && dismissible() && event.key === "Escape") props.onHide?.();
   });
 
-  return (
-    <Portal>
-      <Transition
-        onBeforeEnter={element => element.classList.add(styles.Entering)}
-        onEnter={(element, done) => element.addEventListener("animationend", done, { once: true })}
-        onAfterEnter={element => element.classList.remove(styles.Entering)}
-        onBeforeExit={element => element.classList.add(styles.Exiting)}
-        onExit={(element, done) => element.addEventListener("animationend", done, { once: true })}
+  const dialog = children(() => (
+    <Show when={props.show}>
+      <div
+        class={styles.Backdrop}
+        style={backdropStyle()}
+        onMouseDown={event => {
+          if (event.target === event.currentTarget && dismissible()) props.onHide?.();
+        }}
       >
-        <Show when={props.show}>
-          <div
-            class={styles.Backdrop}
-            style={backdropStyle()}
-            onMouseDown={event => {
-              if (event.target === event.currentTarget && dismissible()) props.onHide?.();
-            }}
-          >
-            <div
-              class={styles.Dialog}
-              role="dialog"
-              aria-modal="true"
-              style={{ width: props.width ? `${props.width}px` : undefined }}
-            >
-              <div class={styles.Header}>
-                <div class={styles.Titles}>
-                  <div class={styles.Title}>{props.title}</div>
-                  <Show when={props.subtitle}>
-                    <div class={styles.Subtitle}>{props.subtitle}</div>
-                  </Show>
-                </div>
-                <Show when={dismissible()}>
-                  <Button icon size="sm" tooltip="Close" onClick={() => props.onHide?.()}>
-                    <X size={16} />
-                  </Button>
-                </Show>
-              </div>
-              <div class={styles.Content}>{props.children}</div>
-              <Show when={props.footer}>
-                <div class={styles.Footer}>{props.footer}</div>
+        <div
+          class={styles.Dialog}
+          role="dialog"
+          aria-modal="true"
+          style={{ width: props.width ? `${props.width}px` : undefined }}
+        >
+          <div class={styles.Header}>
+            <div class={styles.Titles}>
+              <div class={styles.Title}>{props.title}</div>
+              <Show when={props.subtitle}>
+                <div class={styles.Subtitle}>{props.subtitle}</div>
               </Show>
             </div>
+            <Show when={dismissible()}>
+              <Button icon size="sm" tooltip="Close" onClick={() => props.onHide?.()}>
+                <X size={16} />
+              </Button>
+            </Show>
           </div>
-        </Show>
-      </Transition>
-    </Portal>
-  );
+          <div class={styles.Content}>{props.children}</div>
+          <Show when={props.footer}>
+            <div class={styles.Footer}>{props.footer}</div>
+          </Show>
+        </div>
+      </div>
+    </Show>
+  ));
+
+  const rendered = createSwitchTransition(() => dialog.toArray()[0] as HTMLElement | undefined, {
+    onEnter(element, done) {
+      element.classList.add(styles.Entering);
+      element.addEventListener("animationend", () => {
+        element.classList.remove(styles.Entering);
+        done();
+      }, { once: true });
+    },
+    onExit(element, done) {
+      element.classList.add(styles.Exiting);
+      element.addEventListener("animationend", done, { once: true });
+    },
+  });
+
+  return <Portal>{rendered()}</Portal>;
 }
 
 export default Modal;

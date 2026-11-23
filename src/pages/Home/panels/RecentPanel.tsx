@@ -84,6 +84,12 @@ function DatabaseItem(props: { item: Extract<RecentItem, { kind: "database" }> }
   );
 }
 
+const recentKey = (item: RecentItem) => (item.kind === "ssh" ? `ssh:${item.host.id}` : `database:${item.profile.id}`);
+
+function RecentRow(props: { item: RecentItem }) {
+  return <>{props.item.kind === "ssh" ? <HostItem item={props.item} /> : <DatabaseItem item={props.item} />}</>;
+}
+
 function RecentPanel(props: PanelProps) {
   const { settings } = useSettingsState;
   const connections = useConnectionsState;
@@ -114,8 +120,8 @@ function RecentPanel(props: PanelProps) {
         }
       >
         <div class={shared.Rows}>
-          <For each={items()}>
-            {item => (item.kind === "ssh" ? <HostItem item={item} /> : <DatabaseItem item={item} />)}
+          <For each={items()} keyed={recentKey}>
+            {item => <RecentRow item={item()} />}
           </For>
         </div>
       </Show>

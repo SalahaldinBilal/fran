@@ -1,5 +1,5 @@
 import styles from "./SnippetEditor.module.scss";
-import { Show, createEffect, createMemo, createSignal, on } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, snapshot } from "solid-js";
 import { Trash2 } from "@core/icons";
 import useSnippetsState from "@core/states/snippetsState";
 import usePromptState from "@core/states/promptState";
@@ -23,12 +23,13 @@ function SnippetEditor() {
   const title = createMemo(() => (editing() ? `Edit ${editing()?.label}` : "New snippet"));
   const saveLabel = createMemo(() => (saving() ? "Saving" : editing() ? "Save" : "Add snippet"));
 
-  createEffect(on(snippets.editorRequest, request => {
+  createEffect(snippets.editorRequest, request => {
     if (!request) return;
-    setLabel(request.snippet?.label ?? "");
-    setCommand(request.snippet?.command ?? "");
-    setConfirm(request.snippet?.confirm ?? false);
-  }));
+    const snippet = snapshot(request.snippet);
+    setLabel(snippet?.label ?? "");
+    setCommand(snippet?.command ?? "");
+    setConfirm(snippet?.confirm ?? false);
+  });
 
   async function save() {
     setSaving(true);
@@ -90,7 +91,7 @@ function SnippetEditor() {
             class={styles.Command}
             rows={4}
             value={command()}
-            spellcheck={false}
+            spellcheck="false"
             placeholder="sudo systemctl restart api"
             onInput={event => setCommand(event.currentTarget.value)}
           />

@@ -1,5 +1,5 @@
 import styles from "./DatabaseTabs.module.scss";
-import { For, Match, Show, Switch, createMemo, onMount } from "solid-js";
+import { For, Match, Show, Switch, createMemo, onSettled } from "solid-js";
 import { Database, FileCode, Gauge, PencilRuler, Plus, SquareTerminal, X } from "@core/icons";
 import useWorkspaceState, { DatabaseTab } from "@core/states/workspaceState";
 import useSavedQueriesState from "@core/states/savedQueriesState";
@@ -57,9 +57,11 @@ function DatabaseTabs(props: DatabaseTabsProps) {
     })),
   );
   // Panels keep their DOM order when tabs move, since moving a node resets its scroll.
-  const panelTabs = createMemo<DatabaseTab[]>(previous => keepOrder(previous, scope()?.tabs ?? []), []);
+  const panelTabs = createMemo<DatabaseTab[]>((previous = []) => keepOrder(previous, scope()?.tabs ?? []));
 
-  onMount(() => workspace.ensureCatalog(props.sessionId, props.database));
+  onSettled(() => {
+    queueMicrotask(() => workspace.ensureCatalog(props.sessionId, props.database));
+  });
 
   function newQuery() {
     workspace.newQueryTab(props.sessionId, props.database);
@@ -103,7 +105,7 @@ function DatabaseTabs(props: DatabaseTabsProps) {
   return (
     <div class={styles.DatabaseTabs}>
       <div class={styles.Bar}>
-        <div class={styles.DatabaseName} ref={element => tooltip(element, () => props.database)}>
+        <div class={styles.DatabaseName} ref={tooltip(() => props.database)}>
           <Database size={14} />
           <span>{props.database}</span>
         </div>
@@ -147,7 +149,7 @@ function DatabaseTabs(props: DatabaseTabsProps) {
         >
           <For each={panelTabs()}>
             {tab => (
-              <div class={styles.Panel} classList={{ [styles.Hidden]: scope()?.activeTabId !== tab.id }}>
+              <div class={[styles.Panel, { [styles.Hidden]: scope()?.activeTabId !== tab.id }]}>
                 <Switch>
                   <Match when={tab.kind === "query" && tab}>
                     {query => (

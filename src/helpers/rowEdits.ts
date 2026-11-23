@@ -1,5 +1,5 @@
-import { Accessor, createComputed, createMemo, on } from "solid-js";
-import { createStore, produce, reconcile } from "solid-js/store";
+import { Accessor, createMemo, createStore } from "solid-js";
+import { immediateWrite } from "./immediateWrite";
 import { BatchOutcome, ColumnMeta, ResultSet, RowChange } from "@core/types";
 import type { GridEditing } from "@core/components/ResultGrid/ResultGrid";
 import { safeInvoke } from "./safeInvoke";
@@ -38,9 +38,11 @@ function emptyEdits(): Edits {
 
 // Edits reset whenever the source result changes.
 export function createRowEdits(source: Accessor<ResultSet | null>): RowEdits {
-  const [edits, setEdits] = createStore<Edits>(emptyEdits());
-
-  createComputed(on(source, () => setEdits(reconcile(emptyEdits())), { defer: true }));
+  const [edits, writeEdits] = createStore<Edits>(() => {
+    source();
+    return emptyEdits();
+  }, emptyEdits());
+  const setEdits = immediateWrite(writeEdits);
 
   const originalCount = createMemo(() => source()?.rows.length ?? 0);
 
@@ -70,47 +72,58 @@ export function createRowEdits(source: Accessor<ResultSet | null>): RowEdits {
     usesDefault: (row, column) => row >= originalCount() && !edits.inserted[row - originalCount()]?.touched[column],
     setCell: (row, column, value) => {
       if (row >= originalCount()) {
-        setEdits("inserted", row - originalCount(), produce(inserted => {
-          inserted.values[column] = value;
-          inserted.touched[column] = true;
-        }));
+        const position = row - originalCount();
+        setEdits(draft => {
+          draft.inserted[position].values[column] = value;
+          draft.inserted[position].touched[column] = true;
+        });
         return;
       }
 
       const original = source()?.rows[row]?.[column] ?? null;
-      setEdits("cells", produce(cells => {
-        cells[row] ??= {};
-        if (value === original) delete cells[row][column];
-        else cells[row][column] = value;
-      }));
+      setEdits(draft => {
+        draft.cells[row] ??= {};
+        if (value === original) delete draft.cells[row][column];
+        else draft.cells[row][column] = value;
+      });
     },
     revertCell: (row, column) => {
       if (row >= originalCount()) {
-        setEdits("inserted", row - originalCount(), produce(inserted => {
-          inserted.values[column] = null;
-          delete inserted.touched[column];
-        }));
+        const position = row - originalCount();
+        setEdits(draft => {
+          draft.inserted[position].values[column] = null;
+          delete draft.inserted[position].touched[column];
+        });
         return;
       }
-      setEdits("cells", produce(cells => {
-        if (cells[row]) delete cells[row][column];
-      }));
+      setEdits(draft => {
+        if (draft.cells[row]) delete draft.cells[row][column];
+      });
     },
     deleteRow: row => {
       if (row >= originalCount()) {
-        setEdits("inserted", list => list.filter((_, index) => index !== row - originalCount()));
+        const position = row - originalCount();
+        setEdits(draft => {
+          draft.inserted.splice(position, 1);
+        });
         return;
       }
-      setEdits("deleted", row, true);
+      setEdits(draft => {
+        draft.deleted[row] = true;
+      });
     },
     restoreRow: row => {
-      setEdits("deleted", produce(deleted => { delete deleted[row]; }));
+      setEdits(draft => {
+        delete draft.deleted[row];
+      });
     },
   };
 
   function addRow() {
     const columns = source()?.columns.length ?? 0;
-    setEdits("inserted", list => [...list, { values: Array(columns).fill(null), touched: {} }]);
+    setEdits(draft => {
+      draft.inserted.push({ values: Array(columns).fill(null), touched: {} });
+    });
   }
 
   function changes(): RowChange[] {
@@ -146,7 +159,7 @@ export function createRowEdits(source: Accessor<ResultSet | null>): RowEdits {
     rows,
     changeCount,
     addRow,
-    discard: () => setEdits(reconcile(emptyEdits())),
+    discard: () => setEdits(() => emptyEdits()),
     changes,
     savedRows,
   };

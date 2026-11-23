@@ -1,6 +1,5 @@
 import styles from "./ResultGrid.module.scss";
-import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
-import { createStore } from "solid-js/store";
+import { For, Show, createEffect, createMemo, createSignal, createStore, flush, onSettled, untrack } from "solid-js";
 import { Ban, Braces, ClipboardList, Copy, KeyRound, Maximize2, Rows3, TextCursorInput, Trash2, Undo2 } from "@core/icons";
 import { ColumnMeta, ValueCategory } from "@core/types";
 import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
@@ -120,16 +119,19 @@ function ResultGrid(props: ResultGridProps) {
   const [widths, setWidths] = createStore<number[]>([]);
   let viewport!: HTMLDivElement;
 
-  createEffect(on(() => props.columns, columns => {
-    setWidths(columns.map((column, index) => measureColumn(column, index, props.rows)));
+  // Measured once per result, so editing a cell doesn't resize its column.
+  createEffect(() => ({ columns: props.columns, rows: props.rows }), ({ columns, rows }, previous) => {
+    if (previous?.columns === columns) return;
+    const measured = columns.map((column, index) => measureColumn(column, index, rows));
+    setWidths(() => measured);
     setSelected(null);
     clearRange();
     setInlineEdit(null);
     viewport?.scrollTo({ top: 0, left: 0 });
     setScrollTop(0);
-  }));
+  });
 
-  onMount(() => {
+  onSettled(() => {
     const observer = new ResizeObserver(() => {
       setViewportHeight(viewport.clientHeight);
       setViewportWidth(viewport.clientWidth);
@@ -137,12 +139,12 @@ function ResultGrid(props: ResultGridProps) {
     observer.observe(viewport);
     window.addEventListener("mousemove", trackDrag);
     window.addEventListener("mouseup", stopDragging);
-    onCleanup(() => {
+    return () => {
       observer.disconnect();
       window.removeEventListener("mousemove", trackDrag);
       window.removeEventListener("mouseup", stopDragging);
       stopDragging();
-    });
+    };
   });
 
   let pointer: { x: number, y: number } | null = null;
@@ -369,10 +371,13 @@ function ResultGrid(props: ResultGridProps) {
     viewport.focus({ preventScroll: true });
   }
 
-  createEffect(on(shownRows, () => {
-    const current = selected();
-    if (current) selectCell(current);
-  }, { defer: true }));
+  createEffect(() => {
+    shownRows();
+    // Wrapped so the effect still runs when the selected cell is the same one.
+    return { cell: untrack(selected) };
+  }, ({ cell }) => {
+    if (cell) selectCell(cell);
+  }, { defer: true });
 
   function cellValue(cell: Cell): string | null {
     return props.rows[cell.row]?.[cell.column] ?? null;
@@ -395,8 +400,13 @@ function ResultGrid(props: ResultGridProps) {
     return cell ? canEdit(cell) : false;
   });
 
+  // Flushed so the input is gone before focus moves, or its blur would commit the edit again.
+  function closeInlineEdit() {
+    flush(() => setInlineEdit(null));
+  }
+
   function openViewer(cell: Cell, draft?: string) {
-    setInlineEdit(null);
+    closeInlineEdit();
     selectCell({ row: cell.row, column: cell.column });
     const changed = draft !== undefined && draft !== (cellValue(cell) ?? "");
     setViewing({ row: cell.row, column: cell.column, draft: changed ? draft : undefined });
@@ -482,12 +492,16 @@ function ResultGrid(props: ResultGridProps) {
     ensureVisible(cell);
   }
 
-  createEffect(on(() => props.rows.length, (length, previous) => {
-    const last = length - 1;
-    if (previous === undefined || length <= previous || props.editing?.rowState(last) !== "new") return;
-    move({ row: last, column: 0 });
-    viewport.focus();
-  }));
+  createEffect(() => {
+    const length = props.rows.length;
+    return { length, endsWithNew: length > 0 && props.editing?.rowState(length - 1) === "new" };
+  }, (current, previous) => {
+    if (!previous || current.length <= previous.length || !current.endsWithNew) return;
+    queueMicrotask(() => {
+      move({ row: current.length - 1, column: 0 });
+      viewport.focus();
+    });
+  });
 
   function onKeyDown(event: KeyboardEvent) {
     // Solid passes events from the viewer's portal up to here, so ignore anything outside the grid itself.
@@ -527,7 +541,7 @@ function ResultGrid(props: ResultGridProps) {
   }
 
   function commitInline(cell: Cell, text: string, next?: Cell) {
-    setInlineEdit(null);
+    closeInlineEdit();
     const original = cellValue(cell);
     let value = text;
     const column = props.columns[cell.column];
@@ -548,7 +562,10 @@ function ResultGrid(props: ResultGridProps) {
     const startWidth = widths[column];
 
     function onMove(moveEvent: MouseEvent) {
-      setWidths(column, Math.max(48, startWidth + moveEvent.clientX - startX));
+      const width = Math.max(48, startWidth + moveEvent.clientX - startX);
+      setWidths(state => {
+        state[column] = width;
+      });
     }
 
     function onUp() {
@@ -674,7 +691,7 @@ function ResultGrid(props: ResultGridProps) {
   }
 
   function rowMenu(row: number): MenuItem[] {
-    if (!rowSelected(row)) selectRow(row);
+    if (!rowSelected(row)) flush(() => selectRow(row));
     const actions = rowActions(selectionRows());
     return actions.length > 0 ? [...selectionCopyItems(), { separator: true }, ...actions] : selectionCopyItems();
   }
@@ -683,7 +700,7 @@ function ResultGrid(props: ResultGridProps) {
     <div
       ref={viewport}
       class={styles.Viewport}
-      tabIndex={0}
+      tabindex={0}
       onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
       onKeyDown={onKeyDown}
     >
@@ -695,9 +712,8 @@ function ResultGrid(props: ResultGridProps) {
               const isColumnSelected = createMemo(() => columnSelected(index()));
               return (
                 <div
-                  ref={element => tooltip(element, () => `${column.name} ${column.typeName}${column.nullable ? "" : " NOT NULL"}${column.table ? ` (${column.table})` : ""}`)}
-                  class={styles.HeaderCell}
-                  classList={{ [styles.Numeric]: NUMERIC.has(column.category), [styles.ColumnSelected]: isColumnSelected() }}
+                  ref={tooltip(() => `${column.name} ${column.typeName}${column.nullable ? "" : " NOT NULL"}${column.table ? ` (${column.table})` : ""}`)}
+                  class={[styles.HeaderCell, { [styles.Numeric]: NUMERIC.has(column.category), [styles.ColumnSelected]: isColumnSelected() }]}
                   style={{ width: `${widths[index()]}px` }}
                   onMouseDown={event => {
                     if (event.button !== 0) return;
@@ -731,17 +747,15 @@ function ResultGrid(props: ResultGridProps) {
 
             return (
               <div
-                class={styles.Row}
-                classList={{
+                class={[styles.Row, {
                   [styles.Odd]: position() % 2 === 1,
                   [styles.NewRow]: state() === "new",
                   [styles.DeletedRow]: state() === "deleted",
-                }}
+                }]}
                 style={{ transform: `translateY(${HEADER_HEIGHT + position() * ROW_HEIGHT}px)`, width: `${totalWidth()}px` }}
               >
                 <div
-                  class={styles.RowNumber}
-                  classList={{ [styles.RowSelected]: isRowSelected() }}
+                  class={[styles.RowNumber, { [styles.RowSelected]: isRowSelected() }]}
                   style={{ width: `${rowNumberWidth()}px` }}
                   onMouseDown={event => {
                     if (event.button !== 0) return;
@@ -760,7 +774,7 @@ function ResultGrid(props: ResultGridProps) {
                 >
                   {state() === "new" ? "+" : (props.rowOffset ?? 0) + row + 1}
                 </div>
-                <Index each={props.columns}>
+                <For each={props.columns} keyed={false}>
                   {(column, columnIndex) => {
                     const value = createMemo(() => props.rows[row]?.[columnIndex] ?? null);
                     const isSelected = createMemo(() => selected()?.row === row && selected()?.column === columnIndex);
@@ -771,15 +785,14 @@ function ResultGrid(props: ResultGridProps) {
 
                     return (
                       <div
-                        class={styles.Cell}
-                        classList={{
+                        class={[styles.Cell, {
                           [styles.Selected]: isSelected(),
                           [styles.InSelection]: inSelection(),
                           [styles.Edited]: edited(),
                           [styles.Numeric]: NUMERIC.has(column().category),
                           [styles.Binary]: column().category === "binary" || column().category === "spatial",
                           [styles.Temporal]: column().category === "temporal",
-                        }}
+                        }]}
                         style={{ width: `${widths[columnIndex]}px` }}
                         onMouseDown={event => {
                           if (event.button !== 0) return;
@@ -795,7 +808,7 @@ function ResultGrid(props: ResultGridProps) {
                         }}
                         onContextMenu={event => {
                           const cell = { row, column: columnIndex };
-                          if (!isMulti() || !cellInSelection(cell)) selectCell(cell);
+                          if (!isMulti() || !cellInSelection(cell)) flush(() => selectCell(cell));
                           openContextMenu(event, cellMenu(cell));
                         }}
                       >
@@ -832,7 +845,7 @@ function ResultGrid(props: ResultGridProps) {
                                   const column = event.shiftKey ? Math.max(0, columnIndex - 1) : Math.min(props.columns.length - 1, columnIndex + 1);
                                   commitInline(cell, event.currentTarget.value, { row, column });
                                 } else if (event.key === "Escape") {
-                                  setInlineEdit(null);
+                                  closeInlineEdit();
                                   viewport.focus();
                                 }
                               }}
@@ -841,9 +854,9 @@ function ResultGrid(props: ResultGridProps) {
                               }}
                             />
                             <button
-                              ref={element => tooltip(element, () => "Edit in viewer (Shift+Enter)")}
+                              ref={tooltip(() => "Edit in viewer (Shift+Enter)")}
                               class={styles.ExpandEditor}
-                              tabIndex={-1}
+                              tabindex={-1}
                               onMouseDown={event => event.preventDefault()}
                               onClick={event => {
                                 const input = event.currentTarget.previousElementSibling as HTMLInputElement;
@@ -857,7 +870,7 @@ function ResultGrid(props: ResultGridProps) {
                       </div>
                     );
                   }}
-                </Index>
+                </For>
               </div>
             );
           }}

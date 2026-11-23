@@ -1,7 +1,7 @@
 import styles from "./HostEditor.module.scss";
 import editorStyles from "@core/pages/Home/ConnectionEditor/ConnectionEditor.module.scss";
-import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on } from "solid-js";
-import { createStore, produce, reconcile, unwrap } from "solid-js/store";
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal, createStore, reconcile, snapshot, untrack } from "solid-js";
+import { fieldSetter, immediateWrite } from "@core/helpers/immediateWrite";
 import { ArrowDown, ArrowUp, Link, Plus, Server, SlidersHorizontal, Trash2, User, X } from "@core/icons";
 import { IdentityAuth, SshHost } from "@core/types";
 import { safeInvoke } from "@core/helpers/safeInvoke";
@@ -66,7 +66,9 @@ function HostEditor() {
   const { confirm } = usePromptState;
   const { pushToast, pushError } = useToastState;
 
-  const [draft, setDraft] = createStore<SshHost>(blankHost());
+  const [draft, writeDraft] = createStore<SshHost>(blankHost());
+  const setDraft = immediateWrite(writeDraft);
+  const setField = fieldSetter(setDraft);
   const [jumpPick, setJumpPick] = createSignal<string | null>(null);
   const [customUser, setCustomUser] = createSignal("");
   const [customAuth, setCustomAuth] = createSignal<CustomAuth>("key");
@@ -74,24 +76,33 @@ function HostEditor() {
   const [customPassword, setCustomPassword] = createSignal("");
   const [saving, setSaving] = createSignal(false);
 
-  createEffect(on(editor.request, request => {
-    if (!request) return;
-    setDraft(reconcile(request.host ? JSON.parse(JSON.stringify(unwrap(request.host))) : blankHost()));
-    if (!request.host) setDraft("identityId", ssh.file.identities[0]?.id ?? CUSTOM_LOGIN);
+  function loginDefaults() {
+    return { identityId: ssh.file.identities[0]?.id ?? CUSTOM_LOGIN, keyId: ssh.file.keys[0]?.id ?? null };
+  }
+
+  createEffect(() => {
+    const request = editor.request();
+    return request ? { request, ...untrack(loginDefaults) } : null;
+  }, opened => {
+    if (!opened) return;
+    const { request, identityId, keyId } = opened;
+    const initial: SshHost = request.host ? JSON.parse(JSON.stringify(snapshot(request.host))) : { ...blankHost(), identityId };
+    // Null key because the draft's id changes from one host to the next.
+    writeDraft(reconcile(initial, null));
     setJumpPick(null);
     setCustomUser("");
-    setCustomAuth(ssh.file.keys.length > 0 ? "key" : "agent");
-    setCustomKey(ssh.file.keys[0]?.id ?? null);
+    setCustomAuth(keyId ? "key" : "agent");
+    setCustomKey(keyId);
     setCustomPassword("");
-  }));
+  });
 
   const secretRefs: SecretRefsEditor = {
     get: key => draft.secretRefs?.[key],
-    set: (key, secretId) => setDraft(produce(host => {
+    set: (key, secretId) => setDraft(host => {
       const refs = host.secretRefs ??= {};
       if (secretId) refs[key] = secretId;
       else delete refs[key];
-    })),
+    }),
   };
 
   const isNew = createMemo(() => !draft.id);
@@ -122,7 +133,7 @@ function HostEditor() {
 
   const routeHosts = createMemo(() => {
     const [first, ...rest] = draft.jumps;
-    const self = { ...unwrap(draft), label: draft.label.trim() || "new host" } as SshHost;
+    const self = { ...snapshot(draft), label: draft.label.trim() || "new host" } as SshHost;
     const before = first ? ssh.route(first) : [];
     return [...before, ...rest.flatMap(id => ssh.host(id) ?? []), self];
   });
@@ -140,10 +151,10 @@ function HostEditor() {
 
   function pickVpn(id: string | null) {
     if (id !== IMPORT_VPN) {
-      setDraft("vpnId", id);
+      setField("vpnId", id);
       return;
     }
-    void useVpnEditorState.importFile(profile => setDraft("vpnId", profile.id));
+    void useVpnEditorState.importFile(profile => setField("vpnId", profile.id));
   }
   const snippetItems = createMemo<SelectItem<string | null>[]>(() => [
     { value: null, label: "Nothing" },
@@ -153,15 +164,17 @@ function HostEditor() {
   function addJump() {
     const id = jumpPick();
     if (!id) return;
-    setDraft("jumps", jumps => [...jumps, id]);
+    setDraft(host => {
+      host.jumps.push(id);
+    });
     setJumpPick(null);
   }
 
   function moveJump(index: number, by: number) {
-    setDraft("jumps", produce(jumps => {
-      const [moved] = jumps.splice(index, 1);
-      jumps.splice(index + by, 0, moved);
-    }));
+    setDraft(host => {
+      const [moved] = host.jumps.splice(index, 1);
+      host.jumps.splice(index + by, 0, moved);
+    });
   }
 
   function customIdentityAuth(): IdentityAuth {
@@ -184,7 +197,7 @@ function HostEditor() {
     setSaving(true);
     let createdIdentity: string | null = null;
     try {
-      const host: SshHost = JSON.parse(JSON.stringify(unwrap(draft)));
+      const host: SshHost = JSON.parse(JSON.stringify(snapshot(draft)));
       if (customLogin()) {
         const user = customUser().trim();
         if (!user) throw new Error("Enter the user to log in as");
@@ -254,35 +267,35 @@ function HostEditor() {
       <div class={styles.Editor}>
         <FieldRow>
           <Field label="Name" grow>
-            <Input value={draft.label} onValue={value => setDraft("label", value)} placeholder="api-01" autofocus />
+            <Input value={draft.label} onValue={value => setField("label", value)} placeholder="api-01" autofocus />
           </Field>
           <Field label="Group" grow>
             <SuggestInput
               class={editorStyles.GroupInput}
               value={draft.group ?? ""}
               suggestions={groups()}
-              onCommit={value => setDraft("group", value || null)}
+              onCommit={value => setField("group", value || null)}
               placeholder="No group"
             />
           </Field>
         </FieldRow>
         <FieldRow>
           <Field label="Address" grow>
-            <SecretInput path="host" refs={secretRefs} value={draft.host} onValue={value => setDraft("host", value)} placeholder="10.0.3.11 or server.example.com" />
+            <SecretInput path="host" refs={secretRefs} value={draft.host} onValue={value => setField("host", value)} placeholder="10.0.3.11 or server.example.com" />
           </Field>
           <Field label="Port" width={96}>
-            <SecretInput path="port" refs={secretRefs} type="number" value={draft.port} onValue={value => setDraft("port", toPort(value))} />
+            <SecretInput path="port" refs={secretRefs} type="number" value={draft.port} onValue={value => setField("port", toPort(value))} />
           </Field>
         </FieldRow>
         <Field label="Color">
-          <ColorSwatches value={draft.color} onChange={color => setDraft("color", color)} />
+          <ColorSwatches value={draft.color} onChange={color => setField("color", color)} />
         </Field>
         <SyncField itemKey={syncKey()} label={draft.label} category="sshHosts" />
 
         <section class={styles.Section}>
           <h3><User size={14} />Login</h3>
           <Field label="Identity" hint={identityHint()}>
-            <Select value={draft.identityId ?? CUSTOM_LOGIN} items={identityItems()} onChange={id => setDraft("identityId", id)} />
+            <Select value={draft.identityId ?? CUSTOM_LOGIN} items={identityItems()} onChange={id => setField("identityId", id)} />
           </Field>
           <Show when={customLogin()}>
             <FieldRow>
@@ -342,7 +355,12 @@ function HostEditor() {
                     <Button icon size="sm" tooltip="Move down" disabled={index() === draft.jumps.length - 1} onClick={() => moveJump(index(), 1)}>
                       <ArrowDown size={14} />
                     </Button>
-                    <Button icon size="sm" tooltip="Remove" onClick={() => setDraft("jumps", jumps => jumps.filter((_, at) => at !== index()))}>
+                    <Button icon size="sm" tooltip="Remove" onClick={() => {
+                      const position = index();
+                      setDraft(host => {
+                        host.jumps.splice(position, 1);
+                      });
+                    }}>
                       <X size={14} />
                     </Button>
                   </div>
@@ -363,7 +381,7 @@ function HostEditor() {
             <Select value={draft.vpnId} items={vpnItems()} onChange={pickVpn} />
           </Field>
           <Field label="Proxy for the first hop">
-            <Select value={draft.proxyId} items={proxyItems()} onChange={id => setDraft("proxyId", id)} />
+            <Select value={draft.proxyId} items={proxyItems()} onChange={id => setField("proxyId", id)} />
           </Field>
           <RoutePreview hosts={routeHosts()} proxy={routeProxy()} vpn={routeVpn()} />
         </section>
@@ -375,7 +393,7 @@ function HostEditor() {
               <span class={styles.SwitchLabel}>Agent forwarding</span>
               <span class={styles.SwitchHint}>Lets this server use your SSH agent while a terminal is open.</span>
             </div>
-            <Toggle checked={draft.agentForwarding} onChange={value => setDraft("agentForwarding", value)} />
+            <Toggle checked={draft.agentForwarding} onChange={value => setField("agentForwarding", value)} />
           </div>
           <Show when={draft.agentForwarding}>
             <Note tone="warning">
@@ -388,14 +406,14 @@ function HostEditor() {
               <span class={styles.SwitchLabel}>Let this server write to the clipboard</span>
               <span class={styles.SwitchHint}>For copying from tmux or vim through OSC 52. The server can't read your clipboard.</span>
             </div>
-            <Toggle checked={draft.clipboardWrite} onChange={value => setDraft("clipboardWrite", value)} />
+            <Toggle checked={draft.clipboardWrite} onChange={value => setField("clipboardWrite", value)} />
           </div>
           <FieldRow>
             <Field label="Keepalive" grow>
-              <Select value={draft.keepaliveSecs} items={KEEPALIVE} onChange={secs => setDraft("keepaliveSecs", secs)} />
+              <Select value={draft.keepaliveSecs} items={KEEPALIVE} onChange={secs => setField("keepaliveSecs", secs)} />
             </Field>
             <Field label="Run on connect" grow>
-              <Select value={draft.startupSnippetId} items={snippetItems()} onChange={id => setDraft("startupSnippetId", id)} />
+              <Select value={draft.startupSnippetId} items={snippetItems()} onChange={id => setField("startupSnippetId", id)} />
             </Field>
           </FieldRow>
         </section>

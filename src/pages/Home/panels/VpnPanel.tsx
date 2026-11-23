@@ -34,10 +34,9 @@ function VpnRow(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) => 
 
   return (
     <div
-      class={`${shared.Row} ${hostStyles.HostRow}`}
-      classList={{ [shared.Filled]: view.filled() }}
+      class={[shared.Row, hostStyles.HostRow, { [shared.Filled]: view.filled() }]}
       role="button"
-      tabIndex={0}
+      tabindex={0}
       style={{ "--row-color": props.profile.color ?? "var(--accent)" }}
       onClick={() => editor.open(props.profile)}
       onKeyDown={event => {
@@ -57,7 +56,7 @@ function VpnRow(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) => 
         <span class={shared.RowName}>{props.profile.label}</span>
         <Show when={view.problem()} fallback={<span class={shared.RowSub}>{view.server()}</span>}>
           {problem => (
-            <span class={`${shared.RowSub} ${vpnStyles.ProblemText}`} ref={element => tooltip(element, problem)}>{problem()}</span>
+            <span class={`${shared.RowSub} ${vpnStyles.ProblemText}`} ref={tooltip(problem)}>{problem()}</span>
           )}
         </Show>
       </span>
@@ -319,8 +318,7 @@ function VpnPanel(props: PanelProps) {
                           when={renaming() === key}
                           fallback={
                             <h3
-                              class={groups.SectionTitle}
-                              classList={{ [groups.Renamable]: renamable() }}
+                              class={[groups.SectionTitle, { [groups.Renamable]: renamable() }]}
                               onClick={() => {
                                 if (renamable()) setRenaming(key);
                               }}
@@ -359,7 +357,7 @@ function VpnPanel(props: PanelProps) {
                         </Show>
                       </header>
                     </Show>
-                    <div class={listClass()} classList={{ [hostStyles.EmptyGroup]: profiles().length === 0 }}>
+                    <div class={[listClass(), { [hostStyles.EmptyGroup]: profiles().length === 0 }]}>
                       <Show when={profiles().length === 0}>
                         <span>Drop VPNs here</span>
                       </Show>

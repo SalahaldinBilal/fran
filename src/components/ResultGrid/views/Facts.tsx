@@ -13,10 +13,10 @@ function Facts(props: { items: Fact[] }) {
         {fact => (
           <div class={styles.Fact}>
             <dt>{fact.label}</dt>
-            <dd classList={{ [styles.Plain]: fact.plain ?? false }}>{fact.value}</dd>
+            <dd class={{ [styles.Plain]: fact.plain ?? false }}>{fact.value}</dd>
             <button
               class={styles.CopyFact}
-              ref={element => tooltip(element, () => `Copy ${fact.label.toLowerCase()}`)}
+              ref={tooltip(() => `Copy ${fact.label.toLowerCase()}`)}
               onClick={() => copyText(fact.value, fact.label.toLowerCase())}
             >
               <Copy size={12} />

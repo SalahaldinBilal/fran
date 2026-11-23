@@ -1,7 +1,6 @@
 import styles from "./DatabasesPanel.module.scss";
 import shared from "./Panels.module.scss";
-import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
-import { unwrap } from "solid-js/store";
+import { For, Match, Show, Switch, createMemo, createSignal, snapshot } from "solid-js";
 import { Check, CircleAlert, Database, GripVertical, Pencil, Plus, X } from "@core/icons";
 import useConnectionsState from "@core/states/connectionsState";
 import useToastState from "@core/states/toastState";
@@ -149,7 +148,7 @@ function DatabasesPanel(props: PanelProps) {
       if ("ids" in current) {
         const profile = connections.find(current.id);
         if (profile && (profile.group ?? "") !== current.group) {
-          await connections.save({ ...unwrap(profile), group: current.group || null });
+          await connections.save({ ...snapshot(profile), group: current.group || null });
         }
       }
       const groups = sectionKeys();
@@ -235,8 +234,7 @@ function DatabasesPanel(props: PanelProps) {
                           when={renaming() === key}
                           fallback={
                             <h3
-                              class={styles.SectionTitle}
-                              classList={{ [styles.Renamable]: editing() && key !== "" }}
+                              class={[styles.SectionTitle, { [styles.Renamable]: editing() && key !== "" }]}
                               onClick={() => {
                                 if (editing() && key !== "") setRenaming(key);
                               }}
@@ -275,7 +273,7 @@ function DatabasesPanel(props: PanelProps) {
                         </Show>
                       </header>
                     </Show>
-                    <div class={styles.Grid} classList={{ [styles.Empty]: profiles().length === 0 }}>
+                    <div class={[styles.Grid, { [styles.Empty]: profiles().length === 0 }]}>
                       <Show when={profiles().length === 0}>
                         <span>Drop connections here</span>
                       </Show>

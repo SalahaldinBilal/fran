@@ -18,10 +18,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A VPN card shows why the VPN failed in place of its server, not just a Failed badge. It also shows what went wrong while OpenVPN is still retrying. Click it to open the log.
 - A new version shows as a banner under the title bar on every page, with Install, Restart once it's installed, and What's new. Closing it hides it until Fran starts again.
 - New app icon.
+- Fran's interface now runs on Solid 2.
 
 ### Fixed
 
 - A VPN server that turns a login down for now, like an Access Server with no free licenses, used to look like a timeout after 30 seconds. Fran now stops right away and shows the server's reason.
+- Changing how many days of terminal logs to keep now updates the list of logs right away.
+- The VPN editor could show the certificates of the profile opened before it.
 
 ## [0.3.1] - 2026-11-19
 

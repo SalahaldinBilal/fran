@@ -1,6 +1,6 @@
 import "@xterm/xterm/css/xterm.css";
 import styles from "./Terminal.module.scss";
-import { Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, onSettled, untrack } from "solid-js";
 import { ArrowDown, ArrowUp, ClipboardPaste, Copy, Eraser, GripVertical, Search, SquareTerminal, TextSelect, TriangleAlert, X } from "@core/icons";
 import { ITheme, Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -112,14 +112,16 @@ function TerminalPane(props: TerminalPaneProps) {
     return vpnWaitLabel(profile, profile ? useVpnState.status(profile.id) : undefined);
   });
 
+  // Only the starting values. The settings effect below applies later changes.
+  const initial = untrack(() => ({ ...settings.terminal }));
   const term = new Terminal({
     allowProposedApi: false,
     cursorBlink: true,
-    cursorStyle: settings.terminal.cursorStyle,
+    cursorStyle: initial.cursorStyle,
     cursorInactiveStyle: "outline",
     drawBoldTextInBrightColors: false,
-    fontSize: settings.terminal.fontSize,
-    scrollback: settings.terminal.scrollback,
+    fontSize: initial.fontSize,
+    scrollback: initial.scrollback,
     theme: readTheme(),
     // Every report that would echo window titles or other server-set text back as input stays off.
     windowOptions: {},
@@ -248,7 +250,7 @@ function TerminalPane(props: TerminalPaneProps) {
     }, RESIZE_DELAY_MS);
   }
 
-  onMount(() => {
+  onSettled(() => {
     term.open(host);
     try {
       const webgl = new WebglAddon();
@@ -278,35 +280,34 @@ function TerminalPane(props: TerminalPaneProps) {
       paste: text => term.paste(stripPasteMarkers(text)),
       focus: () => term.focus(),
     });
-    void terminals.connect(props.tabId, props.paneId);
+    queueMicrotask(() => void terminals.connect(props.tabId, props.paneId));
     if (focused()) term.focus();
 
-    onCleanup(() => {
+    return () => {
       clearTimeout(resizeTimer);
       observer.disconnect();
       host.removeEventListener("paste", onPaste, true);
       terminals.detach(props.paneId);
       term.dispose();
-    });
+    };
   });
 
-  createEffect(on(() => ({ ...settings.terminal }), current => {
+  createEffect(() => ({ ...settings.terminal }), current => {
     term.options.fontFamily = fontFamily(current.fontFamily);
     term.options.fontSize = current.fontSize;
     term.options.cursorStyle = current.cursorStyle;
     term.options.scrollback = current.scrollback;
     refit();
-  }, { defer: true }));
+  }, { defer: true });
 
-  createEffect(on(() => props.visible, visible => {
-    if (!visible) return;
-    refit();
-    if (focused()) requestAnimationFrame(() => term.focus());
-  }, { defer: true }));
+  createEffect(() => props.visible, visible => {
+    if (visible) refit();
+  }, { defer: true });
 
-  createEffect(on(focused, isFocused => {
-    if (isFocused && props.visible) term.focus();
-  }, { defer: true }));
+  // On the next frame, since focusing writes the tab's focus back to the store.
+  createEffect(() => props.visible && focused(), shouldFocus => {
+    if (shouldFocus) requestAnimationFrame(() => term.focus());
+  }, { defer: true });
 
   function onContextMenu(event: MouseEvent) {
     openContextMenu(event, [
@@ -320,7 +321,7 @@ function TerminalPane(props: TerminalPaneProps) {
   }
 
   return (
-    <section class={styles.Pane} classList={{ [styles.Focused]: focused() && !props.solo, [styles.Solo]: props.solo }}>
+    <section class={[styles.Pane, { [styles.Focused]: focused() && !props.solo, [styles.Solo]: props.solo }]}>
       <Show when={!props.solo}>
         <header
           class={styles.PaneHeader}
@@ -366,7 +367,7 @@ function TerminalPane(props: TerminalPaneProps) {
             class={styles.SearchInput}
             value={query()}
             placeholder="Find in scrollback"
-            spellcheck={false}
+            spellcheck="false"
             onInput={event => {
               setQuery(event.currentTarget.value);
               if (event.currentTarget.value) search.findNext(event.currentTarget.value, { incremental: true });

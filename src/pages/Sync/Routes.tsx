@@ -1,6 +1,6 @@
 import styles from "./Routes.module.scss";
 import { For, Show, createMemo, createSignal } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { Dynamic } from "@solidjs/web";
 import { Check, ChevronDown, Database, Lock, LucideIcon, Shield, SlidersHorizontal, SquareTerminal } from "@core/icons";
 import { cloudModule, withCloudModule } from "@core/clouds";
 import useSyncState from "@core/states/syncState";
@@ -102,7 +102,7 @@ function openChoices(event: MouseEvent & { currentTarget: HTMLElement }, choices
 
 function Chip(props: { label: string, on: boolean, mixed?: boolean, onClick: (event: MouseEvent & { currentTarget: HTMLElement }) => void }) {
   return (
-    <button type="button" class={styles.Chip} classList={{ [styles.ChipOn]: props.on, [styles.ChipMixed]: props.mixed ?? false }} onClick={event => props.onClick(event)}>
+    <button type="button" class={[styles.Chip, { [styles.ChipOn]: props.on, [styles.ChipMixed]: props.mixed ?? false }]} onClick={event => props.onClick(event)}>
       <span class={styles.ChipDot} />
       <span class={styles.ChipLabel}>{props.label}</span>
       <ChevronDown size={12} class={styles.ChipArrow} />
@@ -118,7 +118,7 @@ function Hint(props: { text: string }) {
   return (
     <span
       class={styles.LineHint}
-      ref={element => tooltip(element, shown)}
+      ref={tooltip(shown)}
       onMouseEnter={event => setCut(event.currentTarget.scrollWidth > event.currentTarget.clientWidth)}
     >
       {props.text}
@@ -207,7 +207,7 @@ function AreaCard(props: { area: Area }) {
   }
 
   return (
-    <section class={styles.Card} classList={{ [styles.Wide]: props.area.sensitive ?? false, [styles.Sensitive]: props.area.sensitive ?? false }}>
+    <section class={[styles.Card, { [styles.Wide]: props.area.sensitive ?? false, [styles.Sensitive]: props.area.sensitive ?? false }]}>
       <header class={styles.CardHead}>
         <span class={styles.CardIcon}><Dynamic component={props.area.icon} size={15} /></span>
         <div class={styles.CardTitles}>

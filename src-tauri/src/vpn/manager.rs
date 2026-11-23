@@ -239,7 +239,7 @@ pub struct VpnManager {
     store: Arc<VpnStore>,
     vault: Arc<Vault>,
     slots: Mutex<HashMap<String, Arc<Slot>>>,
-    watchers: Mutex<Vec<Channel<Vec<VpnStatus>>>>,
+    watcher: Mutex<Option<Channel<Vec<VpnStatus>>>>,
     idle_close_secs: AtomicU64,
     connect_timeout_secs: AtomicU64,
     me: Weak<VpnManager>,
@@ -266,7 +266,7 @@ impl VpnManager {
             store,
             vault,
             slots: Mutex::new(HashMap::new()),
-            watchers: Mutex::new(Vec::new()),
+            watcher: Mutex::new(None),
             idle_close_secs: AtomicU64::new(DEFAULT_IDLE_CLOSE_SECS),
             connect_timeout_secs: AtomicU64::new(DEFAULT_CONNECT_TIMEOUT_SECS),
             me: me.clone(),
@@ -339,15 +339,18 @@ impl VpnManager {
 
     pub fn watch(&self, channel: Channel<Vec<VpnStatus>>) {
         let _ = channel.send(self.statuses());
-        if let Ok(mut watchers) = self.watchers.lock() {
-            watchers.push(channel);
+        // Replaced, since sending to a channel from a reloaded page doesn't fail.
+        if let Ok(mut watcher) = self.watcher.lock() {
+            *watcher = Some(channel);
         }
     }
 
     fn notify(&self) {
         let statuses = self.statuses();
-        if let Ok(mut watchers) = self.watchers.lock() {
-            watchers.retain(|channel| channel.send(statuses.clone()).is_ok());
+        if let Ok(mut watcher) = self.watcher.lock() {
+            if watcher.as_ref().is_some_and(|channel| channel.send(statuses).is_err()) {
+                *watcher = None;
+            }
         }
     }
 

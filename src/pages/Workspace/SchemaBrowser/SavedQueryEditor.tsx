@@ -1,5 +1,5 @@
 import styles from "./SavedQueryEditor.module.scss";
-import { Show, createEffect, createMemo, createSignal, on, untrack } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, snapshot, untrack } from "solid-js";
 import useWorkspaceState from "@core/states/workspaceState";
 import useSavedQueriesState from "@core/states/savedQueriesState";
 import useToastState from "@core/states/toastState";
@@ -38,12 +38,19 @@ function SavedQueryEditor(props: SavedQueryEditorProps) {
   const kind = untrack(() => workspace.store.sessions[props.sessionId].info.kind);
   const isNew = createMemo(() => props.state?.query === null);
 
-  createEffect(on(() => props.state, state => {
+  createEffect(() => {
+    const state = props.state;
+    if (!state) return null;
+    const sessionId = props.sessionId;
+    return { query: state.query, sessionId, selected: untrack(() => workspace.store.sessions[sessionId]?.selectedDatabase) };
+  }, state => {
     if (!state) return;
-    setName(state.query?.name ?? "");
-    setDatabase(state.query?.database ?? session()?.selectedDatabase ?? NO_DATABASE);
-    if (database()) workspace.ensureCatalog(props.sessionId, database());
-  }));
+    const query = snapshot(state.query);
+    const opened = query?.database ?? state.selected ?? NO_DATABASE;
+    setName(query?.name ?? "");
+    setDatabase(opened);
+    if (opened) queueMicrotask(() => workspace.ensureCatalog(state.sessionId, opened));
+  });
 
   const databaseItems = createMemo(() => [
     { value: NO_DATABASE, label: "No database" },

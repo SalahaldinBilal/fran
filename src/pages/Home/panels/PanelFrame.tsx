@@ -1,6 +1,6 @@
 import styles from "./Panels.module.scss";
-import { JSX, Show } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { Show } from "solid-js";
+import { Dynamic, JSX } from "@solidjs/web";
 import { LucideIcon, X } from "@core/icons";
 import { TileControls } from "@core/components/Tiling/TileLayout";
 import Button from "@core/components/Button/Button";

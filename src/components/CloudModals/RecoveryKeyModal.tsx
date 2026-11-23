@@ -1,5 +1,5 @@
 import styles from "./CloudModals.module.scss";
-import { createEffect, createMemo, createSignal, on } from "solid-js";
+import { createEffect, createMemo, createSignal } from "solid-js";
 import { Copy } from "@core/icons";
 import useSyncState from "@core/states/syncState";
 import { copySensitive } from "@core/helpers/clipboard";
@@ -16,7 +16,9 @@ function RecoveryKeyModal() {
   const shown = createMemo(() => sync.recoveryKey());
   const title = createMemo(() => `Recovery key for ${shown()?.cloudName ?? "this cloud"}`);
 
-  createEffect(on(shown, () => setSaved(false)));
+  createEffect(shown, () => {
+    setSaved(false);
+  });
 
   return (
     <Modal

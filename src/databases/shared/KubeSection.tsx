@@ -1,5 +1,6 @@
 import shared from "./ConnectionForm.module.scss";
-import { Show, createMemo, createResource } from "solid-js";
+import { Show, createMemo } from "solid-js";
+import { createLoader } from "@core/helpers/createLoader";
 import { RefreshCw } from "@core/icons";
 import { KubeOptions } from "@core/types";
 import Field, { FieldRow, FieldSection } from "@core/components/Field/Field";
@@ -20,7 +21,7 @@ export type KubeSectionProps = {
 };
 
 function KubeSection(props: KubeSectionProps) {
-  const [contexts, { refetch }] = createResource(
+  const [contexts, { refetch }] = createLoader(
     () => props.kube.kubectlPath,
     kubectlPath => safeInvoke("list_kube_contexts", { kubectlPath }),
   );

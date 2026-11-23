@@ -1,14 +1,16 @@
-import { createMemo, createRoot, createSignal } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createMemo, createRoot, createSignal, createStore, reconcile, snapshot } from "solid-js";
 import { Channel } from "@tauri-apps/api/core";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { SystemBackend, VpnFile, VpnProfile, VpnStatus } from "@core/types";
 
 const EMPTY: VpnFile = { version: 1, profiles: [], groupOrder: [] };
 
 function useVpnStateInner() {
-  const [file, setFile] = createStore<VpnFile>(structuredClone(EMPTY));
-  const [statuses, setStatuses] = createStore<Record<string, VpnStatus>>({});
+  const [file, writeFile] = createStore<VpnFile>(structuredClone(EMPTY));
+  const setFile = immediateWrite(writeFile);
+  const [statuses, writeStatuses] = createStore<Record<string, VpnStatus>>({});
+  const setStatuses = immediateWrite(writeStatuses);
   const [loaded, setLoaded] = createSignal(false);
   const [loadError, setLoadError] = createSignal<unknown>(null);
   const [logFor, setLogFor] = createSignal<string | null>(null);
@@ -50,9 +52,11 @@ function useVpnStateInner() {
   }
 
   function upsert(saved: VpnProfile) {
-    setFile("profiles", items => (items.some(item => item.id === saved.id)
-      ? items.map(item => (item.id === saved.id ? saved : item))
-      : [...items, saved]));
+    setFile(state => {
+      const index = state.profiles.findIndex(item => item.id === saved.id);
+      if (index >= 0) state.profiles[index] = saved;
+      else state.profiles.push(saved);
+    });
   }
 
   async function save(next: VpnProfile): Promise<VpnProfile> {
@@ -93,7 +97,10 @@ function useVpnStateInner() {
 
   async function remove(id: string) {
     await safeInvoke("delete_vpn_profile", { id });
-    setFile("profiles", items => items.filter(item => item.id !== id));
+    setFile(state => {
+      const index = state.profiles.findIndex(item => item.id === id);
+      if (index >= 0) state.profiles.splice(index, 1);
+    });
   }
 
   async function disconnect(id: string) {
@@ -135,10 +142,13 @@ function useVpnStateInner() {
       const index = ids.indexOf(id);
       return index >= 0 ? index : ids.length;
     }
-    setFile("profiles", items => [...items]
+    const ordered = snapshot(file.profiles)
       .map(item => (moved && item.id === moved.id ? { ...item, group: moved.group } : item))
-      .sort((a, b) => rank(a.id) - rank(b.id)));
-    setFile("groupOrder", groups);
+      .sort((a, b) => rank(a.id) - rank(b.id));
+    setFile(state => {
+      state.profiles = ordered;
+      state.groupOrder = groups;
+    });
     try {
       if (moved) await safeInvoke("move_vpn_profile", moved);
       await safeInvoke("save_vpn_order", { ids, groups });

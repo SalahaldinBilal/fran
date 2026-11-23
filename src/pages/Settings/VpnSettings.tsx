@@ -1,5 +1,5 @@
 import styles from "./Settings.module.scss";
-import { Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
+import { Show, createEffect, createMemo, createSignal } from "solid-js";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "@core/icons";
 import useSettingsState, { VPN_CONNECT_TIMEOUTS, VPN_IDLE_CLOSE } from "@core/states/settingsState";
@@ -28,20 +28,19 @@ function VpnSettings() {
   const [check, setCheck] = createSignal<OpenVpnCheck | null>(null);
   const [failed, setFailed] = createSignal<string | null>(null);
   // Typed paths are saved when the field is left, not on every key.
-  const [draft, setDraft] = createSignal(settings.vpn.program);
+  const [draft, setDraft] = createSignal(() => settings.vpn.program);
 
-  createEffect(on(() => settings.vpn.program, program => {
-    setDraft(program);
+  createEffect(() => settings.vpn.program, program => {
     setCheck(null);
     setFailed(null);
     let current = true;
     safeInvoke("check_openvpn", { program: program.trim() || null })
       .then(result => current && setCheck(result))
       .catch(error => current && setFailed(errorMessage(error)));
-    onCleanup(() => {
+    return () => {
       current = false;
-    });
-  }));
+    };
+  });
 
   function commit() {
     if (draft() !== settings.vpn.program) void updateVpn({ program: draft() });

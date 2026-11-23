@@ -1,6 +1,6 @@
 import styles from "./ForwardRuleEditor.module.scss";
-import { Match, Show, Switch as Branch, createEffect, createMemo, createSignal, on } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { Match, Show, Switch as Branch, createEffect, createMemo, createSignal, createStore, reconcile, snapshot, untrack } from "solid-js";
+import { fieldSetter, immediateWrite } from "@core/helpers/immediateWrite";
 import { Trash2 } from "@core/icons";
 import { ForwardKind, ForwardRule } from "@core/types";
 import useForwardRulesState from "@core/states/forwardRulesState";
@@ -48,7 +48,9 @@ function ForwardRuleEditor() {
   const rules = useForwardRulesState;
   const ssh = useSshState;
   const { pushError, pushToast } = useToastState;
-  const [draft, setDraft] = createStore<ForwardRule>(blankRule(""));
+  const [draft, storeDraft] = createStore<ForwardRule>(blankRule(""));
+  const writeDraft = immediateWrite(storeDraft);
+  const setField = fieldSetter(writeDraft);
   const [saving, setSaving] = createSignal(false);
 
   const editing = createMemo(() => rules.editorRequest()?.rule ?? null);
@@ -65,13 +67,18 @@ function ForwardRuleEditor() {
     ? "Anyone who can reach this computer can browse as the server through the proxy. It has no login."
     : "Anyone who can reach this computer can connect through the forward. The service's own login is the only thing in the way."));
 
-  createEffect(on(rules.editorRequest, request => {
-    if (!request) return;
+  createEffect(() => {
+    const request = rules.editorRequest();
+    return request ? { request, firstHost: untrack(() => ssh.file.hosts[0]?.id ?? "") } : null;
+  }, opened => {
+    if (!opened) return;
+    const { request, firstHost } = opened;
     const initial = request.rule
-      ? JSON.parse(JSON.stringify(request.rule)) as ForwardRule
-      : blankRule(request.hostId ?? ssh.file.hosts[0]?.id ?? "");
-    setDraft(reconcile(initial));
-  }));
+      ? JSON.parse(JSON.stringify(snapshot(request.rule))) as ForwardRule
+      : blankRule(request.hostId ?? firstHost);
+    // Null key because the draft's id changes from one rule to the next.
+    storeDraft(reconcile(initial, null));
+  });
 
   async function save() {
     setSaving(true);
@@ -130,61 +137,61 @@ function ForwardRuleEditor() {
           <Note tone="warning">This forward is running. Stop it before changing it.</Note>
         </Show>
         <Field label="Name">
-          <Input value={draft.label} onValue={value => setDraft("label", value)} placeholder="Grafana" autofocus />
+          <Input value={draft.label} onValue={value => setField("label", value)} placeholder="Grafana" autofocus />
         </Field>
         <Field label="Type">
           <SegmentedControl
             fill
             value={draft.kind}
-            onChange={kind => setDraft("kind", kind)}
+            onChange={kind => setField("kind", kind)}
             options={(Object.keys(FORWARD_KIND_LABELS) as ForwardKind[]).map(kind => ({ value: kind, label: FORWARD_KIND_LABELS[kind] }))}
           />
         </Field>
         <Field label="Through host" hint={hostHint()}>
-          <Select value={draft.hostId} items={hostItems()} onChange={id => setDraft("hostId", id)} placeholder="Pick a host" disabled={hostItems().length === 0} />
+          <Select value={draft.hostId} items={hostItems()} onChange={id => setField("hostId", id)} placeholder="Pick a host" disabled={hostItems().length === 0} />
         </Field>
 
         <Branch>
           <Match when={draft.kind === "local"}>
             <FieldRow>
               <Field label="Port on this computer" width={170}>
-                <Input type="number" min={1} max={65535} value={portText(draft.listenPort)} onValue={value => setDraft("listenPort", toPort(value))} placeholder="8080" />
+                <Input type="number" min={1} max={65535} value={portText(draft.listenPort)} onValue={value => setField("listenPort", toPort(value))} placeholder="8080" />
               </Field>
               <Field label="Destination, as the server sees it" grow>
-                <Input value={draft.targetHost} onValue={value => setDraft("targetHost", value)} placeholder="grafana.internal" />
+                <Input value={draft.targetHost} onValue={value => setField("targetHost", value)} placeholder="grafana.internal" />
               </Field>
               <Field label="Port" width={96}>
-                <Input type="number" min={1} max={65535} value={portText(draft.targetPort)} onValue={value => setDraft("targetPort", toPort(value))} placeholder="3000" />
+                <Input type="number" min={1} max={65535} value={portText(draft.targetPort)} onValue={value => setField("targetPort", toPort(value))} placeholder="3000" />
               </Field>
             </FieldRow>
           </Match>
           <Match when={draft.kind === "remote"}>
             <FieldRow>
               <Field label="Server listens on" grow>
-                <Input value={draft.remoteBind} onValue={value => setDraft("remoteBind", value)} placeholder="localhost" />
+                <Input value={draft.remoteBind} onValue={value => setField("remoteBind", value)} placeholder="localhost" />
               </Field>
               <Field label="Port" width={96}>
-                <Input type="number" min={1} max={65535} value={portText(draft.listenPort)} onValue={value => setDraft("listenPort", toPort(value))} placeholder="8080" />
+                <Input type="number" min={1} max={65535} value={portText(draft.listenPort)} onValue={value => setField("listenPort", toPort(value))} placeholder="8080" />
               </Field>
             </FieldRow>
             <FieldRow>
               <Field label="Sends to, as this computer sees it" grow>
-                <Input value={draft.targetHost} onValue={value => setDraft("targetHost", value)} placeholder="127.0.0.1" />
+                <Input value={draft.targetHost} onValue={value => setField("targetHost", value)} placeholder="127.0.0.1" />
               </Field>
               <Field label="Port" width={96}>
-                <Input type="number" min={1} max={65535} value={portText(draft.targetPort)} onValue={value => setDraft("targetPort", toPort(value))} placeholder="5173" />
+                <Input type="number" min={1} max={65535} value={portText(draft.targetPort)} onValue={value => setField("targetPort", toPort(value))} placeholder="5173" />
               </Field>
             </FieldRow>
           </Match>
           <Match when={draft.kind === "dynamic"}>
             <Field label="Port on this computer" width={170}>
-              <Input type="number" min={1} max={65535} value={portText(draft.listenPort)} onValue={value => setDraft("listenPort", toPort(value))} placeholder="1080" />
+              <Input type="number" min={1} max={65535} value={portText(draft.listenPort)} onValue={value => setField("listenPort", toPort(value))} placeholder="1080" />
             </Field>
           </Match>
         </Branch>
 
         <Show when={listens()}>
-          <Switch checked={draft.allNetworks} onChange={value => setDraft("allNetworks", value)} label="Listen on all networks (0.0.0.0)" />
+          <Switch checked={draft.allNetworks} onChange={value => setField("allNetworks", value)} label="Listen on all networks (0.0.0.0)" />
         </Show>
         <Note>{NOTES[draft.kind]}</Note>
         <Show when={exposed()}>

@@ -24,7 +24,7 @@ function StatusChip() {
     <span
       class={styles.StatusChip}
       data-state={state()}
-      ref={element => tooltip(element, () => agent.status().error ?? undefined)}
+      ref={tooltip(() => agent.status().error ?? undefined)}
     >
       <span class={styles.Led} />
       {label()}
@@ -34,7 +34,7 @@ function StatusChip() {
           type="button"
           class={styles.ChipButton}
           aria-label="Copy URL"
-          ref={element => tooltip(element, () => "Copy URL")}
+          ref={tooltip(() => "Copy URL")}
           onClick={() => copyText(agent.url(), "the URL")}
         >
           <Copy size={12} />
@@ -76,7 +76,7 @@ function Agents() {
           </div>
         }
       />
-      <div class={styles.View} classList={{ [styles.Hidden]: agent.view() !== "activity" }}>
+      <div class={[styles.View, { [styles.Hidden]: agent.view() !== "activity" }]}>
         <ActivityView />
       </div>
       <Show when={agent.view() === "access"}>

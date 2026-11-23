@@ -32,8 +32,7 @@ function Workspace(props: { sessionId: string }) {
               <For each={scopeNames()}>
                 {database => (
                   <div
-                    class={styles.Scope}
-                    classList={{ [styles.Hidden]: current().selectedDatabase !== database }}
+                    class={[styles.Scope, { [styles.Hidden]: current().selectedDatabase !== database }]}
                   >
                     <DatabaseTabs sessionId={props.sessionId} database={database} />
                   </div>

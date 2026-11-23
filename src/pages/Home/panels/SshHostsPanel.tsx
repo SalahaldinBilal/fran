@@ -40,10 +40,9 @@ function HostRow(props: { host: SshHost, onGrab?: (event: PointerEvent) => void 
 
   return (
     <div
-      class={`${shared.Row} ${styles.HostRow}`}
-      classList={{ [shared.Filled]: filled() }}
+      class={[shared.Row, styles.HostRow, { [shared.Filled]: filled() }]}
       role="button"
-      tabIndex={0}
+      tabindex={0}
       style={{ "--row-color": props.host.color ?? "var(--accent)" }}
       onClick={() => activateHost(props.host)}
       onKeyDown={event => {
@@ -321,8 +320,7 @@ function SshHostsPanel(props: PanelProps) {
                           when={renaming() === key}
                           fallback={
                             <h3
-                              class={groups.SectionTitle}
-                              classList={{ [groups.Renamable]: renamable() }}
+                              class={[groups.SectionTitle, { [groups.Renamable]: renamable() }]}
                               onClick={() => {
                                 if (renamable()) setRenaming(key);
                               }}
@@ -361,7 +359,7 @@ function SshHostsPanel(props: PanelProps) {
                         </Show>
                       </header>
                     </Show>
-                    <div class={listClass()} classList={{ [styles.EmptyGroup]: hosts().length === 0 }}>
+                    <div class={[listClass(), { [styles.EmptyGroup]: hosts().length === 0 }]}>
                       <Show when={hosts().length === 0}>
                         <span>Drop hosts here</span>
                       </Show>

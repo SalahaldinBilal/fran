@@ -1,6 +1,6 @@
 import styles from "./App.module.scss";
-import { For, Show, createMemo, onMount } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { For, Show, createMemo, onSettled } from "solid-js";
+import { Dynamic } from "@solidjs/web";
 import {
   Bot, Cloud as CloudIcon, CloudAlert, CloudCheck, CloudSync, Database, FolderOpen, House, KeyRound, Lock, LucideIcon, Settings, Shield,
   ShieldCheck, SquareTerminal, X,
@@ -173,18 +173,18 @@ function App() {
   const titleBarLeading = createMemo(() => (IS_MAC ? <div class={styles.TrafficLights} data-tauri-drag-region /> : undefined));
 
   // Pages keep their DOM order when tabs move, since moving a node resets its scroll.
-  const sessionIds = createMemo<string[]>(previous => keepOrder(
+  const sessionIds = createMemo<string[]>((previous = []) => keepOrder(
     previous,
     workspace.store.globalTabs.flatMap(tab => (tab.kind === "session" ? [tab.sessionId] : [])),
-  ), []);
-  const terminalIds = createMemo<string[]>(previous => keepOrder(
+  ));
+  const terminalIds = createMemo<string[]>((previous = []) => keepOrder(
     previous,
     workspace.store.globalTabs.flatMap(tab => (tab.kind === "terminal" ? [tab.id] : [])),
-  ), []);
-  const sftpIds = createMemo<string[]>(previous => keepOrder(
+  ));
+  const sftpIds = createMemo<string[]>((previous = []) => keepOrder(
     previous,
     workspace.store.globalTabs.flatMap(tab => (tab.kind === "sftp" ? [tab.id] : [])),
-  ), []);
+  ));
 
   installGlobalContextMenu();
 
@@ -193,7 +193,7 @@ function App() {
     workspace.openAgents();
   }
 
-  onMount(() => {
+  function startApp() {
     // Two frames so the first paint is done before the window swaps in, otherwise it shows blank.
     requestAnimationFrame(() => requestAnimationFrame(() => safeInvoke("show_main_window")));
     void useSettingsState.load().then(() => {
@@ -212,7 +212,10 @@ function App() {
     useVaultState.refresh();
     useAgentState.load();
     useSyncState.start();
-  });
+  }
+
+  // Deferred because state writes flush, and flush() throws inside onSettled.
+  onSettled(() => queueMicrotask(startApp));
 
   return (
     <div class={styles.App}>
@@ -239,7 +242,7 @@ function App() {
         leading={titleBarLeading()}
         trailing={
           <>
-            <div class={styles.Actions} classList={{ [styles.Locked]: useModalState.anyOpen() }}>
+            <div class={[styles.Actions, { [styles.Locked]: useModalState.anyOpen() }]}>
               <Show when={useLockState.enabled()}>
                 <Button icon size="sm" tooltip="Lock Fran" onClick={() => void useLockState.lock()}>
                   <Lock size={15} />
@@ -314,47 +317,47 @@ function App() {
       />
       <UpdateBanner />
       <main class={styles.Content}>
-        <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== HOME_TAB_ID }}>
+        <div class={[styles.Page, { [styles.Hidden]: workspace.store.activeGlobalTabId !== HOME_TAB_ID }]}>
           <Home />
         </div>
         <For each={sessionIds()}>
           {sessionId => (
-            <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== sessionId }}>
+            <div class={[styles.Page, { [styles.Hidden]: workspace.store.activeGlobalTabId !== sessionId }]}>
               <Workspace sessionId={sessionId} />
             </div>
           )}
         </For>
         <For each={terminalIds()}>
           {tabId => (
-            <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== tabId }}>
+            <div class={[styles.Page, { [styles.Hidden]: workspace.store.activeGlobalTabId !== tabId }]}>
               <TerminalPage tabId={tabId} />
             </div>
           )}
         </For>
         <For each={sftpIds()}>
           {tabId => (
-            <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== tabId }}>
+            <div class={[styles.Page, { [styles.Hidden]: workspace.store.activeGlobalTabId !== tabId }]}>
               <SftpPage tabId={tabId} />
             </div>
           )}
         </For>
         <Show when={agentsOpen()}>
-          <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== AGENTS_TAB_ID }}>
+          <div class={[styles.Page, { [styles.Hidden]: workspace.store.activeGlobalTabId !== AGENTS_TAB_ID }]}>
             <Agents />
           </div>
         </Show>
         <Show when={settingsOpen()}>
-          <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== SETTINGS_TAB_ID }}>
+          <div class={[styles.Page, { [styles.Hidden]: workspace.store.activeGlobalTabId !== SETTINGS_TAB_ID }]}>
             <SettingsPage onOpenAgents={openAgents} />
           </div>
         </Show>
         <Show when={secretsOpen()}>
-          <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== SECRETS_TAB_ID }}>
+          <div class={[styles.Page, { [styles.Hidden]: workspace.store.activeGlobalTabId !== SECRETS_TAB_ID }]}>
             <Secrets />
           </div>
         </Show>
         <Show when={syncOpen()}>
-          <div class={styles.Page} classList={{ [styles.Hidden]: workspace.store.activeGlobalTabId !== SYNC_TAB_ID }}>
+          <div class={[styles.Page, { [styles.Hidden]: workspace.store.activeGlobalTabId !== SYNC_TAB_ID }]}>
             <SyncPage />
           </div>
         </Show>

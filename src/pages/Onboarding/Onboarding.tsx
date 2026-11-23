@@ -1,6 +1,6 @@
 import styles from "./Onboarding.module.scss";
-import { For, Match, Show, Switch, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { createStore } from "solid-js/store";
+import { For, Match, Show, Switch, createMemo, createSignal, createStore, onSettled, untrack } from "solid-js";
+import { fieldSetter, immediateWrite } from "@core/helpers/immediateWrite";
 import { ArrowLeft, ArrowRight, Check, CircleAlert, Cloud, CloudCheck, Database, FileX, LucideIcon, Shield, ShieldCheck, SquareTerminal } from "@core/icons";
 import useSettingsState, { Features } from "@core/states/settingsState";
 import useToastState from "@core/states/toastState";
@@ -58,8 +58,14 @@ function Onboarding() {
   const onboarding = useOnboardingState;
   const vault = useVaultState;
 
-  const returning = onboarding.replaying() || useConnectionsState.connections.length > 0;
-  const [picks, setPicks] = createStore<Features>(returning ? { ...useSettingsState.settings.features } : { database: false, ssh: false, vpn: false });
+  function startingPicks(): Features {
+    const returning = onboarding.replaying() || useConnectionsState.connections.length > 0;
+    return returning ? { ...useSettingsState.settings.features } : { database: false, ssh: false, vpn: false };
+  }
+
+  // Read once, so a sync landing mid-setup can't overwrite what the user has picked.
+  const [picks, writePicks] = createStore<Features>(untrack(startingPicks));
+  const setPicks = fieldSetter(immediateWrite(writePicks));
   const [step, setStep] = createSignal<Step>("pick");
   const [finishing, setFinishing] = createSignal(false);
   const [importing, setImporting] = createSignal(false);
@@ -83,7 +89,7 @@ function Onboarding() {
 
   const clouds = createMemo(() => useSyncState.view.clouds.map(cloud => cloud.name).join(", "));
 
-  onMount(() => onCleanup(useModalState.track()));
+  onSettled(() => useModalState.track());
 
   function next() {
     const following = steps()[stepIndex() + 1];
@@ -122,7 +128,7 @@ function Onboarding() {
       <div class={styles.Card}>
         <div class={styles.Steps}>
           <For each={steps()}>
-            {(_, index) => <span class={styles.Bar} classList={{ [styles.Done]: index() <= stepIndex() }} />}
+            {(_, index) => <span class={[styles.Bar, { [styles.Done]: index() <= stepIndex() }]} />}
           </For>
           <span class={styles.StepLabel}>Step {stepIndex() + 1} of {steps().length}</span>
         </div>
@@ -141,9 +147,8 @@ function Onboarding() {
                   return (
                     <button
                       type="button"
-                      class={styles.Choice}
-                      classList={{ [styles.Selected]: selected() }}
-                      aria-pressed={selected()}
+                      class={[styles.Choice, { [styles.Selected]: selected() }]}
+                      aria-pressed={selected() ? "true" : "false"}
                       onClick={() => setPicks(choice.feature, !selected())}
                     >
                       <span class={styles.Check}><Check size={13} /></span>

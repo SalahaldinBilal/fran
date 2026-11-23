@@ -1,6 +1,6 @@
 import styles from "./Tooltip.module.scss";
-import { JSX, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { Portal } from "solid-js/web";
+import { createEffect, createMemo, createSignal, onSettled } from "solid-js";
+import { JSX, Portal } from "@solidjs/web";
 import useTooltipState, { TooltipSide } from "@core/states/tooltipState";
 
 type Placement = { left: number, top: number, side: TooltipSide, arrow: number };
@@ -84,21 +84,22 @@ function TooltipHost() {
 
   // Runs after the content is in the DOM, so it can be measured.
   createEffect(() => {
-    const current = shown();
+    content();
+    return shown();
+  }, current => {
     if (!current) {
       setVisible(false);
       setPlacement(null);
       moveTo(tip, -9999, -9999);
       return;
     }
-    content();
     const next = place(current.element, current.options.side ?? "top", tip);
     moveTo(tip, next.left, next.top);
     setPlacement(next);
     requestAnimationFrame(() => setVisible(shown() !== null));
   });
 
-  onMount(() => {
+  onSettled(() => {
     function onPointerDown(event: PointerEvent) {
       if (!active()?.element.contains(event.target as Node)) hideTooltip();
     }
@@ -114,27 +115,26 @@ function TooltipHost() {
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", hideTooltip);
     window.addEventListener("blur", hideTooltip);
-    onCleanup(() => {
+    return () => {
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", hideTooltip);
       window.removeEventListener("blur", hideTooltip);
-    });
+    };
   });
 
   return (
     <Portal>
       <div
         ref={tip}
-        class={styles.Tooltip}
-        classList={{
+        class={[styles.Tooltip, {
           [styles.Top]: side() === "top",
           [styles.Bottom]: side() === "bottom",
           [styles.Left]: side() === "left",
           [styles.Right]: side() === "right",
           [styles.Visible]: visible(),
-        }}
+        }]}
         style={{ "--dx": SLIDE[side()][0], "--dy": SLIDE[side()][1] }}
         role="tooltip"
       >

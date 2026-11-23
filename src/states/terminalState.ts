@@ -1,6 +1,6 @@
-import { createRoot } from "solid-js";
-import { createStore, produce } from "solid-js/store";
+import { createRoot, createStore, snapshot } from "solid-js";
 import { Channel } from "@tauri-apps/api/core";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { withConnectPrompts } from "@core/helpers/connectFlow";
 import { errorMessage, isAppError } from "@core/helpers/errors";
@@ -61,7 +61,15 @@ function dim(text: string): string {
 function useTerminalStateInner() {
   const workspace = useWorkspaceState;
   const ssh = useSshState;
-  const [store, setStore] = createStore<{ tabs: Record<string, TerminalTab> }>({ tabs: {} });
+  const [store, writeStore] = createStore<{ tabs: Record<string, TerminalTab> }>({ tabs: {} });
+  const setStore = immediateWrite(writeStore);
+
+  function setTab(tabId: string, change: (state: TerminalTab) => void) {
+    setStore(state => {
+      const current = state.tabs[tabId];
+      if (current) change(current);
+    });
+  }
 
   const sinks = new Map<string, PaneSink>();
   const queues = new Map<string, { buffer: number[], sending: boolean }>();
@@ -88,17 +96,19 @@ function useTerminalStateInner() {
     if (!host) return;
     const id = generateId();
     const paneId = generateId();
-    setStore("tabs", id, {
-      id,
-      hostId,
-      layout: leaf(paneId),
-      panes: { [paneId]: newPane() },
-      order: [paneId],
-      focus: paneId,
-      drawer: false,
-      connectionId: null,
-      info: null,
-      pendingSnippet: null,
+    setStore(state => {
+      state.tabs[id] = {
+        id,
+        hostId,
+        layout: leaf(paneId),
+        panes: { [paneId]: newPane() },
+        order: [paneId],
+        focus: paneId,
+        drawer: false,
+        connectionId: null,
+        info: null,
+        pendingSnippet: null,
+      };
     });
     workspace.addGlobalTab({ id, kind: "terminal" });
     workspace.rememberRecent(hostId, "ssh");
@@ -106,7 +116,9 @@ function useTerminalStateInner() {
 
   function setPane(tabId: string, paneId: string, patch: Partial<PaneState>) {
     if (!store.tabs[tabId]?.panes[paneId]) return;
-    setStore("tabs", tabId, "panes", paneId, patch);
+    setTab(tabId, state => {
+      Object.assign(state.panes[paneId], patch);
+    });
   }
 
   function attach(paneId: string, sink: PaneSink) {
@@ -154,7 +166,11 @@ function useTerminalStateInner() {
     const pane = current?.panes[paneId];
     if (!current || !pane || pane.terminalId !== terminalId) return;
     setPane(tabId, paneId, { status: "closed", terminalId: null, reason: event.reason });
-    if (event.connectionLost) setStore("tabs", tabId, "connectionId", null);
+    if (event.connectionLost) {
+      setTab(tabId, state => {
+        state.connectionId = null;
+      });
+    }
     const why = event.reason ? `${event.reason}. ` : "";
     sinks.get(paneId)?.write(dim(`${why}Press Enter to reconnect.`));
   }
@@ -224,13 +240,13 @@ function useTerminalStateInner() {
 
     ref.id = info.id;
     const opened = info;
-    setStore("tabs", tabId, produce(state => {
+    setTab(tabId, state => {
       state.connectionId = opened.connectionId;
       state.info = opened;
       state.panes[paneId].status = "open";
       state.panes[paneId].terminalId = opened.id;
       state.panes[paneId].reason = null;
-    }));
+    });
     if (ref.early) {
       paneClosed(tabId, paneId, opened.id, ref.early);
       return;
@@ -275,7 +291,10 @@ function useTerminalStateInner() {
   }
 
   function focus(tabId: string, paneId: string) {
-    if (tab(tabId)?.focus !== paneId) setStore("tabs", tabId, "focus", paneId);
+    if (tab(tabId)?.focus === paneId) return;
+    setTab(tabId, state => {
+      state.focus = paneId;
+    });
   }
 
   function activePane(tabId: string): string | null {
@@ -288,16 +307,20 @@ function useTerminalStateInner() {
     const target = activePane(tabId);
     if (!target) return;
     const paneId = generateId();
-    setStore("tabs", tabId, produce(state => {
+    const layout = splitPanel(snapshot(store.tabs[tabId].layout), target, paneId, dir);
+    setTab(tabId, state => {
       state.panes[paneId] = newPane();
       state.order.push(paneId);
-      state.layout = splitPanel(state.layout, target, paneId, dir);
+      state.layout = layout;
       state.focus = paneId;
-    }));
+    });
   }
 
   function setLayout(tabId: string, layout: TileNode | null) {
-    if (layout) setStore("tabs", tabId, "layout", layout);
+    if (!layout) return;
+    setTab(tabId, state => {
+      state.layout = layout;
+    });
   }
 
   function closePane(tabId: string, paneId: string) {
@@ -309,12 +332,13 @@ function useTerminalStateInner() {
       return;
     }
     if (pane.terminalId) void safeInvoke("close_terminal", { id: pane.terminalId });
-    setStore("tabs", tabId, produce(state => {
-      state.layout = removePanel(state.layout, paneId) ?? state.layout;
+    const layout = removePanel(snapshot(current.layout), paneId);
+    setTab(tabId, state => {
+      if (layout) state.layout = layout;
       delete state.panes[paneId];
       state.order = state.order.filter(id => id !== paneId);
       if (state.focus === paneId) state.focus = state.order[0] ?? "";
-    }));
+    });
   }
 
   function closeTab(tabId: string) {
@@ -324,7 +348,9 @@ function useTerminalStateInner() {
       if (pane.terminalId) void safeInvoke("close_terminal", { id: pane.terminalId });
     }
     opening.delete(tabId);
-    setStore("tabs", produce(tabs => { delete tabs[tabId]; }));
+    setStore(state => {
+      delete state.tabs[tabId];
+    });
   }
 
   async function reconnectClosed(tabId: string) {
@@ -336,10 +362,10 @@ function useTerminalStateInner() {
   }
 
   function setDrawer(tabId: string, open: boolean) {
-    setStore("tabs", tabId, produce(state => {
+    setTab(tabId, state => {
       state.drawer = open;
       state.pendingSnippet = null;
-    }));
+    });
   }
 
   // Run sends the command with Enter, so each line runs. Type it pastes without Enter.
@@ -352,10 +378,12 @@ function useTerminalStateInner() {
       return;
     }
     if (run && snippet.confirm && !confirmed) {
-      setStore("tabs", tabId, "pendingSnippet", snippet.id);
+      setTab(tabId, state => {
+        state.pendingSnippet = snippet.id;
+      });
       return;
     }
-    setStore("tabs", tabId, "pendingSnippet", null);
+    cancelSnippet(tabId);
     if (run) send(tabId, paneId, `${snippet.command.replace(/\r?\n/g, "\r")}\r`);
     else sinks.get(paneId)?.paste(snippet.command);
     sinks.get(paneId)?.focus();
@@ -378,7 +406,9 @@ function useTerminalStateInner() {
   }
 
   function cancelSnippet(tabId: string) {
-    setStore("tabs", tabId, "pendingSnippet", null);
+    setTab(tabId, state => {
+      state.pendingSnippet = null;
+    });
   }
 
   function askPaste(tabId: string, paneId: string, text: string) {

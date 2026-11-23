@@ -1,5 +1,5 @@
 import styles from "./SecretEditor.module.scss";
-import { Show, createEffect, createMemo, createSignal, on } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, snapshot, untrack } from "solid-js";
 import { Eye, EyeOff, Trash2 } from "@core/icons";
 import { cloudModule } from "@core/clouds";
 import useSecretsState from "@core/states/secretsState";
@@ -108,19 +108,23 @@ function SecretEditor() {
 
   function startsIn(): string {
     const chosen = useSettingsState.settings.newSecretsStoredIn;
-    return stores().some(cloud => cloud.identity === chosen) ? chosen : THIS_COMPUTER;
+    return sync.view.clouds.some(cloud => cloud.identity === chosen && cloudModule(cloud.kind).secretStore) ? chosen : THIS_COMPUTER;
   }
 
-  createEffect(on(secrets.editorRequest, request => {
-    if (!request) return;
-    setName(request.secret?.name ?? "");
-    setNote(request.secret?.note ?? "");
-    setStoredIn(request.secret ? request.secret.link?.cloud ?? THIS_COMPUTER : startsIn());
-    setLinkName(request.secret?.link?.name ?? "");
-    setLinkTouched(Boolean(request.secret?.link));
+  createEffect(() => {
+    const request = secrets.editorRequest();
+    return request ? { secret: request.secret, startsIn: untrack(startsIn) } : null;
+  }, opened => {
+    if (!opened) return;
+    const secret = snapshot(opened.secret);
+    setName(secret?.name ?? "");
+    setNote(secret?.note ?? "");
+    setStoredIn(secret ? secret.link?.cloud ?? THIS_COMPUTER : opened.startsIn);
+    setLinkName(secret?.link?.name ?? "");
+    setLinkTouched(Boolean(secret?.link));
     setValue("");
     setVisible(false);
-  }));
+  });
 
   function suggestedName(identity: string, from: string): string | null {
     const cloud = stores().find(candidate => candidate.identity === identity);

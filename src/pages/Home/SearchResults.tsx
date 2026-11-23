@@ -1,6 +1,6 @@
 import styles from "./SearchResults.module.scss";
 import { For, Show, createMemo } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { Dynamic } from "@solidjs/web";
 import { ArrowLeftRight, CodeXml, Database, LucideIcon, Server, Shield } from "@core/icons";
 import useVpnState from "@core/states/vpnState";
 import useVpnEditorState from "@core/states/vpnEditorState";
@@ -129,10 +129,9 @@ function SearchResults(props: { results: SearchResult[], active: number, onPick:
         <For each={props.results}>
           {(result, index) => (
             <div
-              class={styles.Result}
-              classList={{ [styles.Active]: index() === props.active }}
+              class={[styles.Result, { [styles.Active]: index() === props.active }]}
               role="option"
-              aria-selected={index() === props.active}
+              aria-selected={index() === props.active ? "true" : "false"}
               style={{ "--result-color": result.color ?? "var(--text-muted)" }}
               onMouseDown={event => event.preventDefault()}
               onMouseEnter={() => props.onHover(index())}

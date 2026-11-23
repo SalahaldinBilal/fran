@@ -1,5 +1,6 @@
 import settingsStyles from "../Settings/Settings.module.scss";
-import { For, JSX, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
+import { JSX } from "@solidjs/web";
 import { Braces, Globe, KeyRound, Lock, LucideIcon, Shield, ShieldCheck, User } from "@core/icons";
 import useSshState from "@core/states/sshState";
 import useSecretsState from "@core/states/secretsState";
@@ -26,14 +27,14 @@ function Secrets() {
   const saved = useSavedSecretsState;
   const [active, setActive] = createSignal("passwords");
 
-  onMount(() => {
+  onSettled(() => {
     ssh.loadKnownHosts().catch(() => undefined);
   });
 
   // Reloaded each time the tab is shown, so passwords saved elsewhere since are listed.
   // Values leave the page while it's hidden and come back without asking if it's still unlocked.
-  createEffect(() => {
-    if (useWorkspaceState.store.activeGlobalTabId === SECRETS_TAB_ID) {
+  createEffect(() => useWorkspaceState.store.activeGlobalTabId === SECRETS_TAB_ID, active => {
+    if (active) {
       void saved.load();
       void useSecretsState.load();
       void saved.resume();
@@ -67,8 +68,7 @@ function Secrets() {
           {section => (
             <button
               type="button"
-              class={settingsStyles.NavItem}
-              classList={{ [settingsStyles.Active]: active() === section.id }}
+              class={[settingsStyles.NavItem, { [settingsStyles.Active]: active() === section.id }]}
               onClick={() => setActive(section.id)}
             >
               <section.icon size={18} />

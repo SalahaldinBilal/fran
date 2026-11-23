@@ -65,6 +65,8 @@ export function PermissionsModal(props: { tabId: string }) {
 
   createEffect(() => {
     const current = target();
+    return current ? { mode: current.mode } : null;
+  }, current => {
     if (!current) return;
     setMode(current.mode);
     setTyped(octal(current.mode));

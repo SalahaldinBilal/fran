@@ -1,6 +1,5 @@
 import styles from "./Prompts.module.scss";
-import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
-import { createStore } from "solid-js/store";
+import { For, Show, createEffect, createMemo, createSignal, createStore, snapshot } from "solid-js";
 import { ShieldAlert, ShieldCheck, ShieldQuestionMark, TriangleAlert } from "@core/icons";
 import usePromptState from "@core/states/promptState";
 import { HopPosition } from "@core/types";
@@ -15,9 +14,12 @@ function SecretsPrompt() {
   const [values, setValues] = createStore<Record<string, string>>({});
   const [save, setSave] = createSignal(false);
 
-  createEffect(() => {
-    if (!secretsRequest()) return;
-    setValues(Object.fromEntries(secretsRequest()!.slots.map(slot => [slot.id, ""])));
+  createEffect(secretsRequest, request => {
+    if (!request) return;
+    const slots = snapshot(request.slots);
+    setValues(state => {
+      for (const slot of slots) state[slot.id] = "";
+    });
     setSave(false);
   });
 
@@ -56,7 +58,9 @@ function SecretsPrompt() {
                   type={inputType()}
                   autofocus={index() === 0}
                   value={values[slot.id] ?? ""}
-                  onValue={value => setValues(slot.id, value)}
+                  onValue={value => setValues(state => {
+                    state[slot.id] = value;
+                  })}
                 />
               </Field>
             );
@@ -150,8 +154,8 @@ function ChangedKeyPrompt() {
   const { changedKeyRequest } = usePromptState;
   const [typed, setTyped] = createSignal("");
 
-  createEffect(() => {
-    if (changedKeyRequest()) setTyped("");
+  createEffect(changedKeyRequest, request => {
+    if (request) setTyped("");
   });
 
   const host = createMemo(() => changedKeyRequest()?.detail.key.host ?? "");
@@ -218,8 +222,8 @@ function ConfirmPrompt() {
   const { confirmRequest } = usePromptState;
   const [option, setOption] = createSignal(false);
 
-  createEffect(() => {
-    if (confirmRequest()) setOption(false);
+  createEffect(confirmRequest, request => {
+    if (request) setOption(false);
   });
 
   return (
@@ -252,8 +256,7 @@ function TextPrompt() {
   const { textRequest } = usePromptState;
   const [value, setValue] = createSignal("");
 
-  createEffect(() => {
-    const request = textRequest();
+  createEffect(textRequest, request => {
     if (request) setValue(request.initial);
   });
 
@@ -297,8 +300,8 @@ function UnattendedWritesPrompt() {
   const { unattendedWritesRequest } = usePromptState;
   const [typed, setTyped] = createSignal("");
 
-  createEffect(() => {
-    if (unattendedWritesRequest()) setTyped("");
+  createEffect(unattendedWritesRequest, request => {
+    if (request) setTyped("");
   });
 
   const name = createMemo(() => {

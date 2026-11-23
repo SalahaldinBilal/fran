@@ -1,17 +1,20 @@
-import { createRoot } from "solid-js";
-import { createStore, produce } from "solid-js/store";
+import { createRoot, createStore } from "solid-js";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { errorMessage } from "@core/helpers/errors";
 
 export type ToastVariant = "info" | "success" | "error";
 export type Toast = { id: number, message: string, variant: ToastVariant };
 
 function useToastStateInner() {
-  const [toasts, setToasts] = createStore<Toast[]>([]);
+  const [toasts, writeToasts] = createStore<Toast[]>([]);
+  const setToasts = immediateWrite(writeToasts);
   let nextId = 0;
 
   function pushToast(message: string, variant: ToastVariant = "info", durationMs = 4500) {
     const id = nextId++;
-    setToasts(produce(list => list.push({ id, message, variant })));
+    setToasts(list => {
+      list.push({ id, message, variant });
+    });
     if (durationMs > 0) setTimeout(() => dismissToast(id), durationMs);
   }
 

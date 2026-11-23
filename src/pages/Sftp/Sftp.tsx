@@ -1,5 +1,5 @@
 import styles from "./Sftp.module.scss";
-import { Match, Show, Switch as Branch, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { Match, Show, Switch as Branch, createMemo, createSignal, onCleanup, onSettled } from "solid-js";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import useWorkspaceState from "@core/states/workspaceState";
 import { CircleAlert, Files, Laptop, Link2, Pencil, RefreshCw, Server, ShieldCheck, SquareTerminal, User } from "@core/icons";
@@ -85,7 +85,7 @@ function SftpPage(props: { tabId: string }) {
   let osEntries: FileEntry[] = [];
   let unlistenDrop: (() => void) | null = null;
   let disposed = false;
-  onMount(() => {
+  onSettled(() => {
     void getCurrentWebview().onDragDropEvent(event => {
       if (useWorkspaceState.store.activeGlobalTabId !== props.tabId || status() !== "open") return;
       const payload = event.payload;
@@ -254,7 +254,7 @@ function SftpPage(props: { tabId: string }) {
 
           <footer class={styles.Status}>
             <span>
-              <i class={styles.Dot} classList={{ [styles.DotOff]: status() !== "open", [styles.DotWait]: status() === "connecting" }} />
+              <i class={[styles.Dot, { [styles.DotOff]: status() !== "open", [styles.DotWait]: status() === "connecting" }]} />
               <em>{statusLabel()}</em>
             </span>
             <Show when={hostKey()}>
@@ -270,7 +270,7 @@ function SftpPage(props: { tabId: string }) {
 
           <Show when={drag()}>
             {current => (
-              <div class={styles.Ghost} classList={{ [styles.GhostReady]: ghostReady() }} style={{ left: `${current().x + 14}px`, top: `${current().y + 12}px` }}>
+              <div class={[styles.Ghost, { [styles.GhostReady]: ghostReady() }]} style={{ left: `${current().x + 14}px`, top: `${current().y + 12}px` }}>
                 {ghostLabel()}
               </div>
             )}

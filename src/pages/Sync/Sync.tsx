@@ -1,6 +1,6 @@
 import page from "./Sync.module.scss";
-import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { Dynamic } from "@solidjs/web";
 import { ChevronDown, ChevronRight, CloudSync, Ellipsis, Pencil, Plus, RefreshCw } from "@core/icons";
 import { cloudModules, withCloudModule } from "@core/clouds";
 import useSyncState from "@core/states/syncState";
@@ -73,11 +73,11 @@ function CloudRow(props: { cloud: Cloud }) {
 
   const [busy, setBusy] = createSignal(false);
   let busyTimer: ReturnType<typeof setTimeout> | undefined;
-  createEffect(on(syncing, now => {
+  createEffect(syncing, now => {
     clearTimeout(busyTimer);
     if (now) busyTimer = setTimeout(() => setBusy(true), BUSY_AFTER_MS);
     else setBusy(false);
-  }));
+  });
   onCleanup(() => clearTimeout(busyTimer));
 
   const tone = createMemo<PillTone>(() => {
@@ -99,8 +99,8 @@ function CloudRow(props: { cloud: Cloud }) {
   const open = createMemo(() => managing() || props.cloud.status.signedOut);
   // Mounted on first open and kept, so closing can slide instead of vanishing.
   const [mounted, setMounted] = createSignal(false);
-  createEffect(() => {
-    if (open()) setMounted(true);
+  createEffect(open, isOpen => {
+    if (isOpen) setMounted(true);
   });
   const drawerLabel = createMemo(() => (open() ? "Hide" : module().accountLabel));
 
@@ -147,7 +147,7 @@ function CloudRow(props: { cloud: Cloud }) {
   }
 
   return (
-    <div class={page.Cloud} classList={{ [page.CloudFailed]: failed() }}>
+    <div class={[page.Cloud, { [page.CloudFailed]: failed() }]}>
       <div class={page.CloudHead}>
         <span class={page.CloudIcon}>
           <Dynamic component={module().icon} size={18} />
@@ -158,7 +158,7 @@ function CloudRow(props: { cloud: Cloud }) {
             fallback={
               <div class={page.CloudNameRow}>
                 <span class={page.CloudName}>{props.cloud.name}</span>
-                <button type="button" class={page.Rename} ref={element => tooltip(element, () => "Rename")} onClick={() => setNaming(true)}>
+                <button type="button" class={page.Rename} ref={tooltip(() => "Rename")} onClick={() => setNaming(true)}>
                   <Pencil size={12} />
                 </button>
               </div>
@@ -183,9 +183,8 @@ function CloudRow(props: { cloud: Cloud }) {
         <div class={page.Tools}>
           <button
             type="button"
-            class={page.Pill}
-            classList={{ [page.PillGood]: tone() === "good", [page.PillBusy]: tone() === "busy", [page.PillBad]: tone() === "bad" }}
-            ref={element => tooltip(element, pillTooltip)}
+            class={[page.Pill, { [page.PillGood]: tone() === "good", [page.PillBusy]: tone() === "busy", [page.PillBad]: tone() === "bad" }]}
+            ref={tooltip(pillTooltip)}
             onClick={() => void sync.syncNow(props.cloud.id)}
           >
             <span class={page.PillMark}>
@@ -207,7 +206,7 @@ function CloudRow(props: { cloud: Cloud }) {
       <For each={problems()}>
         {group => <div class={`${page.Status} ${page.Failed}`}>{PROBLEM_TEXT[group.reason]}: {group.names}</div>}
       </For>
-      <div class={page.Drawer} classList={{ [page.DrawerOpen]: open() }}>
+      <div class={[page.Drawer, { [page.DrawerOpen]: open() }]}>
         <div class={page.DrawerInner}>
           <Show when={mounted()}>
             <div class={page.Manage}>
@@ -217,7 +216,7 @@ function CloudRow(props: { cloud: Cloud }) {
         </div>
       </div>
       <Show when={!props.cloud.status.signedOut}>
-        <button type="button" class={page.DrawerBar} classList={{ [page.DrawerOpen]: open() }} aria-expanded={open()} onClick={toggleManaging}>
+        <button type="button" class={[page.DrawerBar, { [page.DrawerOpen]: open() }]} aria-expanded={open() ? "true" : "false"} onClick={toggleManaging}>
           {drawerLabel()}
           <ChevronDown size={14} class={page.DrawerChevron} />
         </button>
@@ -287,8 +286,8 @@ function Sync() {
           <header class={page.Head}>
             <div class={page.HeadText}>
               <h1>Sync</h1>
-              <div class={page.Status} classList={{ [page.Failed]: sync.overall() === "error" }}>
-                <span class={page.Dot} classList={{ [page.Good]: sync.overall() === "upToDate", [page.Bad]: sync.overall() === "error" }} />
+              <div class={[page.Status, { [page.Failed]: sync.overall() === "error" }]}>
+                <span class={[page.Dot, { [page.Good]: sync.overall() === "upToDate", [page.Bad]: sync.overall() === "error" }]} />
                 {overallText()}, {cloudsText()}
               </div>
             </div>

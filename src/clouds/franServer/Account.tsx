@@ -1,7 +1,8 @@
 import styles from "./Account.module.scss";
-import { For, JSX, Match, Show, Switch as Branch, createMemo, createResource, createSignal } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { For, Match, Show, Switch as Branch, createMemo, createSignal } from "solid-js";
+import { Dynamic, JSX } from "@solidjs/web";
 import { Copy, KeyRound, Laptop, Lock, LucideIcon, ShieldCheck, TriangleAlert } from "@core/icons";
+import { createLoader } from "@core/helpers/createLoader";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage } from "@core/helpers/errors";
 import { skipsConfirm } from "@core/helpers/platform";
@@ -42,7 +43,7 @@ function day(seconds: number): string {
 
 function Row(props: { icon: LucideIcon, title: string, detail: JSX.Element, badge?: JSX.Element, danger?: boolean, action: JSX.Element, children?: JSX.Element }) {
   return (
-    <div class={styles.Row} classList={{ [styles.DangerRow]: props.danger ?? false }}>
+    <div class={[styles.Row, { [styles.DangerRow]: props.danger ?? false }]}>
       <div class={styles.RowHead}>
         <span class={styles.RowIcon}><Dynamic component={props.icon} size={15} /></span>
         <div class={styles.RowText}>
@@ -74,15 +75,15 @@ function Account(props: { cloud: Cloud }) {
 
   const signedIn = createMemo(() => !props.cloud.status.signedOut);
   // Read again after each sync, so the storage used keeps up with what was just pushed.
-  const [account, { refetch: refetchAccount }] = createResource(
+  const [account, { refetch: refetchAccount }] = createLoader(
     () => (signedIn() ? { id: cloudId(), synced: props.cloud.lastSync } : null),
     source => safeInvoke("fran_server_account", { cloudId: source.id }).catch(() => null),
   );
-  const [devices, { refetch: refetchDevices }] = createResource(
+  const [devices, { refetch: refetchDevices }] = createLoader(
     () => (signedIn() ? cloudId() : null),
-    id => safeInvoke("fran_server_devices", { cloudId: id }).catch(() => []),
+    id => safeInvoke("fran_server_devices", { cloudId: id }).catch((): FranServerDevice[] => []),
   );
-  const [info, { refetch: refetchInfo }] = createResource(() => config().url, url => safeInvoke("fran_server_info", { url }).catch(() => null));
+  const [info, { refetch: refetchInfo }] = createLoader(() => config().url, url => safeInvoke("fran_server_info", { url }).catch(() => null));
   const [view, setView] = createSignal<View>("account");
   const unowned = createMemo(() => info()?.owned === false);
   const admin = createMemo(() => account()?.role === "owner" || account()?.role === "admin");
@@ -347,8 +348,8 @@ function Account(props: { cloud: Cloud }) {
                     <PasswordField label="Type it again" value={repeat()} onValue={setRepeat} />
                   </div>
                   <ul class={styles.Rules}>
-                    <li classList={{ [styles.Met]: longEnough() }}>At least {MIN_PASSWORD} characters</li>
-                    <li classList={{ [styles.Met]: matches() }}>Both match</li>
+                    <li class={{ [styles.Met]: longEnough() }}>At least {MIN_PASSWORD} characters</li>
+                    <li class={{ [styles.Met]: matches() }}>Both match</li>
                   </ul>
                 </Form>
               </Show>
@@ -365,7 +366,7 @@ function Account(props: { cloud: Cloud }) {
             <Row
               icon={ShieldCheck}
               title="Two-step sign-in"
-              badge={<span class={styles.Badge} classList={{ [styles.On]: twoStepOn() }}>{twoStepBadge()}</span>}
+              badge={<span class={[styles.Badge, { [styles.On]: twoStepOn() }]}>{twoStepBadge()}</span>}
               detail="Signing in on a new computer also asks for a code from an authenticator app."
               action={<Button variant="subtle" size="sm" active={twoStepOpen()} onClick={() => void openTwoStep()}>{twoStepLabel()}</Button>}
             >

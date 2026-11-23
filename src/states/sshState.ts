@@ -1,5 +1,5 @@
-import { createRoot, createSignal } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createRoot, createSignal, createStore, reconcile, snapshot } from "solid-js";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { shownField } from "@core/helpers/secretRefs";
 import { ForwardRule, HostKeyInfo, Identity, KeyMeta, Proxy, SecretRefs, SshFile, SshHost } from "@core/types";
@@ -7,8 +7,10 @@ import { ForwardRule, HostKeyInfo, Identity, KeyMeta, Proxy, SecretRefs, SshFile
 const EMPTY: SshFile = { version: 1, hosts: [], identities: [], keys: [], proxies: [], forwards: [], groupOrder: [] };
 
 function useSshStateInner() {
-  const [file, setFile] = createStore<SshFile>(structuredClone(EMPTY));
-  const [knownHosts, setKnownHosts] = createStore<HostKeyInfo[]>([]);
+  const [file, writeFile] = createStore<SshFile>(structuredClone(EMPTY));
+  const setFile = immediateWrite(writeFile);
+  const [knownHosts, writeKnownHosts] = createStore<HostKeyInfo[]>([]);
+  const setKnownHosts = immediateWrite(writeKnownHosts);
   const [loaded, setLoaded] = createSignal(false);
   const [loadError, setLoadError] = createSignal<unknown>(null);
 
@@ -73,19 +75,26 @@ function useSshStateInner() {
     return `${user}@${shownField(target.secretRefs, "host", target.host)}${port !== "22" ? `:${port}` : ""}`;
   }
 
-  function upsert<T extends { id: string }>(items: T[], saved: T): T[] {
-    return items.some(item => item.id === saved.id) ? items.map(item => (item.id === saved.id ? saved : item)) : [...items, saved];
+  function upsert<T extends { id: string }>(items: T[], saved: T) {
+    const index = items.findIndex(item => item.id === saved.id);
+    if (index >= 0) items[index] = saved;
+    else items.push(saved);
+  }
+
+  function removeById<T extends { id: string }>(items: T[], id: string) {
+    const index = items.findIndex(item => item.id === id);
+    if (index >= 0) items.splice(index, 1);
   }
 
   async function saveHost(next: SshHost): Promise<SshHost> {
     const saved = await safeInvoke("save_ssh_host", { host: next });
-    setFile("hosts", items => upsert(items, saved));
+    setFile(state => upsert(state.hosts, saved));
     return saved;
   }
 
   async function deleteHost(id: string) {
     await safeInvoke("delete_ssh_host", { id });
-    setFile("hosts", hosts => hosts.filter(item => item.id !== id));
+    setFile(state => removeById(state.hosts, id));
   }
 
   // Shown right away, then saved. A failed save reloads what's on disk.
@@ -94,10 +103,13 @@ function useSshStateInner() {
       const index = ids.indexOf(id);
       return index >= 0 ? index : ids.length;
     }
-    setFile("hosts", hosts => [...hosts]
+    const ordered = snapshot(file.hosts)
       .map(item => (moved && item.id === moved.id ? { ...item, group: moved.group } : item))
-      .sort((a, b) => rank(a.id) - rank(b.id)));
-    setFile("groupOrder", groups);
+      .sort((a, b) => rank(a.id) - rank(b.id));
+    setFile(state => {
+      state.hosts = ordered;
+      state.groupOrder = groups;
+    });
     try {
       if (moved) await safeInvoke("move_ssh_host", moved);
       await safeInvoke("save_ssh_host_order", { ids, groups });
@@ -114,28 +126,28 @@ function useSshStateInner() {
 
   async function saveIdentity(next: Identity): Promise<Identity> {
     const saved = await safeInvoke("save_identity", { identity: next });
-    setFile("identities", items => upsert(items, saved));
+    setFile(state => upsert(state.identities, saved));
     return saved;
   }
 
   async function deleteIdentity(id: string) {
     await safeInvoke("delete_identity", { id });
-    setFile("identities", items => items.filter(item => item.id !== id));
+    setFile(state => removeById(state.identities, id));
   }
 
   async function saveProxy(next: Proxy): Promise<Proxy> {
     const saved = await safeInvoke("save_proxy", { proxy: next });
-    setFile("proxies", items => upsert(items, saved));
+    setFile(state => upsert(state.proxies, saved));
     return saved;
   }
 
   async function deleteProxy(id: string) {
     await safeInvoke("delete_proxy", { id });
-    setFile("proxies", items => items.filter(item => item.id !== id));
+    setFile(state => removeById(state.proxies, id));
   }
 
   function addKey(saved: KeyMeta) {
-    setFile("keys", items => upsert(items, saved));
+    setFile(state => upsert(state.keys, saved));
   }
 
   async function renameKey(id: string, label: string) {
@@ -148,7 +160,7 @@ function useSshStateInner() {
 
   async function deleteKey(id: string) {
     await safeInvoke("delete_key", { id });
-    setFile("keys", items => items.filter(item => item.id !== id));
+    setFile(state => removeById(state.keys, id));
   }
 
   function forward(id: string): ForwardRule | undefined {
@@ -157,13 +169,13 @@ function useSshStateInner() {
 
   async function saveForward(next: ForwardRule): Promise<ForwardRule> {
     const saved = await safeInvoke("save_forward_rule", { rule: next });
-    setFile("forwards", items => upsert(items, saved));
+    setFile(state => upsert(state.forwards, saved));
     return saved;
   }
 
   async function deleteForward(id: string) {
     await safeInvoke("delete_forward_rule", { id });
-    setFile("forwards", items => items.filter(item => item.id !== id));
+    setFile(state => removeById(state.forwards, id));
   }
 
   async function forgetKnownHost(target: HostKeyInfo) {

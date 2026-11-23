@@ -31,10 +31,16 @@ function PortForwardModal() {
 
   createEffect(() => {
     const current = profile();
-    if (!current) return;
+    if (!current) return null;
     const active = forwards.active(current.id);
-    setPort(String(active?.localPort ?? current.forwardPort ?? target()?.port ?? ""));
-    setAllNetworks(active?.allNetworks ?? current.forwardAllNetworks);
+    return {
+      port: String(active?.localPort ?? current.forwardPort ?? target()?.port ?? ""),
+      allNetworks: active?.allNetworks ?? current.forwardAllNetworks,
+    };
+  }, next => {
+    if (!next) return;
+    setPort(next.port);
+    setAllNetworks(next.allNetworks);
   });
 
   async function start() {

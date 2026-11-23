@@ -1,6 +1,6 @@
-import { createRoot, createSignal } from "solid-js";
-import { createStore, produce } from "solid-js/store";
+import { createRoot, createSignal, createStore } from "solid-js";
 import { Channel } from "@tauri-apps/api/core";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { withConnectPrompts } from "@core/helpers/connectFlow";
 import { errorMessage, isAppError } from "@core/helpers/errors";
@@ -84,7 +84,21 @@ function useSftpStateInner() {
   const workspace = useWorkspaceState;
   const ssh = useSshState;
   const { pushError, pushToast } = useToastState;
-  const [store, setStore] = createStore<{ tabs: Record<string, SftpTab> }>({ tabs: {} });
+  const [store, writeStore] = createStore<{ tabs: Record<string, SftpTab> }>({ tabs: {} });
+  const setStore = immediateWrite(writeStore);
+
+  function setTab(tabId: string, change: (state: SftpTab) => void) {
+    setStore(state => {
+      const current = state.tabs[tabId];
+      if (current) change(current);
+    });
+  }
+
+  function setPane(tabId: string, side: Side, patch: Partial<SftpTab[Side]>) {
+    setTab(tabId, state => {
+      Object.assign(state[side], patch);
+    });
+  }
   const samples = new Map<string, { at: number, bytes: number }>();
   const [roots, setRoots] = createSignal<Crumb[]>([]);
 
@@ -108,26 +122,31 @@ function useSftpStateInner() {
     if (existing) {
       workspace.activateGlobalTab(existing.id);
       if (existing.status === "closed") {
-        setStore("tabs", existing.id, "terminalConnectionId", terminalConnectionId ?? existing.terminalConnectionId);
+        const nextConnectionId = terminalConnectionId ?? existing.terminalConnectionId;
+        setTab(existing.id, state => {
+          state.terminalConnectionId = nextConnectionId;
+        });
         void connect(existing.id);
       }
       return;
     }
 
     const id = generateId();
-    setStore("tabs", id, {
-      id,
-      hostId,
-      terminalConnectionId,
-      status: "connecting",
-      reason: null,
-      info: null,
-      showHidden: false,
-      local: emptyPane(),
-      remote: emptyPane(),
-      transfers: [],
-      preview: null,
-      permissions: null,
+    setStore(state => {
+      state.tabs[id] = {
+        id,
+        hostId,
+        terminalConnectionId,
+        status: "connecting",
+        reason: null,
+        info: null,
+        showHidden: false,
+        local: emptyPane(),
+        remote: emptyPane(),
+        transfers: [],
+        preview: null,
+        permissions: null,
+      };
     });
     workspace.addGlobalTab({ id, kind: "sftp" });
     void connect(id);
@@ -136,7 +155,10 @@ function useSftpStateInner() {
   async function connect(tabId: string) {
     const current = tab(tabId);
     if (!current || current.status === "open") return;
-    setStore("tabs", tabId, { status: "connecting", reason: null });
+    setTab(tabId, state => {
+      state.status = "connecting";
+      state.reason = null;
+    });
 
     // The drop notice can come before the open call returns, so it waits until the id is known.
     let openedId: string | null = null;
@@ -154,12 +176,18 @@ function useSftpStateInner() {
         secrets => safeInvoke("sftp_open", { hostId: current.hostId, connectionId: current.terminalConnectionId, secrets, onEvent: events }),
       );
     } catch (error) {
-      if (tab(tabId)) setStore("tabs", tabId, { status: "closed", reason: errorMessage(error) });
+      setTab(tabId, state => {
+        state.status = "closed";
+        state.reason = errorMessage(error);
+      });
       return;
     }
 
     if (!info) {
-      if (tab(tabId)) setStore("tabs", tabId, { status: "closed", reason: "Cancelled" });
+      setTab(tabId, state => {
+        state.status = "closed";
+        state.reason = "Cancelled";
+      });
       return;
     }
     if (!tab(tabId)) {
@@ -170,7 +198,11 @@ function useSftpStateInner() {
     const opened = info;
     openedId = opened.id;
     const remotePath = tab(tabId)?.remote.listing?.path ?? opened.home;
-    setStore("tabs", tabId, { status: "open", info: opened, reason: null });
+    setTab(tabId, state => {
+      state.status = "open";
+      state.info = opened;
+      state.reason = null;
+    });
     if (early) {
       connectionDropped(tabId, opened.id, early);
       return;
@@ -185,13 +217,12 @@ function useSftpStateInner() {
   }
 
   function markClosed(tabId: string, reason: string) {
-    if (!tab(tabId)) return;
-    setStore("tabs", tabId, produce(state => {
+    setTab(tabId, state => {
       state.status = "closed";
       state.reason = reason;
       state.info = null;
       state.terminalConnectionId = null;
-    }));
+    });
   }
 
   // A notFound error means the connection itself is gone, not the folder.
@@ -209,7 +240,7 @@ function useSftpStateInner() {
     if (!tab(tabId)) return;
     const id = sftpId(tabId);
     if (side === "remote" && !id) return;
-    setStore("tabs", tabId, side, { status: "loading", error: null });
+    setPane(tabId, side, { status: "loading", error: null });
 
     try {
       const listing = side === "local"
@@ -217,7 +248,8 @@ function useSftpStateInner() {
         : await safeInvoke("sftp_list", { id: id!, path: path ?? "." });
       if (!tab(tabId)) return;
       const keep = tab(tabId)?.[side].listing?.path === listing.path;
-      setStore("tabs", tabId, side, produce(pane => {
+      setTab(tabId, state => {
+        const pane = state[side];
         pane.listing = listing;
         pane.status = "ready";
         pane.editingPath = false;
@@ -227,11 +259,11 @@ function useSftpStateInner() {
           pane.anchor = null;
           pane.filter = "";
         }
-      }));
+      });
     } catch (error) {
       if (!tab(tabId)) return;
       if (side === "remote" && connectionGone(tabId, error)) return;
-      setStore("tabs", tabId, side, { status: "error", error: errorMessage(error) });
+      setPane(tabId, side, { status: "error", error: errorMessage(error) });
     }
   }
 
@@ -250,15 +282,17 @@ function useSftpStateInner() {
   }
 
   function setEditingPath(tabId: string, side: Side, editing: boolean) {
-    setStore("tabs", tabId, side, "editingPath", editing);
+    setPane(tabId, side, { editingPath: editing });
   }
 
   function setFilter(tabId: string, side: Side, filter: string) {
-    setStore("tabs", tabId, side, "filter", filter);
+    setPane(tabId, side, { filter });
   }
 
   function setShowHidden(tabId: string, show: boolean) {
-    setStore("tabs", tabId, "showHidden", show);
+    setTab(tabId, state => {
+      state.showHidden = show;
+    });
   }
 
   // `order` is what the pane shows, so a Shift range follows the visible rows.
@@ -266,25 +300,25 @@ function useSftpStateInner() {
     const pane = tab(tabId)?.[side];
     if (!pane) return;
     if (path === null) {
-      setStore("tabs", tabId, side, { selected: [], anchor: null });
+      setPane(tabId, side, { selected: [], anchor: null });
       return;
     }
     if (mode === "toggle") {
       const selected = pane.selected.includes(path) ? pane.selected.filter(item => item !== path) : [...pane.selected, path];
-      setStore("tabs", tabId, side, { selected, anchor: path });
+      setPane(tabId, side, { selected, anchor: path });
       return;
     }
     if (mode === "range" && pane.anchor && order.includes(pane.anchor)) {
       const from = order.indexOf(pane.anchor);
       const to = order.indexOf(path);
-      setStore("tabs", tabId, side, "selected", order.slice(Math.min(from, to), Math.max(from, to) + 1));
+      setPane(tabId, side, { selected: order.slice(Math.min(from, to), Math.max(from, to) + 1) });
       return;
     }
-    setStore("tabs", tabId, side, { selected: [path], anchor: path });
+    setPane(tabId, side, { selected: [path], anchor: path });
   }
 
   function selectAll(tabId: string, side: Side, order: string[]) {
-    setStore("tabs", tabId, side, { selected: [...order], anchor: order[0] ?? null });
+    setPane(tabId, side, { selected: [...order], anchor: order[0] ?? null });
   }
 
   function selectedEntries(tabId: string, side: Side): FileEntry[] {
@@ -295,9 +329,12 @@ function useSftpStateInner() {
   }
 
   function patchTransfer(tabId: string, key: string, patch: Partial<TransferItem> | ((item: TransferItem) => void)) {
-    if (!tab(tabId)) return;
-    if (typeof patch === "function") setStore("tabs", tabId, "transfers", item => item.key === key, produce(patch));
-    else setStore("tabs", tabId, "transfers", item => item.key === key, patch);
+    setTab(tabId, state => {
+      const item = state.transfers.find(candidate => candidate.key === key);
+      if (!item) return;
+      if (typeof patch === "function") patch(item);
+      else Object.assign(item, patch);
+    });
   }
 
   function refreshTarget(tabId: string, item: TransferItem) {
@@ -399,7 +436,9 @@ function useSftpStateInner() {
       error: null,
       speed: null,
     };
-    setStore("tabs", tabId, "transfers", transfers => [...transfers, item]);
+    setTab(tabId, state => {
+      state.transfers.push(item);
+    });
     void launch(tabId, key);
   }
 
@@ -451,7 +490,9 @@ function useSftpStateInner() {
   }
 
   function clearFinished(tabId: string) {
-    setStore("tabs", tabId, "transfers", transfers => transfers.filter(item => !isFinished(item)));
+    setTab(tabId, state => {
+      state.transfers = state.transfers.filter(item => !isFinished(item));
+    });
   }
 
   async function newFolder(tabId: string, side: Side) {
@@ -540,30 +581,43 @@ function useSftpStateInner() {
   async function preview(tabId: string, entry: FileEntry) {
     const id = sftpId(tabId);
     if (!id) return;
-    setStore("tabs", tabId, "preview", { path: entry.path, name: entry.name, text: null, error: null });
+    setTab(tabId, state => {
+      state.preview = { path: entry.path, name: entry.name, text: null, error: null };
+    });
     try {
       const text = await safeInvoke("sftp_preview", { id, path: entry.path });
-      if (tab(tabId)?.preview?.path === entry.path) setStore("tabs", tabId, "preview", "text", text);
+      setTab(tabId, state => {
+        if (state.preview?.path === entry.path) state.preview.text = text;
+      });
     } catch (error) {
       if (connectionGone(tabId, error)) {
-        setStore("tabs", tabId, "preview", null);
+        closePreview(tabId);
         return;
       }
-      if (tab(tabId)?.preview?.path === entry.path) setStore("tabs", tabId, "preview", "error", errorMessage(error));
+      setTab(tabId, state => {
+        if (state.preview?.path === entry.path) state.preview.error = errorMessage(error);
+      });
     }
   }
 
   function closePreview(tabId: string) {
-    setStore("tabs", tabId, "preview", null);
+    setTab(tabId, state => {
+      state.preview = null;
+    });
   }
 
   function editPermissions(tabId: string, entry: FileEntry) {
     if (entry.mode === null) return;
-    setStore("tabs", tabId, "permissions", { path: entry.path, name: entry.name, mode: entry.mode & 0o7777 });
+    const mode = entry.mode & 0o7777;
+    setTab(tabId, state => {
+      state.permissions = { path: entry.path, name: entry.name, mode };
+    });
   }
 
   function closePermissions(tabId: string) {
-    setStore("tabs", tabId, "permissions", null);
+    setTab(tabId, state => {
+      state.permissions = null;
+    });
   }
 
   async function savePermissions(tabId: string, mode: number): Promise<boolean> {
@@ -590,7 +644,9 @@ function useSftpStateInner() {
     if (!current) return;
     if (current.info) void safeInvoke("sftp_close", { id: current.info.id }).catch(() => undefined);
     for (const item of current.transfers) samples.delete(item.key);
-    setStore("tabs", produce(tabs => { delete tabs[tabId]; }));
+    setStore(state => {
+      delete state.tabs[tabId];
+    });
   }
 
   function tabs(): SftpTab[] {

@@ -1,6 +1,6 @@
 import styles from "./SegmentedControl.module.scss";
 import { For, Show } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { Dynamic } from "@solidjs/web";
 import { LucideIcon } from "@core/icons";
 
 export type SegmentedOption<T> = {
@@ -19,23 +19,22 @@ export type SegmentedControlProps<T> = {
 
 function SegmentedControl<T>(props: SegmentedControlProps<T>) {
   return (
-    <div class={styles.Control} classList={{ [styles.Fill]: props.fill ?? false }} role="radiogroup">
-      <For each={props.options}>
+    <div class={[styles.Control, { [styles.Fill]: props.fill ?? false }]} role="radiogroup">
+      <For each={props.options} keyed={entry => entry.value}>
         {option => (
           <button
             type="button"
             role="radio"
-            aria-checked={option.value === props.value}
-            class={styles.Option}
-            classList={{ [styles.Selected]: option.value === props.value }}
-            onClick={() => props.onChange(option.value)}
+            aria-checked={option().value === props.value ? "true" : "false"}
+            class={[styles.Option, { [styles.Selected]: option().value === props.value }]}
+            onClick={() => props.onChange(option().value)}
           >
-            <Show when={option.icon}>
+            <Show when={option().icon}>
               {icon => <Dynamic component={icon()} size={14} />}
             </Show>
-            {option.label}
-            <Show when={option.count !== undefined}>
-              <span class={styles.Count}>{option.count}</span>
+            {option().label}
+            <Show when={option().count !== undefined}>
+              <span class={styles.Count}>{option().count}</span>
             </Show>
           </button>
         )}

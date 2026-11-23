@@ -38,8 +38,8 @@ function SecretField(props: SecretFieldProps) {
   }
 
   onCleanup(hide);
-  createEffect(() => {
-    if (useLockState.locked()) hide();
+  createEffect(useLockState.locked, locked => {
+    if (locked) hide();
   });
 
   async function show() {
@@ -122,7 +122,7 @@ function SecretField(props: SecretFieldProps) {
             props.secrets.setPending(props.slot, next === "" ? undefined : next);
           }}
           placeholder={placeholder()}
-          before={<KeyRound size={14} class={iconClass()} />}
+          before={<span class={[styles.KeyIcon, iconClass()]}><KeyRound size={14} /></span>}
           after={
             <>
               <Show when={showsSecretButton()}>

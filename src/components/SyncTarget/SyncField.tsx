@@ -46,8 +46,8 @@ function SyncField(props: SyncFieldProps) {
   return (
     <Show when={shown()}>
       <Field label="Sync to" grow>
-        <button type="button" class={styles.Line} ref={element => tooltip(element, () => "Applies right away, without Save")} onClick={open}>
-          <span class={styles.Icon} classList={{ [styles.On]: synced() }}>
+        <button type="button" class={styles.Line} ref={tooltip(() => "Applies right away, without Save")} onClick={open}>
+          <span class={[styles.Icon, { [styles.On]: synced() }]}>
             <Show when={synced()} fallback={<CloudOff size={13} />}><CloudIcon size={13} /></Show>
           </span>
           <span class={styles.Text}>

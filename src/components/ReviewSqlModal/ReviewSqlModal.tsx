@@ -1,5 +1,5 @@
 import styles from "./ReviewSqlModal.module.scss";
-import { Show, createComputed, createMemo, createSignal, on } from "solid-js";
+import { Show, createMemo, createSignal } from "solid-js";
 import { CircleAlert, ShieldCheck, TriangleAlert } from "@core/icons";
 import { SQLDialect } from "@codemirror/lang-sql";
 import { plural } from "@core/helpers";
@@ -54,10 +54,11 @@ export function safetyNote(safety: ApplySafety, count: number): SafetyNote | nul
 
 function ReviewSqlModal(props: ReviewSqlModalProps) {
   const [applying, setApplying] = createSignal(false);
-  const [error, setError] = createSignal<string | null>(null);
+  const [error, setError] = createSignal<string | null>(() => {
+    props.statements;
+    return null;
+  });
   const script = createMemo(() => (props.statements ?? []).map(statement => `${statement};`).join("\n\n"));
-
-  createComputed(on(() => props.statements, () => setError(null)));
 
   const note = createMemo(() => safetyNote(props.safety, props.statements?.length ?? 0));
 
@@ -100,7 +101,7 @@ function ReviewSqlModal(props: ReviewSqlModalProps) {
         </Show>
         <Show when={note()}>
           {shown => (
-            <div class={styles.Safety} classList={{ [styles.Unsafe]: !shown().safe }}>
+            <div class={[styles.Safety, { [styles.Unsafe]: !shown().safe }]}>
               {shown().safe ? <ShieldCheck size={14} /> : <TriangleAlert size={14} />}
               <span>{shown().text}</span>
             </div>

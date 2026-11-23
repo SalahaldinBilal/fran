@@ -45,8 +45,7 @@ function UpdateSettings() {
     <Show when={updater.phase() === "downloading"}>
       <div class={styles.Progress}>
         <div
-          class={styles.ProgressFill}
-          classList={{ [styles.Indeterminate]: downloadPercent() === null }}
+          class={[styles.ProgressFill, { [styles.Indeterminate]: downloadPercent() === null }]}
           style={{ width: `${downloadPercent() ?? 30}%` }}
         />
       </div>

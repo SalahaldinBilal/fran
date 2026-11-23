@@ -22,12 +22,11 @@ function SshImportList(props: SshImportListProps) {
         {candidate => (
           <button
             type="button"
-            class={styles.Row}
-            classList={{ [styles.Disabled]: candidate.skipReason !== null }}
+            class={[styles.Row, { [styles.Disabled]: candidate.skipReason !== null }]}
             disabled={candidate.skipReason !== null}
             onClick={() => props.onToggle(candidate.alias)}
           >
-            <span class={styles.Check} classList={{ [styles.On]: props.picked.has(candidate.alias) }}>
+            <span class={[styles.Check, { [styles.On]: props.picked.has(candidate.alias) }]}>
               <Check size={12} />
             </span>
             <span class={styles.Text}>

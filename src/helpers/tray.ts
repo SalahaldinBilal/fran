@@ -105,11 +105,8 @@ export function startTray() {
   void listen("tray-notice-shown", () => void useSettingsState.update({ trayNoticeShown: true }));
 
   createRoot(() => {
-    createEffect(() => {
-      const items = menuItems();
-      const text = tooltip();
-      const vpnOn = useVpnState.onComputerCount() > 0;
-      void safeInvoke("set_tray_menu", { items, tooltip: text, vpnOn }).catch(() => undefined);
+    createEffect(() => ({ items: menuItems(), tooltip: tooltip(), vpnOn: useVpnState.onComputerCount() > 0 }), tray => {
+      void safeInvoke("set_tray_menu", tray).catch(() => undefined);
     });
   });
 }

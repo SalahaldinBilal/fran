@@ -43,7 +43,7 @@ function SnippetRow(props: { snippet: Snippet }) {
     <div
       class={shared.Row}
       role="button"
-      tabIndex={0}
+      tabindex={0}
       onClick={() => snippets.openEditor(props.snippet)}
       onKeyDown={event => {
         if (event.key === "Enter") snippets.openEditor(props.snippet);

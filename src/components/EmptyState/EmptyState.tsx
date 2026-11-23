@@ -1,6 +1,6 @@
 import styles from "./EmptyState.module.scss";
-import { JSX, Show } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { Show } from "solid-js";
+import { Dynamic, JSX } from "@solidjs/web";
 import { LucideIcon } from "@core/icons";
 
 export type EmptyStateProps = {
@@ -13,7 +13,7 @@ export type EmptyStateProps = {
 
 function EmptyState(props: EmptyStateProps) {
   return (
-    <div class={styles.EmptyState} classList={{ [styles.Danger]: props.tone === "danger" }}>
+    <div class={[styles.EmptyState, { [styles.Danger]: props.tone === "danger" }]}>
       <Show when={props.icon}>
         {icon => (
           <div class={styles.Icon}>

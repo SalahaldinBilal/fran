@@ -1,5 +1,5 @@
 import styles from "./SecretEditor.module.scss";
-import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { cloudModule } from "@core/clouds";
 import useSecretsState from "@core/states/secretsState";
 import useSyncState from "@core/states/syncState";
@@ -44,19 +44,26 @@ function LinkSecretsModal() {
     return null;
   }
 
-  createEffect(on(secrets.linkRequest, identity => {
+  // Compared by id so a sync refreshing the cloud doesn't clear the picks.
+  const linkTarget = createMemo(() => {
+    const identity = secrets.linkRequest();
+    const current = cloud();
+    const found = store();
+    return identity && current && found ? { identity, cloud: current, store: found } : null;
+  }, { equals: (previous, next) => previous?.identity === next?.identity && previous?.cloud.id === next?.cloud.id });
+
+  createEffect(linkTarget, target => {
     setNames(null);
     setLoadError(null);
     setPicked(new Set<string>());
-    const current = cloud();
-    const found = store();
-    if (!identity || !current || !found) return;
+    if (!target) return;
+    const { identity, cloud: current, store: found } = target;
     found.names(current).then(list => {
       if (secrets.linkRequest() === identity) setNames(list);
     }, error => {
       if (secrets.linkRequest() === identity) setLoadError(error);
     });
-  }));
+  });
 
   function toggle(name: string, checked: boolean) {
     const next = new Set(picked());

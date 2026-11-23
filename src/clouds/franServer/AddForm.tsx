@@ -1,5 +1,5 @@
 import styles from "./FranServer.module.scss";
-import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import { hostname } from "@tauri-apps/plugin-os";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage, isAppError } from "@core/helpers/errors";
@@ -37,11 +37,11 @@ function AddForm(props: AddFormProps) {
   const saved = createMemo(() => (props.cloud?.config ?? null) as FranServerConfig | null);
   const again = createMemo(() => props.cloud !== null);
 
-  const [step, setStep] = createSignal<"server" | "account">(again() ? "account" : "server");
+  const [step, setStep] = createSignal<"server" | "account">(untrack(again) ? "account" : "server");
   const [mode, setMode] = createSignal<Mode>("signIn");
-  const [url, setUrl] = createSignal(saved()?.url ?? "");
+  const [url, setUrl] = createSignal(untrack(saved)?.url ?? "");
   const [check, setCheck] = createSignal<ServerCheck>({ state: "idle" });
-  const [email, setEmail] = createSignal(saved()?.email ?? "");
+  const [email, setEmail] = createSignal(untrack(saved)?.email ?? "");
   const [password, setPassword] = createSignal("");
   const [repeat, setRepeat] = createSignal("");
   const [shown, setShown] = createSignal(false);
@@ -63,7 +63,7 @@ function AddForm(props: AddFormProps) {
   });
   const host = createMemo(() => url().trim().replace(/^https?:\/\//i, ""));
   const insecure = createMemo(() => /^http:\/\//i.test(url().trim()));
-  const [understood, setUnderstood] = createSignal(again());
+  const [understood, setUnderstood] = createSignal(untrack(again));
   const canContinue = createMemo(() => info() !== null && (!insecure() || understood()));
   const setsPassword = createMemo(() => mode() !== "signIn");
   const passwordType = createMemo(() => (shown() ? "text" : "password"));
@@ -102,16 +102,16 @@ function AddForm(props: AddFormProps) {
   onCleanup(() => clearTimeout(checkTimer));
 
   // The address is checked while typing, so a typo shows before the password is typed.
-  createEffect(on(url, value => {
+  createEffect(() => ({ value: url(), skip: again() }), ({ value, skip }) => {
     clearTimeout(checkTimer);
     const run = ++checkRun;
-    if (again() || value.trim() === "") {
+    if (skip || value.trim() === "") {
       setCheck({ state: "idle" });
       return;
     }
     setCheck({ state: "checking" });
     checkTimer = setTimeout(() => void runCheck(value, run), CHECK_DELAY_MS);
-  }));
+  });
 
   async function runCheck(value: string, run: number) {
     try {
@@ -302,7 +302,7 @@ function AddForm(props: AddFormProps) {
           <ul class={styles.Rules}>
             <For each={[{ ok: longEnough, text: `At least ${MIN_PASSWORD} characters` }, { ok: matches, text: "Both match" }]}>
               {rule => (
-                <li classList={{ [styles.Met]: rule.ok() }}>
+                <li class={{ [styles.Met]: rule.ok() }}>
                   <Check size={12} />
                   {rule.text}
                 </li>
@@ -347,7 +347,7 @@ function AddForm(props: AddFormProps) {
             <Button variant="ghost" onClick={() => pick("signIn")}>Back to sign in</Button>
           </Show>
           <Show when={busy()}>
-            <span class={styles.Working} ref={element => tooltip(element, () => "Your password is stretched slowly on purpose, so guessing it is slow too.")}>
+            <span class={styles.Working} ref={tooltip(() => "Your password is stretched slowly on purpose, so guessing it is slow too.")}>
               <Spinner size={13} />
               Takes a second on purpose
             </span>

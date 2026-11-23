@@ -1,5 +1,5 @@
 import styles from "./VpnLogModal.module.scss";
-import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { CircleAlert, Copy, Trash2 } from "@core/icons";
 import useVpnState from "@core/states/vpnState";
 import useToastState from "@core/states/toastState";
@@ -58,16 +58,16 @@ function VpnLogModal() {
   }
 
   // Lines also arrive while nothing in the status changes, like during a slow connect.
-  createEffect(on(() => vpn.logFor(), id => {
+  createEffect(() => vpn.logFor(), id => {
     if (!id) {
       setLines([]);
       setFilter("all");
       return;
     }
-    void refresh(false);
+    queueMicrotask(() => void refresh(false));
     const timer = setInterval(() => void refresh(true), REFRESH_MS);
-    onCleanup(() => clearInterval(timer));
-  }));
+    return () => clearInterval(timer);
+  });
 
   function copyAll() {
     const text = shown()
@@ -124,9 +124,9 @@ function VpnLogModal() {
         <div class={styles.Lines} ref={element => (list = element)}>
           <For each={shown()} fallback={<div class={styles.Empty}>{emptyText()}</div>}>
             {line => (
-              <div class={styles.Line} classList={{ [styles.Error]: line.error }}>
+              <div class={[styles.Line, { [styles.Error]: line.error }]}>
                 <span class={styles.Time}>{clock(line.at)}</span>
-                <span class={styles.Source} classList={{ [styles.Fran]: line.source === "fran" }}>
+                <span class={[styles.Source, { [styles.Fran]: line.source === "fran" }]}>
                   {line.source === "fran" ? "Fran" : vpnName()}
                 </span>
                 <span class={styles.Text}>{line.text}</span>

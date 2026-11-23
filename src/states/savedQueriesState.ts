@@ -1,10 +1,11 @@
-import { createRoot, createSignal } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createRoot, createSignal, createStore, reconcile, snapshot } from "solid-js";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { SavedQuery } from "@core/types";
 
 function useSavedQueriesStateInner() {
-  const [queries, setQueries] = createStore<SavedQuery[]>([]);
+  const [queries, writeQueries] = createStore<SavedQuery[]>([]);
+  const setQueries = immediateWrite(writeQueries);
   const [loaded, setLoaded] = createSignal(false);
   const [loadError, setLoadError] = createSignal<unknown>(null);
 
@@ -27,9 +28,11 @@ function useSavedQueriesStateInner() {
     const saved = await safeInvoke("save_query", { query });
     const index = queries.findIndex(existing => existing.id === saved.id);
     if (index >= 0) {
-      setQueries(index, reconcile(saved));
+      setQueries(reconcile(snapshot(queries).map((item, position) => (position === index ? saved : item))));
     } else {
-      setQueries(queries.length, saved);
+      setQueries(list => {
+        list.push(saved);
+      });
     }
     return saved;
   }

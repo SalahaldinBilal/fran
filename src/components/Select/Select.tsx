@@ -1,6 +1,6 @@
 import styles from "./Select.module.scss";
-import { For, JSX, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
-import { Portal } from "solid-js/web";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { JSX, Portal } from "@solidjs/web";
 import { keepInViewport } from "@core/helpers/viewport";
 import { Check, ChevronDown } from "@core/icons";
 
@@ -70,8 +70,8 @@ function Select<T>(props: SelectProps<T>) {
   }
 
   // The menu is positioned against the viewport, so any outside scroll or resize would detach it.
-  createEffect(() => {
-    if (!open()) return;
+  createEffect(open, isOpen => {
+    if (!isOpen) return;
 
     function close(event: Event) {
       if (menu && event.target instanceof Node && menu.contains(event.target)) return;
@@ -80,15 +80,14 @@ function Select<T>(props: SelectProps<T>) {
 
     window.addEventListener("scroll", close, { capture: true });
     window.addEventListener("resize", close);
-    onCleanup(() => {
+    return () => {
       window.removeEventListener("scroll", close, { capture: true });
       window.removeEventListener("resize", close);
-    });
+    };
   });
 
-  createEffect(() => {
-    const index = highlight();
-    if (!open() || !menu || !followHighlight) return;
+  createEffect(() => ({ index: highlight(), isOpen: open() }), ({ index, isOpen }) => {
+    if (!isOpen || !menu || !followHighlight) return;
 
     followHighlight = false;
     const item = menu.children[index] as HTMLElement | undefined;
@@ -143,16 +142,15 @@ function Select<T>(props: SelectProps<T>) {
     <>
       <div
         ref={control}
-        tabIndex={props.disabled ? -1 : 0}
+        tabindex={props.disabled ? -1 : 0}
         role="combobox"
-        aria-expanded={open()}
+        aria-expanded={open() ? "true" : "false"}
         aria-haspopup="listbox"
-        class={`${styles.Select} ${props.class ?? ""}`}
-        classList={{
+        class={[styles.Select, props.class, {
           [styles.Open]: open(),
           [styles.Small]: props.size === "sm",
           [styles.Disabled]: props.disabled ?? false,
-        }}
+        }]}
         style={props.style}
         onClick={() => (open() ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}
@@ -179,13 +177,12 @@ function Select<T>(props: SelectProps<T>) {
               {(item, index) => (
                 <div
                   role="option"
-                  aria-selected={item.value === props.value}
-                  aria-disabled={item.disabled ?? false}
-                  class={styles.Item}
-                  classList={{
+                  aria-selected={item.value === props.value ? "true" : "false"}
+                  aria-disabled={item.disabled ? "true" : "false"}
+                  class={[styles.Item, {
                     [styles.Highlighted]: index() === highlight() && !item.disabled,
                     [styles.ItemDisabled]: item.disabled ?? false,
-                  }}
+                  }]}
                   onMouseEnter={() => {
                     if (!item.disabled) setHighlight(index());
                   }}

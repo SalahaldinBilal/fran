@@ -1,5 +1,6 @@
 import styles from "./Terminal.module.scss";
-import { For, Show, createMemo, createResource } from "solid-js";
+import { For, Show, createMemo } from "solid-js";
+import { createLoader } from "@core/helpers/createLoader";
 import {
   ArrowLeftRight, Clipboard, CodeXml, Columns2, FolderOpen, KeyRound, Pencil, Play, Plus, RefreshCw, Rows2, Shield, ShieldCheck, TriangleAlert, User, X,
 } from "@core/icons";
@@ -64,7 +65,7 @@ function TerminalPage(props: { tabId: string }) {
   });
   // Rechecked each time the drawer opens, since the password can be saved in the meantime.
   const passwordOwner = createMemo(() => (tab()?.drawer ? identity()?.id ?? null : null));
-  const [storedSlots] = createResource(passwordOwner, id => safeInvoke("get_owner_secrets", { owner: { kind: "identity", id } }).catch(() => [] as string[]));
+  const [storedSlots] = createLoader(passwordOwner, id => safeInvoke("get_owner_secrets", { owner: { kind: "identity", id } }).catch(() => [] as string[]));
   const hasPassword = createMemo(() => storedSlots()?.includes("password") ?? false);
   const passwordHint = createMemo(() => {
     const current = identity();
@@ -147,7 +148,7 @@ function TerminalPage(props: { tabId: string }) {
             </Button>
           </div>
 
-          <div class={styles.Main} classList={{ [styles.SoloMain]: solo() }}>
+          <div class={[styles.Main, { [styles.SoloMain]: solo() }]}>
             <div class={styles.Panes}>
               <TileLayout
                 tree={current().layout}
@@ -256,7 +257,7 @@ function TerminalPage(props: { tabId: string }) {
 
           <footer class={styles.Status}>
             <span>
-              <i class={styles.Dot} classList={{ [styles.DotOff]: !connected(), [styles.DotWait]: connecting() }} />
+              <i class={[styles.Dot, { [styles.DotOff]: !connected(), [styles.DotWait]: connecting() }]} />
               <em>{statusLabel()}</em>
             </span>
             <Show when={hostKey()}>

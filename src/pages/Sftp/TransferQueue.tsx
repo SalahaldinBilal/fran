@@ -46,9 +46,9 @@ function TransferRow(props: { tabId: string, item: TransferItem }) {
   const status = createMemo(() => statusText(props.item));
 
   return (
-    <div class={styles.Transfer} classList={{ [styles.TransferFailed]: props.item.status === "failed" }}>
+    <div class={[styles.Transfer, { [styles.TransferFailed]: props.item.status === "failed" }]}>
       <div class={styles.TransferTop}>
-        <span class={styles.TransferIcon} classList={{ [styles.Up]: upload() }}>
+        <span class={[styles.TransferIcon, { [styles.Up]: upload() }]}>
           <Show when={upload()} fallback={<ArrowDownToLine size={13} />}>
             <ArrowUpFromLine size={13} />
           </Show>
@@ -72,7 +72,7 @@ function TransferRow(props: { tabId: string, item: TransferItem }) {
 
       <Show when={props.item.status === "running" || props.item.status === "conflict" || props.item.status === "done"}>
         <div class={styles.Progress}>
-          <div class={styles.ProgressFill} classList={{ [styles.ProgressDone]: props.item.status === "done" }} style={{ width: `${percent()}%` }} />
+          <div class={[styles.ProgressFill, { [styles.ProgressDone]: props.item.status === "done" }]} style={{ width: `${percent()}%` }} />
         </div>
       </Show>
       <Show when={props.item.status === "running" && props.item.current && props.item.totalFiles > 1}>
@@ -132,7 +132,7 @@ function TransferQueue(props: { tabId: string }) {
   });
 
   return (
-    <section class={styles.Queue} classList={{ [styles.QueueOpen]: items().length > 0 && !collapsed() }}>
+    <section class={[styles.Queue, { [styles.QueueOpen]: items().length > 0 && !collapsed() }]}>
       <header class={styles.QueueHead}>
         <button
           type="button"

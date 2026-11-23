@@ -41,7 +41,7 @@ function UpdateBanner() {
 
   return (
     <Show when={shown()}>
-      <div class={styles.Banner} classList={{ [styles.Failed]: failed() }} role="status">
+      <div class={[styles.Banner, { [styles.Failed]: failed() }]} role="status">
         <span class={styles.Icon}>
           {failed() ? <CircleAlert size={16} /> : <ArrowUp size={17} strokeWidth={2.5} />}
         </span>
@@ -75,7 +75,7 @@ function UpdateBanner() {
         </div>
         <Show when={updater.phase() === "downloading"}>
           <div class={styles.Progress}>
-            <div class={styles.Fill} classList={{ [styles.Indeterminate]: percent() === null }} style={{ width: `${percent() ?? 30}%` }} />
+            <div class={[styles.Fill, { [styles.Indeterminate]: percent() === null }]} style={{ width: `${percent() ?? 30}%` }} />
           </div>
         </Show>
       </div>

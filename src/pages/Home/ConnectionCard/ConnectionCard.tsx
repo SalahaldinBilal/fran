@@ -98,11 +98,10 @@ function ConnectionCard(props: ConnectionCardProps) {
 
   return (
     <div
-      class={styles.Card}
-      classList={{ [styles.Connecting]: connecting(), [styles.Filled]: settings.colorFill && props.profile.color !== null }}
+      class={[styles.Card, { [styles.Connecting]: connecting(), [styles.Filled]: settings.colorFill && props.profile.color !== null }]}
       style={{ "--card-color": props.profile.color ?? "var(--accent)" }}
       role="button"
-      tabIndex={0}
+      tabindex={0}
       aria-label={`Connect to ${props.profile.name}`}
       onClick={connect}
       onKeyDown={event => {
@@ -118,14 +117,14 @@ function ConnectionCard(props: ConnectionCardProps) {
           <Database size={18} />
         </ItemIcon>
         <div class={styles.Titles}>
-          <div class={styles.Name} ref={element => tooltip(element, () => props.profile.name)}>{props.profile.name}</div>
+          <div class={styles.Name} ref={tooltip(() => props.profile.name)}>{props.profile.name}</div>
           <div class={styles.Kind}>{details().kind}</div>
         </div>
-        <div class={styles.Tools} classList={{ [styles.Pinned]: forwarding() }} onClick={event => event.stopPropagation()}>
+        <div class={[styles.Tools, { [styles.Pinned]: forwarding() }]} onClick={event => event.stopPropagation()}>
           <Show when={props.onGrab}>
             {grab => (
               <span
-                ref={element => tooltip(element, () => "Drag to reorder")}
+                ref={tooltip(() => "Drag to reorder")}
                 class={styles.Grip}
                 onPointerDown={event => grab()(event)}
               >
@@ -161,7 +160,7 @@ function ConnectionCard(props: ConnectionCardProps) {
         </div>
       </div>
 
-      <div class={styles.Target} ref={element => tooltip(element, () => details().target)}>
+      <div class={styles.Target} ref={tooltip(() => details().target)}>
         <Server size={14} />
         <span>{details().target}</span>
       </div>
@@ -179,7 +178,7 @@ function ConnectionCard(props: ConnectionCardProps) {
             }
           >
             <Spinner size={12} />
-            <span ref={element => tooltip(element, vpnWait)}>{vpnWait() ? "Waiting for VPN" : "Connecting"}</span>
+            <span ref={tooltip(vpnWait)}>{vpnWait() ? "Waiting for VPN" : "Connecting"}</span>
           </Show>
         </span>
       </div>

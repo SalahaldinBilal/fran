@@ -1,6 +1,6 @@
 import styles from "./Secrets.module.scss";
 import formStyles from "@core/databases/shared/ConnectionForm.module.scss";
-import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, snapshot } from "solid-js";
 import { save } from "@tauri-apps/plugin-dialog";
 import { Copy, Download, FileKey, Info, KeyRound, Lock, Pencil, Plus, Trash2, Upload } from "@core/icons";
 import useSshState from "@core/states/sshState";
@@ -200,7 +200,7 @@ function ImportKeyModal(props: { show: boolean, onClose: () => void }) {
           <Field label="Private key" hint="OpenSSH, PKCS#8 or PKCS#1 (PEM).">
             <textarea
               class={formStyles.Textarea}
-              spellcheck={false}
+              spellcheck="false"
               value={text()}
               onInput={event => setText(event.currentTarget.value)}
               placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
@@ -300,9 +300,10 @@ function PassphraseModal(props: { keyMeta: KeyMeta | null, onClose: () => void }
   const [busy, setBusy] = createSignal(false);
   const title = createMemo(() => `Passphrase for ${props.keyMeta?.label ?? ""}`);
 
-  createEffect(on(() => props.keyMeta, key => {
+  createEffect(() => props.keyMeta, keyMeta => {
+    const key = snapshot(keyMeta);
     if (key) void secrets.reset({ kind: "key", id: key.id }, key.secretRefs);
-  }));
+  });
 
   async function save() {
     const key = props.keyMeta;
@@ -409,13 +410,13 @@ function KeysView() {
                     <span class={styles.NameText}><b>{key.label}</b><small>{usedText()}</small></span>
                   </div>
                   <span class={styles.Cell}>{key.algorithm}</span>
-                  <span class={`${styles.Cell} ${styles.Mono}`} ref={element => tooltip(element, () => key.fingerprint)}>{key.fingerprint}</span>
+                  <span class={`${styles.Cell} ${styles.Mono}`} ref={tooltip(() => key.fingerprint)}>{key.fingerprint}</span>
                   <span class={styles.Cell}>
                     <Show
                       when={key.storage.kind === "file"}
                       fallback={<span class={`${styles.Badge} ${styles.Ok}`}><Lock size={11} />Vault</span>}
                     >
-                      <span class={styles.Badge} ref={element => tooltip(element, path)}><FileKey size={11} />File</span>
+                      <span class={styles.Badge} ref={tooltip(path)}><FileKey size={11} />File</span>
                     </Show>
                   </span>
                   <div class={styles.Tools}>

@@ -1,5 +1,6 @@
 import styles from "./TileLayout.module.scss";
-import { For, Index, JSX, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, onSettled } from "solid-js";
+import { JSX } from "@solidjs/web";
 import { keepOrder } from "@core/helpers";
 import {
   DropTarget, Edge, MAX_RATIO, MIN_RATIO, PlacedSplit, Rect, TileNode, dock, dropRect, layout, minSize, prune, removePanel, setRatio,
@@ -87,14 +88,14 @@ function TileLayout(props: TileLayoutProps) {
     "min-height": `${minSize(shown(), "col", MIN_PANEL_PX, GAP)}px`,
   }));
 
-  onMount(() => {
+  onSettled(() => {
     const observer = new ResizeObserver(() => setSize({ width: container.clientWidth, height: container.clientHeight }));
     observer.observe(container);
-    onCleanup(() => observer.disconnect());
+    return () => observer.disconnect();
   });
   const rects = createMemo(() => new Map(placed().panels.map(item => [item.panel, item.rect])));
   // Panels keep their DOM order when they move, since moving a node resets its scroll.
-  const panels = createMemo<string[]>(previous => keepOrder(previous, placed().panels.map(item => item.panel)), []);
+  const panels = createMemo<string[]>((previous = []) => keepOrder(previous, placed().panels.map(item => item.panel)));
   const resizing = createMemo(() => liveRatio() !== null);
   const dropBox = createMemo(() => {
     const target = drag()?.target;
@@ -203,7 +204,7 @@ function TileLayout(props: TileLayoutProps) {
   }
 
   return (
-    <div ref={container} class={styles.Layout} classList={{ [styles.Resizing]: resizing() || drag() !== null }} style={minimum()}>
+    <div ref={container} class={[styles.Layout, { [styles.Resizing]: resizing() || drag() !== null }]} style={minimum()}>
       <Show when={panels().length > 0} fallback={props.empty}>
         <For each={panels()}>
           {panel => {
@@ -212,7 +213,7 @@ function TileLayout(props: TileLayoutProps) {
             return (
               <Show when={rect()}>
                 {current => (
-                  <div class={styles.Tile} classList={{ [styles.Dragged]: dragged() }} style={boxStyle(current())}>
+                  <div class={[styles.Tile, { [styles.Dragged]: dragged() }]} style={boxStyle(current())}>
                     {props.renderPanel(panel, {
                       grab: event => startDrag(event, panel),
                       remove: () => props.onChange(removePanel(props.tree, panel)),
@@ -223,16 +224,15 @@ function TileLayout(props: TileLayoutProps) {
             );
           }}
         </For>
-        <Index each={placed().splits}>
+        <For each={placed().splits} keyed={false}>
           {split => (
             <div
-              class={styles.Splitter}
-              classList={{ [styles.Column]: split().dir === "col", [styles.Active]: liveRatio()?.id === split().id }}
+              class={[styles.Splitter, { [styles.Column]: split().dir === "col", [styles.Active]: liveRatio()?.id === split().id }]}
               style={splitterStyle(split())}
               onPointerDown={event => startResize(event, split())}
             />
           )}
-        </Index>
+        </For>
       </Show>
       <Show when={dropBox()}>
         {box => (

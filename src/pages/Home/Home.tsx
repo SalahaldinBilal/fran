@@ -1,6 +1,6 @@
 import styles from "./Home.module.scss";
-import { Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { Show, createMemo, createSignal, onSettled } from "solid-js";
+import { Dynamic } from "@solidjs/web";
 import { ArrowLeftRight, Check, CodeXml, Database, Download, LayoutGrid, Plus, RotateCcw, Search, Server, Shield, ShieldAlert } from "@core/icons";
 import useVpnEditorState from "@core/states/vpnEditorState";
 import useSettingsState from "@core/states/settingsState";
@@ -133,9 +133,9 @@ function Home() {
     searchInput?.select();
   }
 
-  onMount(() => {
+  onSettled(() => {
     window.addEventListener("keydown", onKeyDown);
-    onCleanup(() => window.removeEventListener("keydown", onKeyDown));
+    return () => window.removeEventListener("keydown", onKeyDown);
   });
 
   return (

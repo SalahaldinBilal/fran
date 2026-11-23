@@ -1,7 +1,7 @@
 import menuStyles from "../Select/Select.module.scss";
 import styles from "./SuggestInput.module.scss";
-import { For, JSX, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
-import { Portal } from "solid-js/web";
+import { For, Show, createEffect, createMemo, createSignal, flush, untrack } from "solid-js";
+import { JSX, Portal } from "@solidjs/web";
 import { keepInViewport } from "@core/helpers/viewport";
 import { Check } from "@core/icons";
 
@@ -21,7 +21,7 @@ const MENU_MAX_HEIGHT = 320;
 
 // A free text input with a styled suggestion menu, in place of the browser's datalist popup.
 function SuggestInput(props: SuggestInputProps) {
-  const [text, setText] = createSignal(props.value);
+  const [text, setText] = createSignal(untrack(() => props.value));
   const [open, setOpen] = createSignal(false);
   const [query, setQuery] = createSignal("");
   const [highlight, setHighlight] = createSignal(-1);
@@ -31,9 +31,9 @@ function SuggestInput(props: SuggestInputProps) {
   let menu: HTMLDivElement | undefined;
   let followHighlight = false;
 
-  createEffect(on(() => props.value, value => {
+  createEffect(() => props.value, value => {
     if (document.activeElement !== input) setText(value);
-  }));
+  });
 
   const matches = createMemo(() => {
     const needle = query().trim().toLowerCase();
@@ -58,7 +58,7 @@ function SuggestInput(props: SuggestInputProps) {
   function openMenu(filter: string) {
     if (props.disabled) return;
     place();
-    setQuery(filter);
+    flush(() => setQuery(filter));
     followHighlight = true;
     const current = text().trim().toLowerCase();
     setHighlight(matches().findIndex(suggestion => suggestion.toLowerCase() === current));
@@ -77,8 +77,8 @@ function SuggestInput(props: SuggestInputProps) {
   }
 
   // The menu is positioned against the viewport, so any outside scroll or resize would detach it.
-  createEffect(() => {
-    if (!open()) return;
+  createEffect(open, isOpen => {
+    if (!isOpen) return;
 
     function close(event: Event) {
       if (menu && event.target instanceof Node && menu.contains(event.target)) return;
@@ -87,15 +87,14 @@ function SuggestInput(props: SuggestInputProps) {
 
     window.addEventListener("scroll", close, { capture: true });
     window.addEventListener("resize", close);
-    onCleanup(() => {
+    return () => {
       window.removeEventListener("scroll", close, { capture: true });
       window.removeEventListener("resize", close);
-    });
+    };
   });
 
-  createEffect(() => {
-    const index = highlight();
-    if (!visible() || !menu || !followHighlight) return;
+  createEffect(() => ({ index: highlight(), shown: visible() }), ({ index, shown }) => {
+    if (!shown || !menu || !followHighlight) return;
 
     followHighlight = false;
     const item = menu.children[index] as HTMLElement | undefined;
@@ -156,10 +155,10 @@ function SuggestInput(props: SuggestInputProps) {
         value={text()}
         placeholder={props.placeholder}
         disabled={props.disabled}
-        spellcheck={false}
+        spellcheck="false"
         autocomplete="off"
         role="combobox"
-        aria-expanded={visible()}
+        aria-expanded={visible() ? "true" : "false"}
         aria-autocomplete="list"
         onClick={() => {
           if (!open()) openMenu("");
@@ -168,7 +167,7 @@ function SuggestInput(props: SuggestInputProps) {
           const value = event.currentTarget.value;
           setText(value);
           if (open()) {
-            setQuery(value);
+            flush(() => setQuery(value));
             setHighlight(matches().length > 0 ? 0 : -1);
           } else {
             openMenu(value);
@@ -196,16 +195,15 @@ function SuggestInput(props: SuggestInputProps) {
               {(suggestion, index) => (
                 <div
                   role="option"
-                  aria-selected={suggestion === props.value}
-                  class={menuStyles.Item}
-                  classList={{ [menuStyles.Highlighted]: index() === highlight() }}
+                  aria-selected={suggestion === props.value ? "true" : "false"}
+                  class={[menuStyles.Item, { [menuStyles.Highlighted]: index() === highlight() }]}
                   onMouseEnter={() => setHighlight(index())}
                   onClick={() => pick(suggestion)}
                 >
                   <span class={menuStyles.Check}>
                     <Show when={suggestion === props.value}><Check size={14} /></Show>
                   </span>
-                  <span class={menuStyles.ItemLabel} classList={{ [styles.Mono]: props.mono ?? false }}>{suggestion}</span>
+                  <span class={[menuStyles.ItemLabel, { [styles.Mono]: props.mono ?? false }]}>{suggestion}</span>
                 </div>
               )}
             </For>

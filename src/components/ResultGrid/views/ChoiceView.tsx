@@ -1,5 +1,5 @@
 import styles from "./Views.module.scss";
-import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, onSettled } from "solid-js";
 import { Check, Search } from "@core/icons";
 import { ColumnChoices } from "@core/types";
 import { plural } from "@core/helpers";
@@ -94,7 +94,7 @@ function ChoiceView(props: ChoiceViewProps) {
   }
 
   // Scrolls only the list, so opening the modal never moves anything else.
-  onMount(() => {
+  onSettled(() => {
     const first = list.querySelector<HTMLElement>(`.${styles.Picked}`);
     if (first) list.scrollTop = first.offsetTop - list.clientHeight / 2 + first.offsetHeight / 2;
     if (props.editable) (first ?? list.querySelector<HTMLElement>("button"))?.focus({ preventScroll: true });
@@ -112,7 +112,7 @@ function ChoiceView(props: ChoiceViewProps) {
         <Show when={props.choices.values.length >= FILTER_FROM}>
           <label class={styles.ChoiceFilter}>
             <Search size={12} />
-            <input value={query()} placeholder="Filter values" spellcheck={false} onInput={event => setQuery(event.currentTarget.value)} />
+            <input value={query()} placeholder="Filter values" spellcheck="false" onInput={event => setQuery(event.currentTarget.value)} />
           </label>
         </Show>
       </div>
@@ -125,23 +125,21 @@ function ChoiceView(props: ChoiceViewProps) {
 
       <div
         ref={list}
-        class={styles.Choices}
-        classList={{ [styles.ReadOnly]: !props.editable }}
+        class={[styles.Choices, { [styles.ReadOnly]: !props.editable }]}
         role={props.choices.multiple ? "group" : "radiogroup"}
       >
         <For each={shown()} fallback={<div class={styles.NoChoices}>No value contains "{query().trim()}"</div>}>
           {entry => (
             <button
-              class={styles.Choice}
-              classList={{
+              class={[styles.Choice, {
                 [styles.Picked]: isPicked(entry.choice),
                 [styles.Was]: changed() && wasPicked(entry.choice) && !isPicked(entry.choice),
-              }}
+              }]}
               role={props.choices.multiple ? "checkbox" : "radio"}
-              aria-checked={isPicked(entry.choice)}
+              aria-checked={isPicked(entry.choice) ? "true" : "false"}
               data-choice={entry.choice}
-              ref={element => tooltip(element, () => (entry.choice === "" ? "Empty string" : entry.choice))}
-              tabIndex={props.editable || isPicked(entry.choice) ? 0 : -1}
+              ref={tooltip(() => (entry.choice === "" ? "Empty string" : entry.choice))}
+              tabindex={props.editable || isPicked(entry.choice) ? 0 : -1}
               onClick={() => pick(entry.choice)}
             >
               <Show when={props.choices.multiple}>
@@ -149,7 +147,7 @@ function ChoiceView(props: ChoiceViewProps) {
                   <Check size={12} strokeWidth={3} />
                 </span>
               </Show>
-              <span class={styles.ChoiceLabel} classList={{ [styles.EmptyChoice]: entry.choice === "" }}>
+              <span class={[styles.ChoiceLabel, { [styles.EmptyChoice]: entry.choice === "" }]}>
                 {entry.choice === "" ? "empty string" : entry.choice}
               </span>
               <Show

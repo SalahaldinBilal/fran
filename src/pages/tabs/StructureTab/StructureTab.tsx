@@ -1,5 +1,5 @@
 import styles from "./StructureTab.module.scss";
-import { For, Match, Show, Switch, createMemo, createSignal, onMount, untrack } from "solid-js";
+import { For, Match, Show, Switch, createMemo, createSignal, onSettled, untrack } from "solid-js";
 import { CircleAlert, KeyRound, PencilRuler, RefreshCw } from "@core/icons";
 import { databaseModule } from "@core/databases";
 import { safeInvoke } from "@core/helpers/safeInvoke";
@@ -67,7 +67,9 @@ function StructureTab(props: StructureTabProps) {
     }
   }
 
-  onMount(load);
+  onSettled(() => {
+    void load();
+  });
 
   return (
     <div class={styles.StructureTab}>

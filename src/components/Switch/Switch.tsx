@@ -12,7 +12,7 @@ function Switch(props: SwitchProps) {
   let lastClick: MouseEvent | null = null;
 
   return (
-    <label class={styles.Switch} classList={{ [styles.Disabled]: props.disabled ?? false }}>
+    <label class={[styles.Switch, { [styles.Disabled]: props.disabled ?? false }]}>
       <input
         type="checkbox"
         checked={props.checked}
@@ -27,7 +27,7 @@ function Switch(props: SwitchProps) {
           props.onChange(next, click);
         }}
       />
-      <span class={styles.Track} classList={{ [styles.Checked]: props.checked }}>
+      <span class={[styles.Track, { [styles.Checked]: props.checked }]}>
         <span class={styles.Thumb} />
       </span>
       {props.label}

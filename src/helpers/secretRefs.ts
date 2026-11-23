@@ -1,4 +1,5 @@
-import { createStore, produce, reconcile, unwrap } from "solid-js/store";
+import { createStore, reconcile, snapshot as storeSnapshot } from "solid-js";
+import { immediateWrite } from "./immediateWrite";
 import { KeyRound, Plus } from "@core/icons";
 import { SecretRefs } from "@core/types";
 import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
@@ -14,23 +15,24 @@ export type SecretRefsEditor = {
 
 // For editors that keep their fields in signals instead of a draft store.
 export function createSecretRefs() {
-  const [refs, setRefs] = createStore<SecretRefs>({});
+  const [refs, writeRefs] = createStore<SecretRefs>({});
+  const setRefs = immediateWrite(writeRefs);
 
   const editor: SecretRefsEditor = {
     get: key => refs[key],
-    set: (key, secretId) => setRefs(produce(draft => {
+    set: (key, secretId) => setRefs(draft => {
       if (secretId) draft[key] = secretId;
       else delete draft[key];
-    })),
+    }),
   };
 
   function reset(next: SecretRefs | undefined) {
-    setRefs(reconcile({ ...(next ?? {}) }));
+    writeRefs(reconcile({ ...(next ?? {}) }));
   }
 
   // Only the keys in `keep` are saved, so a field that was hidden since doesn't keep its secret.
   function snapshot(keep?: (key: string) => boolean): SecretRefs {
-    const all = { ...unwrap(refs) };
+    const all = { ...storeSnapshot(refs) };
     for (const key of Object.keys(all)) {
       if (keep && !keep(key)) delete all[key];
     }

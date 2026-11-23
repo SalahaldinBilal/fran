@@ -1,4 +1,4 @@
-import { Show, createMemo, createSignal, onMount } from "solid-js";
+import { Show, createMemo, createSignal, onSettled } from "solid-js";
 import { Database, Shield, SquareTerminal } from "@core/icons";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import useSettingsState, { Features } from "@core/states/settingsState";
@@ -13,7 +13,7 @@ function GeneralSettings() {
   const { settings } = useSettingsState;
   const [trayAvailable, setTrayAvailable] = createSignal(true);
 
-  onMount(() => {
+  onSettled(() => {
     safeInvoke("tray_available").then(setTrayAvailable).catch(() => setTrayAvailable(false));
   });
 

@@ -1,7 +1,8 @@
 import styles from "./Secrets.module.scss";
 import own from "./PasswordsView.module.scss";
-import { For, Show, createMemo, createResource, createSignal, onCleanup } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
 import { Copy, Database, Globe, KeyRound, Lock, LockOpen, Shield, TriangleAlert, User } from "@core/icons";
+import { createLoader } from "@core/helpers/createLoader";
 import useSavedSecretsState from "@core/states/savedSecretsState";
 import useToastState from "@core/states/toastState";
 import { safeInvoke } from "@core/helpers/safeInvoke";
@@ -59,11 +60,11 @@ function PasswordRow(props: { secret: SavedSecret, deleted: string, icon: typeof
       <div class={styles.Name}>
         <span class={styles.ItemIcon}><props.icon size={15} /></span>
         <span class={styles.NameText}>
-          <b classList={{ [own.Deleted]: props.secret.ownerLabel === null }}>{name()}</b>
+          <b class={{ [own.Deleted]: props.secret.ownerLabel === null }}>{name()}</b>
         </span>
       </div>
       <span class={styles.Cell}>{props.secret.label}</span>
-      <span class={`${styles.Cell} ${styles.Mono}`} classList={{ [own.Shown]: shown() !== null }}>
+      <span class={[styles.Cell, styles.Mono, { [own.Shown]: shown() !== null }]}>
         <span class={own.Value}>{value()}</span>
       </span>
       <div class={styles.Tools}>
@@ -75,7 +76,7 @@ function PasswordRow(props: { secret: SavedSecret, deleted: string, icon: typeof
 
 function PasswordsView() {
   const saved = useSavedSecretsState;
-  const [unprotected] = createResource(() => safeInvoke("get_os_auth_status").catch(() => false));
+  const [unprotected] = createLoader(() => safeInvoke("get_os_auth_status").catch(() => false));
   const [now, setNow] = createSignal(Date.now());
   const [unlocking, setUnlocking] = createSignal(false);
   const ticker = setInterval(() => setNow(Date.now()), 1000);
@@ -110,7 +111,7 @@ function PasswordsView() {
       </p>
 
       <Show when={passwords().length > 0}>
-        <div class={own.LockBar} classList={{ [own.Open]: unlocked() }}>
+        <div class={[own.LockBar, { [own.Open]: unlocked() }]}>
           <span class={own.LockIcon}>
             <Show when={unlocked()} fallback={<Lock size={16} />}><LockOpen size={16} /></Show>
           </span>

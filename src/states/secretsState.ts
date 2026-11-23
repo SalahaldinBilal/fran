@@ -1,5 +1,5 @@
-import { createRoot, createSignal } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createRoot, createSignal, createStore, reconcile } from "solid-js";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { NamedSecret, SecretInfo, SecretOwner } from "@core/types";
 
@@ -11,7 +11,8 @@ type SecretEditorRequest = { secret: SecretInfo | null, onSaved?: (secret: Named
 
 // Named secrets, without their values. Those only leave the vault through the Show and Copy checks.
 function useSecretsStateInner() {
-  const [secrets, setSecrets] = createStore<SecretInfo[]>([]);
+  const [secrets, writeSecrets] = createStore<SecretInfo[]>([]);
+  const setSecrets = immediateWrite(writeSecrets);
   const [loaded, setLoaded] = createSignal(false);
   const [loadError, setLoadError] = createSignal<unknown>(null);
   const [editorRequest, setEditorRequest] = createSignal<SecretEditorRequest | null>(null);

@@ -1,5 +1,5 @@
-import { createRoot, createSignal } from "solid-js";
-import { createStore, produce, reconcile } from "solid-js/store";
+import { createRoot, createSignal, createStore } from "solid-js";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { withConnectPrompts } from "@core/helpers/connectFlow";
 import { generateId, plural } from "@core/helpers";
@@ -210,15 +210,55 @@ function moveItem<T extends { id: string }>(items: T[], id: string, toIndex: num
   items.splice(toIndex, 0, item);
 }
 
+function markLoading<T>(entries: Record<string, Loadable<T[]>>, key: string) {
+  const current = entries[key];
+  if (current) {
+    current.status = "loading";
+    current.error = null;
+  } else {
+    entries[key] = { status: "loading", items: [], error: null };
+  }
+}
+
+function markReady<T>(entries: Record<string, Loadable<T[]>>, key: string, items: T[]) {
+  const current = entries[key];
+  if (current) {
+    current.status = "ready";
+    current.items = items;
+    current.error = null;
+  } else {
+    entries[key] = { status: "ready", items, error: null };
+  }
+}
+
 function useWorkspaceStateInner() {
   const [settingsPage, setSettingsPage] = createSignal<string | null>(null, { equals: false });
   const { pushError, pushToast } = useToastState;
-  const [store, setStore] = createStore<WorkspaceStore>({
+  const [store, writeStore] = createStore<WorkspaceStore>({
     globalTabs: [{ id: HOME_TAB_ID, kind: "home" }],
     activeGlobalTabId: HOME_TAB_ID,
     sessions: {},
     connecting: {},
   });
+  const setStore = immediateWrite(writeStore);
+
+  function setSession(sessionId: string, change: (session: SessionState) => void) {
+    setStore(state => {
+      const session = state.sessions[sessionId];
+      if (session) change(session);
+    });
+  }
+
+  function setScope(sessionId: string, database: string, change: (scope: DatabaseScope) => void) {
+    setSession(sessionId, session => change(session.scopes[database] ??= emptyScope()));
+  }
+
+  function setTab(sessionId: string, database: string, tabId: string, change: (tab: DatabaseTab) => void) {
+    setScope(sessionId, database, scope => {
+      const tab = scope.tabs.find(candidate => candidate.id === tabId);
+      if (tab) change(tab);
+    });
+  }
 
   // Live editor text per query tab. Kept out of the store so typing doesn't re-render the tab bar.
   const queryTexts = new Map<string, string>();
@@ -317,7 +357,9 @@ function useWorkspaceStateInner() {
   }
 
   function activateGlobalTab(id: string) {
-    setStore("activeGlobalTabId", id);
+    setStore(state => {
+      state.activeGlobalTabId = id;
+    });
   }
 
   function sessionState(info: SessionInfo, profile: ConnectionProfile, saved: PersistedSession | undefined): SessionState {
@@ -362,15 +404,17 @@ function useWorkspaceStateInner() {
   }
 
   function addGlobalTab(tab: GlobalTab) {
-    setStore(produce(state => {
+    setStore(state => {
       if (!state.globalTabs.some(existing => existing.id === tab.id)) state.globalTabs.push(tab);
       state.activeGlobalTabId = tab.id;
-    }));
+    });
   }
 
   async function openConnection(profile: ConnectionProfile) {
     if (store.connecting[profile.id]) return;
-    setStore("connecting", profile.id, true);
+    setStore(state => {
+      state.connecting[profile.id] = true;
+    });
 
     try {
       const info = await withConnectPrompts(
@@ -382,18 +426,20 @@ function useWorkspaceStateInner() {
       const persisted = await loadPersisted(profile.id);
       const state = sessionState(info, profile, persisted.catalogs[catalogKey(info)]);
 
-      setStore(produce(workspace => {
+      setStore(workspace => {
         workspace.sessions[info.id] = state;
         workspace.globalTabs.push({ id: info.id, kind: "session", sessionId: info.id });
         workspace.activeGlobalTabId = info.id;
-      }));
+      });
 
       rememberRecent(profile.id);
       await loadTree(info.id);
     } catch (error) {
       pushError(error);
     } finally {
-      setStore("connecting", profile.id, false);
+      setStore(state => {
+        state.connecting[profile.id] = false;
+      });
     }
   }
 
@@ -404,7 +450,9 @@ function useWorkspaceStateInner() {
     if (!(await confirmRollback(sessionId, null, "Switching databases", "Switch and roll back"))) return;
 
     persistNow(sessionId);
-    setStore("sessions", sessionId, "switchingCatalog", true);
+    setSession(sessionId, state => {
+      state.switchingCatalog = true;
+    });
 
     try {
       const info = await safeInvoke("switch_catalog", { sessionId, catalog });
@@ -416,49 +464,51 @@ function useWorkspaceStateInner() {
       }
       const persisted = await loadPersisted(current.profile.id);
       const next = { ...sessionState(info, current.profile, persisted.catalogs[catalogKey(info)]), catalogs: [...current.catalogs] };
-      setStore(produce(workspace => {
+      setStore(workspace => {
         workspace.sessions[sessionId] = next;
-      }));
+      });
 
       await loadTree(sessionId);
     } catch (error) {
-      if (store.sessions[sessionId]) setStore("sessions", sessionId, "switchingCatalog", false);
+      setSession(sessionId, state => {
+        state.switchingCatalog = false;
+      });
       pushError(error);
     }
   }
 
   function openAgents() {
-    setStore(produce(state => {
+    setStore(state => {
       if (!state.globalTabs.some(tab => tab.kind === "agents")) state.globalTabs.push({ id: AGENTS_TAB_ID, kind: "agents" });
       state.activeGlobalTabId = AGENTS_TAB_ID;
-    }));
+    });
   }
 
   // `page` is a section id, like "updates". Not equal-checked, so asking for the same page again still switches to it.
   function openSettings(page?: string) {
     if (page) setSettingsPage(page);
-    setStore(produce(state => {
+    setStore(state => {
       if (!state.globalTabs.some(tab => tab.kind === "settings")) state.globalTabs.push({ id: SETTINGS_TAB_ID, kind: "settings" });
       state.activeGlobalTabId = SETTINGS_TAB_ID;
-    }));
+    });
   }
 
   function openSecrets() {
-    setStore(produce(state => {
+    setStore(state => {
       if (!state.globalTabs.some(tab => tab.kind === "secrets")) state.globalTabs.push({ id: SECRETS_TAB_ID, kind: "secrets" });
       state.activeGlobalTabId = SECRETS_TAB_ID;
-    }));
+    });
   }
 
   function openSync() {
-    setStore(produce(state => {
+    setStore(state => {
       if (!state.globalTabs.some(tab => tab.kind === "sync")) state.globalTabs.push({ id: SYNC_TAB_ID, kind: "sync" });
       state.activeGlobalTabId = SYNC_TAB_ID;
-    }));
+    });
   }
 
   function removeGlobalTab(id: string) {
-    setStore(produce(state => {
+    setStore(state => {
       const index = state.globalTabs.findIndex(tab => tab.id === id);
       if (index < 0) return;
 
@@ -466,7 +516,7 @@ function useWorkspaceStateInner() {
       if (state.activeGlobalTabId === id) {
         state.activeGlobalTabId = state.globalTabs[Math.max(0, index - 1)]?.id ?? HOME_TAB_ID;
       }
-    }));
+    });
   }
 
   // `force` skips the tab's own question, for callers that already asked.
@@ -489,9 +539,9 @@ function useWorkspaceStateInner() {
 
   async function closeSession(sessionId: string) {
     removeGlobalTab(sessionId);
-    setStore(produce(state => {
+    setStore(state => {
       delete state.sessions[sessionId];
-    }));
+    });
 
     try {
       await safeInvoke("close_session", { sessionId });
@@ -502,16 +552,23 @@ function useWorkspaceStateInner() {
 
   async function loadDatabases(sessionId: string) {
     if (!store.sessions[sessionId]) return;
-    setStore("sessions", sessionId, "databases", { status: "loading", error: null });
+    setSession(sessionId, session => {
+      session.databases.status = "loading";
+      session.databases.error = null;
+    });
 
     try {
       const items = await safeInvoke("list_databases", { sessionId });
       if (!store.sessions[sessionId]) return;
-      setStore("sessions", sessionId, "databases", { status: "ready", items, error: null });
+      setSession(sessionId, session => {
+        session.databases = { status: "ready", items, error: null };
+      });
       loadDatabaseSizes(sessionId);
     } catch (error) {
-      if (!store.sessions[sessionId]) return;
-      setStore("sessions", sessionId, "databases", { status: "error", error });
+      setSession(sessionId, session => {
+        session.databases.status = "error";
+        session.databases.error = error;
+      });
     }
   }
 
@@ -520,7 +577,9 @@ function useWorkspaceStateInner() {
     if (!session || !databaseModule(session.info.kind).catalogLabel) return;
     try {
       const catalogs = await safeInvoke("list_catalogs", { sessionId });
-      if (store.sessions[sessionId]) setStore("sessions", sessionId, "catalogs", catalogs);
+      setSession(sessionId, session => {
+        session.catalogs = catalogs;
+      });
     } catch (error) {
       if (store.sessions[sessionId]) pushError(error);
     }
@@ -557,8 +616,9 @@ function useWorkspaceStateInner() {
   async function loadDatabaseSizes(sessionId: string) {
     try {
       const sizes = await safeInvoke("get_database_sizes", { sessionId });
-      if (!store.sessions[sessionId]) return;
-      setStore("sessions", sessionId, "databaseSizes", reconcile(Object.fromEntries(sizes.map(size => [size.name, size.sizeBytes]))));
+      setSession(sessionId, session => {
+        session.databaseSizes = Object.fromEntries(sizes.map(size => [size.name, size.sizeBytes]));
+      });
     } catch (error) {
       if (store.sessions[sessionId]) pushError(error);
     }
@@ -566,37 +626,35 @@ function useWorkspaceStateInner() {
 
   async function loadObjects(sessionId: string, database: string) {
     if (!store.sessions[sessionId]) return;
-    setStore("sessions", sessionId, "objects", database, (current): Loadable<ObjectInfo[]> => ({
-      status: "loading",
-      items: current?.items ?? [],
-      error: null,
-    }));
+    setSession(sessionId, session => markLoading(session.objects, database));
 
     try {
       const items = await safeInvoke("list_objects", { sessionId, database });
-      if (!store.sessions[sessionId]) return;
-      setStore("sessions", sessionId, "objects", database, { status: "ready", items, error: null });
+      setSession(sessionId, session => {
+        markReady(session.objects, database, items);
+      });
     } catch (error) {
-      if (!store.sessions[sessionId]) return;
-      setStore("sessions", sessionId, "objects", database, { status: "error", error });
+      setSession(sessionId, session => {
+        session.objects[database].status = "error";
+        session.objects[database].error = error;
+      });
     }
   }
 
   async function loadColumns(sessionId: string, database: string) {
     if (!store.sessions[sessionId]) return;
-    setStore("sessions", sessionId, "columns", database, (current): Loadable<CatalogColumn[]> => ({
-      status: "loading",
-      items: current?.items ?? [],
-      error: null,
-    }));
+    setSession(sessionId, session => markLoading(session.columns, database));
 
     try {
       const items = await safeInvoke("list_columns", { sessionId, database });
-      if (!store.sessions[sessionId]) return;
-      setStore("sessions", sessionId, "columns", database, { status: "ready", items, error: null });
+      setSession(sessionId, session => {
+        markReady(session.columns, database, items);
+      });
     } catch (error) {
-      if (!store.sessions[sessionId]) return;
-      setStore("sessions", sessionId, "columns", database, { status: "error", error });
+      setSession(sessionId, session => {
+        session.columns[database].status = "error";
+        session.columns[database].error = error;
+      });
     }
   }
 
@@ -617,32 +675,36 @@ function useWorkspaceStateInner() {
     if (!session) return;
 
     const expand = !session.expanded[database];
-    setStore("sessions", sessionId, "expanded", database, expand);
+    setSession(sessionId, state => {
+      state.expanded[database] = expand;
+    });
     if (expand && !session.objects[database]) loadObjects(sessionId, database);
     schedulePersist(sessionId);
   }
 
   function selectDatabase(sessionId: string, database: string) {
-    setStore("sessions", sessionId, produce(session => {
+    setSession(sessionId, session => {
       session.selectedDatabase = database;
       session.scopes[database] ??= emptyScope();
-    }));
+    });
     schedulePersist(sessionId);
   }
 
   function openTab(sessionId: string, database: string, tab: DatabaseTab) {
-    setStore("sessions", sessionId, produce(session => {
+    setSession(sessionId, session => {
       session.selectedDatabase = database;
       const scope = (session.scopes[database] ??= emptyScope());
       scope.tabs.push(tab);
       scope.activeTabId = tab.id;
-    }));
+    });
     schedulePersist(sessionId);
   }
 
   function nextQueryTitle(sessionId: string, database: string): string {
     const count = (store.sessions[sessionId]?.scopes[database]?.queryCount ?? 0) + 1;
-    setStore("sessions", sessionId, "scopes", database, scope => ({ ...(scope ?? emptyScope()), queryCount: count }));
+    setScope(sessionId, database, scope => {
+      scope.queryCount = count;
+    });
     return `Query ${count}`;
   }
 
@@ -658,7 +720,10 @@ function useWorkspaceStateInner() {
     if (!existing) return false;
 
     selectDatabase(sessionId, database);
-    setStore("sessions", sessionId, "scopes", database, "activeTabId", existing.id);
+    const existingId = existing.id;
+    setScope(sessionId, database, scope => {
+      scope.activeTabId = existingId;
+    });
     schedulePersist(sessionId);
     return true;
   }
@@ -724,9 +789,9 @@ function useWorkspaceStateInner() {
   }
 
   function clearRunOnOpen(sessionId: string, database: string, tabId: string) {
-    setStore("sessions", sessionId, "scopes", database, "tabs", tab => tab.id === tabId, produce(tab => {
+    setTab(sessionId, database, tabId, tab => {
       if (tab.kind === "query") delete tab.runOnOpen;
-    }));
+    });
   }
 
   function openStructure(sessionId: string, database: string, object: ObjectInfo) {
@@ -769,21 +834,22 @@ function useWorkspaceStateInner() {
   }
 
   function updateTab(sessionId: string, database: string, tabId: string, change: (tab: DatabaseTab) => void) {
-    setStore("sessions", sessionId, "scopes", database, "tabs", tab => tab.id === tabId, produce(change));
+    setTab(sessionId, database, tabId, change);
     schedulePersist(sessionId);
   }
 
   function activateTab(sessionId: string, database: string, tabId: string) {
-    setStore("sessions", sessionId, "scopes", database, "activeTabId", tabId);
+    setScope(sessionId, database, scope => {
+      scope.activeTabId = tabId;
+    });
     schedulePersist(sessionId);
   }
 
   function setTabTransaction(sessionId: string, tabId: string, state: TransactionState) {
-    if (!store.sessions[sessionId]) return;
-    setStore("sessions", sessionId, "transactions", produce(transactions => {
-      if (state === "none") delete transactions[tabId];
-      else transactions[tabId] = state;
-    }));
+    setSession(sessionId, session => {
+      if (state === "none") delete session.transactions[tabId];
+      else session.transactions[tabId] = state;
+    });
   }
 
   // Closing a tab's connection makes the server roll back whatever it didn't commit, so that's asked first.
@@ -802,7 +868,7 @@ function useWorkspaceStateInner() {
 
   function closeTab(sessionId: string, database: string, tabId: string) {
     setTabTransaction(sessionId, tabId, "none");
-    setStore("sessions", sessionId, "scopes", database, produce(scope => {
+    setScope(sessionId, database, scope => {
       const index = scope.tabs.findIndex(tab => tab.id === tabId);
       if (index < 0) return;
 
@@ -810,7 +876,7 @@ function useWorkspaceStateInner() {
       if (scope.activeTabId === tabId) {
         scope.activeTabId = scope.tabs[Math.min(index, scope.tabs.length - 1)]?.id ?? null;
       }
-    }));
+    });
     queryTexts.delete(tabId);
     schedulePersist(sessionId);
   }
@@ -824,21 +890,21 @@ function useWorkspaceStateInner() {
   function closeOtherTabs(sessionId: string, database: string, keepId: string) {
     const closing = store.sessions[sessionId]?.scopes[database]?.tabs.filter(tab => tab.id !== keepId) ?? [];
     for (const tab of closing) setTabTransaction(sessionId, tab.id, "none");
-    setStore("sessions", sessionId, "scopes", database, produce(scope => {
+    setScope(sessionId, database, scope => {
       scope.tabs = scope.tabs.filter(tab => tab.id === keepId);
       scope.activeTabId = keepId;
-    }));
+    });
     for (const tab of closing) queryTexts.delete(tab.id);
     schedulePersist(sessionId);
   }
 
   function moveTab(sessionId: string, database: string, tabId: string, toIndex: number) {
-    setStore("sessions", sessionId, "scopes", database, "tabs", produce(tabs => moveItem(tabs, tabId, toIndex)));
+    setScope(sessionId, database, scope => moveItem(scope.tabs, tabId, toIndex));
     schedulePersist(sessionId);
   }
 
   function moveGlobalTab(id: string, toIndex: number) {
-    setStore("globalTabs", produce(tabs => moveItem(tabs, id, toIndex)));
+    setStore(state => moveItem(state.globalTabs, id, toIndex));
   }
 
   return {

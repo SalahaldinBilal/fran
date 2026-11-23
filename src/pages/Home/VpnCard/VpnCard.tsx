@@ -74,7 +74,7 @@ export function VpnStateBadges(props: { view: ReturnType<typeof useVpnView>, pro
     <>
       <Show when={props.view.stateLabel()}>
         {label => (
-          <span class={vpnStyles.State} classList={{ [vpnStyles.Live]: props.view.live() }}>
+          <span class={[vpnStyles.State, { [vpnStyles.Live]: props.view.live() }]}>
             <span class={vpnStyles.Dot} />
             <span class={vpnStyles.Label}>{label()}</span>
           </span>
@@ -85,7 +85,7 @@ export function VpnStateBadges(props: { view: ReturnType<typeof useVpnView>, pro
           <button
             type="button"
             class={`${vpnStyles.Failed} ${vpnStyles.FailedButton}`}
-            ref={element => tooltip(element, () => `${message()}. Click to see the log.`)}
+            ref={tooltip(() => `${message()}. Click to see the log.`)}
             onClick={event => {
               event.stopPropagation();
               useVpnState.showLog(props.profile.id);
@@ -98,7 +98,7 @@ export function VpnStateBadges(props: { view: ReturnType<typeof useVpnView>, pro
         )}
       </Show>
       <Show when={props.view.systemOnly()}>
-        <span ref={element => tooltip(element, () => props.profile.needsSystem.join(". "))}>
+        <span ref={tooltip(() => props.profile.needsSystem.join(". "))}>
           <ItemBadge tone="warning">Needs the installed OpenVPN</ItemBadge>
         </span>
       </Show>
@@ -110,7 +110,7 @@ export function VpnComputerSwitch(props: { view: ReturnType<typeof useVpnView>, 
   return (
     <span
       class={vpnStyles.Computer}
-      ref={element => tooltip(element, () => props.view.switchTooltip())}
+      ref={tooltip(() => props.view.switchTooltip())}
       onClick={event => event.stopPropagation()}
       onKeyDown={event => event.stopPropagation()}
     >
@@ -132,11 +132,10 @@ function VpnCard(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) =>
 
   return (
     <div
-      class={styles.Card}
-      classList={{ [styles.Filled]: view.filled() }}
+      class={[styles.Card, { [styles.Filled]: view.filled() }]}
       style={{ "--card-color": props.profile.color ?? "var(--accent)" }}
       role="button"
-      tabIndex={0}
+      tabindex={0}
       aria-label={`Edit ${props.profile.label}`}
       onClick={() => useVpnEditorState.open(props.profile)}
       onKeyDown={event => {
@@ -152,13 +151,13 @@ function VpnCard(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) =>
           <Shield size={18} />
         </ItemIcon>
         <div class={styles.Titles}>
-          <div class={styles.Name} ref={element => tooltip(element, () => props.profile.label)}>{props.profile.label}</div>
+          <div class={styles.Name} ref={tooltip(() => props.profile.label)}>{props.profile.label}</div>
           <div class={styles.Kind}>{kind()}</div>
         </div>
         <div class={styles.Tools} onClick={event => event.stopPropagation()}>
           <Show when={props.onGrab}>
             {grab => (
-              <span ref={element => tooltip(element, () => "Drag to reorder")} class={styles.Grip} onPointerDown={event => grab()(event)}>
+              <span ref={tooltip(() => "Drag to reorder")} class={styles.Grip} onPointerDown={event => grab()(event)}>
                 <GripVertical size={14} />
               </span>
             )}
@@ -188,7 +187,7 @@ function VpnCard(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) =>
       <Show
         when={view.problem()}
         fallback={
-          <div class={styles.Target} ref={element => tooltip(element, view.server)}>
+          <div class={styles.Target} ref={tooltip(view.server)}>
             <Server size={14} />
             <span>{view.server()}</span>
           </div>
@@ -198,7 +197,7 @@ function VpnCard(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) =>
           <button
             type="button"
             class={`${styles.Target} ${vpnStyles.Problem}`}
-            ref={element => tooltip(element, () => `${problem()}. Click to see the log.`)}
+            ref={tooltip(() => `${problem()}. Click to see the log.`)}
             onClick={event => {
               event.stopPropagation();
               useVpnState.showLog(props.profile.id);

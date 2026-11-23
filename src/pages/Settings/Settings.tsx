@@ -1,5 +1,6 @@
 import styles from "./Settings.module.scss";
-import { createEffect, createMemo, createSignal, For, JSX, on, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import { JSX } from "@solidjs/web";
 import {
   Bot, CircleAlert, Download, LucideIcon, Palette, Shield, ShieldCheck, SlidersHorizontal, SquareTerminal, Table2, Terminal as TerminalIcon, WandSparkles,
 } from "@core/icons";
@@ -52,10 +53,7 @@ function Settings(props: SettingsProps) {
   ];
 
   const visibleSections = createMemo(() => sections.filter(section => featureOn(section.feature)));
-  const [chosenId, setChosenId] = createSignal(useWorkspaceState.settingsPage() ?? sections[0].id);
-  createEffect(on(useWorkspaceState.settingsPage, page => {
-    if (page) setChosenId(page);
-  }, { defer: true }));
+  const [chosenId, setChosenId] = createSignal<string>(() => useWorkspaceState.settingsPage() ?? sections[0].id);
   const activeId = createMemo(() => (visibleSections().some(section => section.id === chosenId()) ? chosenId() : visibleSections()[0].id));
 
   return (
@@ -65,8 +63,7 @@ function Settings(props: SettingsProps) {
           {section => (
             <button
               type="button"
-              class={styles.NavItem}
-              classList={{ [styles.Active]: activeId() === section.id }}
+              class={[styles.NavItem, { [styles.Active]: activeId() === section.id }]}
               onClick={() => setChosenId(section.id)}
             >
               <section.icon size={18} />

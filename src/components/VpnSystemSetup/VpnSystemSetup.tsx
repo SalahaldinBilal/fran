@@ -1,5 +1,5 @@
 import styles from "@core/pages/Settings/Settings.module.scss";
-import { Show, createEffect, createMemo, createSignal, on, onMount } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { Copy } from "@core/icons";
 import useSettingsState from "@core/states/settingsState";
 import usePromptState from "@core/states/promptState";
@@ -85,20 +85,22 @@ function VpnSystemSetup() {
     }
   }
 
-  async function loadOpenVpn() {
+  async function loadOpenVpn(program = settings.vpn.program) {
     try {
-      setCheck(await safeInvoke("check_openvpn", { program: settings.vpn.program.trim() || null }));
+      setCheck(await safeInvoke("check_openvpn", { program: program.trim() || null }));
       setCheckError(null);
     } catch (error) {
       setCheckError(errorMessage(error));
     }
   }
 
-  onMount(() => {
+  onSettled(() => {
     void loadStatus();
     void safeInvoke("openvpn_install_help").then(setHelp).catch(() => undefined);
   });
-  createEffect(on(() => settings.vpn.program, () => void loadOpenVpn()));
+  createEffect(() => settings.vpn.program, program => {
+    void loadOpenVpn(program);
+  });
 
   // VPNs that are on with the service stop while it's set up again or removed.
   async function confirmStopping(action: string): Promise<boolean> {
@@ -185,7 +187,7 @@ function VpnSystemSetup() {
     <SettingGroup title="Turning VPNs on for this computer">
       <SettingRow
         name="Fran's VPN service"
-        hint={<>Runs OpenVPN and WireGuard as a system service. <span classList={{ [styles.HintError]: service().error }}>{service().text}</span></>}
+        hint={<>Runs OpenVPN and WireGuard as a system service. <span class={{ [styles.HintError]: service().error }}>{service().text}</span></>}
       >
         <div class={styles.FormActions}>
           <Show when={canSetUp()}>
@@ -209,7 +211,7 @@ function VpnSystemSetup() {
       <Show when={showOpenVpn()}>
         <SettingRow
           name="Installed OpenVPN"
-          hint={<>For profiles Fran can't run itself, like TAP or legacy ciphers. <span classList={{ [styles.HintError]: openVpnError() }}>{openVpn().text}</span></>}
+          hint={<>For profiles Fran can't run itself, like TAP or legacy ciphers. <span class={{ [styles.HintError]: openVpnError() }}>{openVpn().text}</span></>}
           below={
             <Show when={openVpnMissing() && installCommand()}>
               {command => (

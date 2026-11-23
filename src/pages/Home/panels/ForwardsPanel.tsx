@@ -31,7 +31,7 @@ function ForwardRow(props: { rule: ForwardRule }) {
     <div
       class={shared.Row}
       role="button"
-      tabIndex={0}
+      tabindex={0}
       onClick={() => rules.openEditor(props.rule)}
       onKeyDown={event => {
         if (event.key === "Enter") rules.openEditor(props.rule);

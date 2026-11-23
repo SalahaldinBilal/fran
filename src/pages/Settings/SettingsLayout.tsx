@@ -1,5 +1,6 @@
 import styles from "./Settings.module.scss";
-import { JSX, Show } from "solid-js";
+import { Show } from "solid-js";
+import { JSX } from "@solidjs/web";
 
 export function SettingsPage(props: { title: string, description: string, children: JSX.Element }) {
   return (
@@ -39,7 +40,7 @@ export function SettingRow(props: SettingRowProps) {
       <div class={styles.Text}>
         <div class={styles.Name}>{props.name}</div>
         <Show when={props.hint}>
-          <div class={styles.Hint} classList={{ [styles.HintError]: props.hintError ?? false }}>{props.hint}</div>
+          <div class={[styles.Hint, { [styles.HintError]: props.hintError ?? false }]}>{props.hint}</div>
         </Show>
         {props.below}
       </div>

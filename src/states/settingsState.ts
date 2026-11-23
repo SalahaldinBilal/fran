@@ -1,5 +1,5 @@
-import { createRoot, createSignal } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createRoot, createSignal, createStore, reconcile } from "solid-js";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import useToastState from "./toastState";
 import { TileNode, readTree } from "@core/helpers/tiling";
@@ -258,7 +258,8 @@ function fromStored(stored: unknown): AppSettings {
 
 function useSettingsStateInner() {
   const { pushError } = useToastState;
-  const [settings, setSettings] = createStore<AppSettings>({ ...DEFAULT_SETTINGS });
+  const [settings, writeSettings] = createStore<AppSettings>({ ...DEFAULT_SETTINGS });
+  const setSettings = immediateWrite(writeSettings);
   const [loadError, setLoadError] = createSignal<unknown>(null);
   const [loaded, setLoaded] = createSignal(false);
 

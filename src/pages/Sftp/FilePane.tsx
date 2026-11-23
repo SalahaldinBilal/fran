@@ -1,6 +1,6 @@
 import styles from "./Sftp.module.scss";
-import { For, JSX, Match, Show, Switch, createMemo, createSignal } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
+import { Dynamic, JSX } from "@solidjs/web";
 import {
   ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight, ChevronUp, CircleAlert, Copy, CornerLeftUp, Eye, File, FileQuestion,
   FileSymlink, Folder, FolderOpen, FolderPlus, FolderSymlink, HardDrive, Lock, LucideIcon, Pencil, RefreshCw, Trash2,
@@ -213,7 +213,7 @@ function FilePane(props: FilePaneProps) {
   }
 
   return (
-    <section class={styles.Pane} classList={{ [styles.DropActive]: dropHere() && dropFolder() === null }}>
+    <section class={[styles.Pane, { [styles.DropActive]: dropHere() && dropFolder() === null }]}>
       <header class={styles.PaneHeader}>
         <span class={styles.PaneIcon}><Dynamic component={props.icon} size={15} /></span>
         <span class={styles.PaneTitles}>
@@ -247,7 +247,7 @@ function FilePane(props: FilePaneProps) {
           />
         </div>
 
-        <div class={styles.ListHead} classList={{ [styles.NoMode]: !showMode() }}>
+        <div class={[styles.ListHead, { [styles.NoMode]: !showMode() }]}>
           <SortHeader label="Name" sortKey="name" sort={sort()} onSort={sortBy} />
           <SortHeader label="Size" sortKey="size" sort={sort()} onSort={sortBy} end />
           <SortHeader label="Modified" sortKey="modified" sort={sort()} onSort={sortBy} />
@@ -256,7 +256,7 @@ function FilePane(props: FilePaneProps) {
         <div
           ref={list}
           class={styles.List}
-          tabIndex={0}
+          tabindex={0}
           data-drop-side={props.side}
           onKeyDown={onKeyDown}
           onContextMenu={backgroundMenu}
@@ -301,14 +301,13 @@ function FilePane(props: FilePaneProps) {
                     const isDropTarget = createMemo(() => dropFolder() === entry.path);
                     return (
                       <div
-                        class={styles.Row}
-                        classList={{
+                        class={[styles.Row, {
                           [styles.NoMode]: !showMode(),
                           [styles.Selected]: isSelected(),
                           [styles.DropOn]: isDropTarget(),
                           [styles.Dragged]: dragged().has(entry.path),
                           [styles.HiddenEntry]: entry.hidden,
-                        }}
+                        }]}
                         data-drop-side={props.side}
                         data-drop-folder={folder ? entry.path : undefined}
                         onMouseDown={event => onRowMouseDown(event, entry)}
@@ -320,7 +319,7 @@ function FilePane(props: FilePaneProps) {
                         onContextMenu={event => rowMenu(event, entry)}
                       >
                         <span class={styles.Name}>
-                          <span class={styles.EntryIcon} classList={{ [styles.FolderIcon]: folder }}>
+                          <span class={[styles.EntryIcon, { [styles.FolderIcon]: folder }]}>
                             <Dynamic component={entryIcon(entry)} size={14} />
                           </span>
                           <span class={styles.NameText}>{entry.name}</span>
@@ -354,8 +353,7 @@ function SortHeader(props: { label: string, sortKey: SortKey, sort: Sort, onSort
   return (
     <button
       type="button"
-      class={styles.SortHead}
-      classList={{ [styles.SortActive]: active(), [styles.SortEnd]: props.end ?? false }}
+      class={[styles.SortHead, { [styles.SortActive]: active(), [styles.SortEnd]: props.end ?? false }]}
       onClick={() => props.onSort(props.sortKey)}
     >
       {props.label}

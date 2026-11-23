@@ -1,5 +1,5 @@
-import { createSignal } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createSignal, createStore, reconcile } from "solid-js";
+import { immediateWrite } from "./immediateWrite";
 import { PendingSecret, SecretEditor } from "@core/databases/types";
 import { SecretOwner, SecretRefs } from "@core/types";
 import { safeInvoke } from "./safeInvoke";
@@ -10,11 +10,12 @@ import { createSecretRefs } from "./secretRefs";
 export function createOwnerSecrets() {
   const [stored, setStored] = createSignal<string[]>([]);
   const [owner, setOwner] = createSignal<SecretOwner | null>(null);
-  const [pending, setPending] = createStore<Record<string, PendingSecret>>({});
+  const [pending, writePending] = createStore<Record<string, PendingSecret>>({});
+  const setPending = immediateWrite(writePending);
   const refs = createSecretRefs();
 
   async function reset(next: SecretOwner | null, secretRefs?: SecretRefs) {
-    setPending(reconcile({}));
+    writePending(reconcile({}));
     setStored([]);
     setOwner(next);
     refs.reset(secretRefs);
@@ -31,7 +32,9 @@ export function createOwnerSecrets() {
   const editor: SecretEditor = {
     isStored: slot => stored().includes(slot),
     pending: slot => pending[slot],
-    setPending: (slot, value) => setPending(slot, value),
+    setPending: (slot, value) => setPending(state => {
+      state[slot] = value;
+    }),
     owner,
     refs: refs.editor,
   };

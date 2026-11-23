@@ -43,7 +43,7 @@ function ActivityNoticeView(props: ActivityNoticeViewProps) {
   const unavailable = createMemo(() => props.notice.kind === "unavailable");
 
   return (
-    <div class={styles.Notice} classList={{ [styles.NoticeCompact]: props.compact ?? false, [styles.NoticeLimited]: !unavailable() }}>
+    <div class={[styles.Notice, { [styles.NoticeCompact]: props.compact ?? false, [styles.NoticeLimited]: !unavailable() }]}>
       <div class={styles.NoticeHead}>
         {unavailable() ? <Info size={16} class={styles.NoticeIcon} /> : <TriangleAlert size={16} class={styles.NoticeIcon} />}
         <div class={styles.NoticeTitle}>{props.notice.title}</div>

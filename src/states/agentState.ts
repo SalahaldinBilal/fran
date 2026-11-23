@@ -1,6 +1,6 @@
-import { createMemo, createRoot, createSignal } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createMemo, createRoot, createSignal, createStore, reconcile } from "solid-js";
 import { listen } from "@tauri-apps/api/event";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { withConnectPrompts } from "@core/helpers/connectFlow";
 import { errorMessage } from "@core/helpers/errors";
@@ -31,25 +31,29 @@ const DEFAULT_CONFIG: AgentConfig = {
 
 function useAgentStateInner() {
   const { pushError } = useToastState;
-  const [config, setConfig] = createStore<AgentConfig>({ ...DEFAULT_CONFIG });
+  const [config, writeConfig] = createStore<AgentConfig>({ ...DEFAULT_CONFIG });
+  const setConfig = immediateWrite(writeConfig);
   const [status, setStatus] = createSignal<AgentServerStatus>({ running: false, port: null, error: null });
-  const [sessions, setSessions] = createStore<AgentSessionInfo[]>([]);
-  const [approvals, setApprovals] = createStore<AgentApproval[]>([]);
+  const [sessions, writeSessions] = createStore<AgentSessionInfo[]>([]);
+  const setSessions = immediateWrite(writeSessions);
+  const [approvals, writeApprovals] = createStore<AgentApproval[]>([]);
+  const setApprovals = immediateWrite(writeApprovals);
   const [view, setView] = createSignal<AgentsView>("activity");
   const [reviewingId, setReviewingId] = createSignal<string | null>(null);
   const reviewing = createMemo(() => approvals.find(approval => approval.id === reviewingId()));
-  const [databaseLists, setDatabaseLists] = createStore<Record<string, DatabaseList>>({});
+  const [databaseLists, writeDatabaseLists] = createStore<Record<string, DatabaseList>>({});
+  const setDatabaseLists = immediateWrite(writeDatabaseLists);
   const seenApprovals = new Set<string>();
   const historyListeners = new Set<(entry: AgentHistoryEntry) => void>();
 
   async function refreshSessions() {
-    setSessions(reconcile(await safeInvoke("list_agent_sessions"), { key: "id" }));
+    setSessions(reconcile(await safeInvoke("list_agent_sessions"), "id"));
   }
 
   // A change that just came in opens its review, unless another one is already open.
   async function refreshApprovals() {
     const list = await safeInvoke("list_agent_approvals");
-    setApprovals(reconcile(list, { key: "id" }));
+    setApprovals(reconcile(list, "id"));
     const fresh = list.find(approval => !seenApprovals.has(approval.id));
     for (const approval of list) seenApprovals.add(approval.id);
     if (!list.some(approval => approval.id === reviewingId())) setReviewingId(fresh?.id ?? null);
@@ -102,19 +106,29 @@ function useAgentStateInner() {
   async function listDatabases(profile: ConnectionProfile, refresh = false) {
     const known = databaseLists[profile.id];
     if (known?.loading || (known?.list && !refresh)) return;
-    setDatabaseLists(profile.id, { list: known?.list ?? null, listedAt: known?.listedAt ?? null, loading: true, error: null });
+    function patchList(patch: Partial<DatabaseList>) {
+      setDatabaseLists(lists => {
+        Object.assign(lists[profile.id], patch);
+      });
+    }
+
+    const list = known?.list ?? null;
+    const listedAt = known?.listedAt ?? null;
+    setDatabaseLists(lists => {
+      lists[profile.id] = { list, listedAt, loading: true, error: null };
+    });
     try {
-      const list = await withConnectPrompts(
+      const fetched = await withConnectPrompts(
         { connectionId: profile.id, connectionName: profile.name },
         secrets => safeInvoke("list_agent_databases", { connectionId: profile.id, secrets }),
       );
-      if (list) {
-        setDatabaseLists(profile.id, { list, listedAt: Date.now(), loading: false, error: null });
+      if (fetched) {
+        patchList({ list: fetched, listedAt: Date.now(), loading: false, error: null });
       } else {
-        setDatabaseLists(profile.id, { loading: false, error: "Fran needs to connect to list the databases." });
+        patchList({ loading: false, error: "Fran needs to connect to list the databases." });
       }
     } catch (error) {
-      setDatabaseLists(profile.id, { loading: false, error: errorMessage(error) });
+      patchList({ loading: false, error: errorMessage(error) });
     }
   }
 

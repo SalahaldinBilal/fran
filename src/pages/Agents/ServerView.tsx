@@ -1,6 +1,7 @@
 import styles from "./Agents.module.scss";
-import { Show, createEffect, createMemo, createResource, createSignal } from "solid-js";
+import { Show, createMemo, createSignal } from "solid-js";
 import { Braces, Trash2 } from "@core/icons";
+import { createLoader } from "@core/helpers/createLoader";
 import useAgentState from "@core/states/agentState";
 import usePromptState from "@core/states/promptState";
 import useToastState from "@core/states/toastState";
@@ -12,9 +13,8 @@ import Input from "@core/components/Input/Input";
 import Toggle from "@core/components/Switch/Switch";
 
 function NumberSetting(props: { value: number, min: number, max: number, suffix?: string, onCommit: (value: number) => void }) {
-  const [text, setText] = createSignal(String(props.value));
+  const [text, setText] = createSignal(() => String(props.value));
   const suffix = createMemo(() => (props.suffix ? <span class={styles.Suffix}>{props.suffix}</span> : undefined));
-  createEffect(() => setText(String(props.value)));
 
   function commit() {
     const value = Number(text());
@@ -46,7 +46,7 @@ function ServerView() {
   const agent = useAgentState;
   const { confirm } = usePromptState;
   const { pushToast, pushError } = useToastState;
-  const [size, { refetch }] = createResource(() => safeInvoke("get_agent_history_size"));
+  const [size, { refetch }] = createLoader(() => safeInvoke("get_agent_history_size"));
 
   const jsonConfig = createMemo(() => JSON.stringify({ mcpServers: { "fran": { type: "http", url: agent.url() } } }, null, 2));
   const keptHint = createMemo(() => {

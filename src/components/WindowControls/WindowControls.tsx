@@ -1,5 +1,5 @@
 import styles from "./WindowControls.module.scss";
-import { Show, createSignal, onCleanup, onMount } from "solid-js";
+import { Show, createSignal, onCleanup, onSettled } from "solid-js";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import useToastState from "@core/states/toastState";
 import { skipsConfirm } from "@core/helpers/platform";
@@ -12,9 +12,13 @@ function WindowControls() {
 
   onCleanup(() => unlistenResize?.());
 
-  onMount(async () => {
+  async function watchMaximized() {
     setMaximized(await appWindow.isMaximized());
     unlistenResize = await appWindow.onResized(async () => setMaximized(await appWindow.isMaximized()));
+  }
+
+  onSettled(() => {
+    void watchMaximized();
   });
 
   return (

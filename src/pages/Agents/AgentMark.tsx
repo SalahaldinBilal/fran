@@ -11,15 +11,15 @@ export type AgentMarkProps = {
 
 function AgentMark(props: AgentMarkProps) {
   const color = createMemo(() => (props.agent === null ? undefined : agentColor(props.agent)));
+  const initial = createMemo(() => (props.agent ? agentInitial(props.agent) : ""));
 
   return (
     <span
-      class={styles.AgentMark}
-      classList={{ [styles.All]: props.agent === null, [styles.Dim]: props.dim ?? false }}
+      class={[styles.AgentMark, { [styles.All]: props.agent === null, [styles.Dim]: props.dim ?? false }]}
       style={{ "--mark": color() }}
     >
       <Show when={props.agent} fallback={<Activity size={14} />}>
-        {agent => agentInitial(agent())}
+        {initial()}
       </Show>
     </span>
   );

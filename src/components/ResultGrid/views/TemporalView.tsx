@@ -1,5 +1,5 @@
 import styles from "./Views.module.scss";
-import { For, Show, createEffect, createMemo, createSignal, on, untrack } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, untrack } from "solid-js";
 import { ChevronLeft, ChevronRight, Clock } from "@core/icons";
 import { ColumnMeta } from "@core/types";
 import Button from "../../Button/Button";
@@ -48,10 +48,10 @@ function Segment(props: SegmentProps) {
       style={{ width: `${Math.max(digits(), String(props.max).length) + 1.6}ch` }}
       value={display()}
       aria-label={props.label}
-      ref={element => tooltip(element, () => props.label)}
-      inputMode="numeric"
-      readOnly={!props.editable}
-      spellcheck={false}
+      ref={tooltip(() => props.label)}
+      inputmode="numeric"
+      readonly={!props.editable}
+      spellcheck="false"
       onFocus={event => event.currentTarget.select()}
       onKeyDown={event => {
         if (!props.editable) return;
@@ -79,7 +79,7 @@ function TemporalView(props: TemporalViewProps) {
   const reading = createMemo(() => readTemporal(kind(), props.value, zoned()));
   const parsed = createMemo(() => reading()?.value ?? null);
   const invalid = createMemo(() => props.value.trim() !== "" && reading() === null);
-  const current = createMemo<TemporalValue | null>(previous => parsed() ?? previous ?? null, null);
+  const current = createMemo<TemporalValue | null>(previous => parsed() ?? previous ?? null);
   const columnFraction = untrack(() => fractionDigitsOf(kind(), props.value.trim() === "" ? null : props.value, zoned()));
   const fractionDigits = columnFraction ?? 0;
 
@@ -115,9 +115,9 @@ function TemporalView(props: TemporalViewProps) {
   const initialMonth = untrack(() => realDate() ?? today());
   const [view, setView] = createSignal({ year: initialMonth.year, month: initialMonth.month });
 
-  createEffect(on(realDate, next => {
+  createEffect(realDate, next => {
     if (next) setView({ year: next.year, month: next.month });
-  }, { defer: true }));
+  }, { defer: true });
 
   const days = createMemo(() => monthGrid(view().year, view().month));
   const todayDate = today();
@@ -191,16 +191,15 @@ function TemporalView(props: TemporalViewProps) {
     <div class={styles.View}>
       <div class={styles.ValueRow}>
         <input
-          class={styles.BigInput}
-          classList={{ [styles.Invalid]: invalid() }}
+          class={[styles.BigInput, { [styles.Invalid]: invalid() }]}
           value={props.value}
           placeholder={props.editable ? formatTemporal(kind(), currentTemporal(fractionDigits, zoned())) : "NULL"}
-          readOnly={!props.editable}
-          spellcheck={false}
+          readonly={!props.editable}
+          spellcheck="false"
           autocomplete="off"
-          ref={input => {
-            if (props.editable) queueMicrotask(() => input.focus());
-          }}
+          ref={input => queueMicrotask(() => {
+            if (props.editable) input.focus();
+          })}
           onInput={event => props.onChange(event.currentTarget.value)}
           onPaste={onPaste}
           onBlur={useCanonical}
@@ -228,9 +227,9 @@ function TemporalView(props: TemporalViewProps) {
         <div class={styles.Note}>Saved as {conversion()}. Press Enter to apply it here.</div>
       </Show>
 
-      <div class={styles.TemporalBody} classList={{ [styles.TimeOnly]: kind() === "time" }}>
+      <div class={[styles.TemporalBody, { [styles.TimeOnly]: kind() === "time" }]}>
         <Show when={kind() !== "time"}>
-          <div class={styles.Calendar} classList={{ [styles.ReadOnly]: !props.editable }}>
+          <div class={[styles.Calendar, { [styles.ReadOnly]: !props.editable }]}>
             <div class={styles.CalendarHeader}>
               <Button icon size="sm" tooltip="Previous month" onClick={() => moveView(-1)}>
                 <ChevronLeft size={16} />
@@ -247,13 +246,12 @@ function TemporalView(props: TemporalViewProps) {
               <For each={days()}>
                 {day => (
                   <button
-                    class={styles.Day}
-                    classList={{
+                    class={[styles.Day, {
                       [styles.Outside]: day.month !== view().month,
                       [styles.Today]: sameDate(day, todayDate),
                       [styles.SelectedDay]: sameDate(day, realDate()),
-                    }}
-                    tabIndex={props.editable ? 0 : -1}
+                    }]}
+                    tabindex={props.editable ? 0 : -1}
                     onClick={() => pickDay(day)}
                   >
                     {day.day}
@@ -266,10 +264,10 @@ function TemporalView(props: TemporalViewProps) {
 
         <div class={styles.Summary}>
           <Show when={headline()}>
-            <div class={styles.Headline} classList={{ [styles.Muted]: zero() }}>{headline()}</div>
+            <div class={[styles.Headline, { [styles.Muted]: zero() }]}>{headline()}</div>
           </Show>
           <Show when={kind() !== "date"}>
-            <div class={styles.Segments} classList={{ [styles.Muted]: time() === null }}>
+            <div class={[styles.Segments, { [styles.Muted]: time() === null }]}>
               <Show when={clock().negative}><span class={styles.Sign}>-</span></Show>
               <Segment label="Hours" value={clock().hours} max={maxHours()} editable={props.editable} onCommit={value => setTimePart("hours", value)} />
               <span class={styles.Colon}>:</span>
@@ -283,9 +281,9 @@ function TemporalView(props: TemporalViewProps) {
                   style={{ width: `${fractionDigits + 1.6}ch` }}
                   value={clock().fraction.padEnd(fractionDigits, "0")}
                   aria-label="Fraction of a second"
-                  ref={element => tooltip(element, () => "Fraction of a second")}
-                  inputMode="numeric"
-                  readOnly={!props.editable}
+                  ref={tooltip(() => "Fraction of a second")}
+                  inputmode="numeric"
+                  readonly={!props.editable}
                   onFocus={event => event.currentTarget.select()}
                   onChange={event => setFraction(event.currentTarget.value)}
                 />

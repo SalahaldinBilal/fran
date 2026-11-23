@@ -1,6 +1,6 @@
 import styles from "./ConnectionEditor.module.scss";
-import { Match, Show, Switch, createEffect, createMemo, createSignal, on } from "solid-js";
-import { createStore, produce, reconcile, unwrap } from "solid-js/store";
+import { Match, Show, Switch, createEffect, createMemo, createSignal, createStore, reconcile, snapshot as storeSnapshot } from "solid-js";
+import { fieldSetter, immediateWrite } from "@core/helpers/immediateWrite";
 import { CircleAlert, CircleCheck, Plug, Wand2 } from "@core/icons";
 import { ConnectionProfile, DatabaseKind, DriverOptions } from "@core/types";
 import { databaseModule, databaseModules, defaultDriver, describeConnection, parseConnectionString, ParsedDriver, withDatabaseModule } from "@core/databases";
@@ -51,8 +51,13 @@ function ConnectionEditor(props: ConnectionEditorProps) {
   const { pushToast, pushError } = useToastState;
   const [connectionString, setConnectionString] = createSignal("");
 
-  const [draft, setDraft] = createStore<ConnectionProfile>(blankProfile("mysql"));
-  const [pending, setPending] = createStore<Record<string, PendingSecret>>({});
+  const [draft, writeDraft] = createStore<ConnectionProfile>(blankProfile("mysql"));
+  const setDraft = immediateWrite(writeDraft);
+  const setField = fieldSetter(setDraft);
+  const [pending, writePending] = createStore<Record<string, PendingSecret>>({});
+  const setPendingStore = immediateWrite(writePending);
+  const setPending = fieldSetter(setPendingStore);
+  const clearPending = () => setPendingStore(reconcile({}));
   const [storedSlots, setStoredSlots] = createSignal<string[]>([]);
   const [saving, setSaving] = createSignal(false);
   const [testing, setTesting] = createSignal(false);
@@ -79,10 +84,10 @@ function ConnectionEditor(props: ConnectionEditorProps) {
 
   function pickVpn(id: string | null) {
     if (id !== IMPORT_VPN) {
-      setDraft("vpnId", id);
+      setField("vpnId", id);
       return;
     }
-    void useVpnEditorState.importFile(profile => setDraft("vpnId", profile.id));
+    void useVpnEditorState.importFile(profile => setField("vpnId", profile.id));
   }
 
   const groups = createMemo(() => {
@@ -93,31 +98,32 @@ function ConnectionEditor(props: ConnectionEditorProps) {
     return [...names].sort((a, b) => a.localeCompare(b));
   });
 
-  createEffect(on(() => [props.show, props.profile] as const, ([show, profile]) => {
+  createEffect(() => [props.show, props.profile] as const, ([show, profile]) => {
     if (!show) return;
 
-    const initial: ConnectionProfile = profile ? JSON.parse(JSON.stringify(unwrap(profile))) : blankProfile("mysql");
-    setDraft(reconcile(initial));
-    setPending(reconcile({}));
+    const initial: ConnectionProfile = profile ? JSON.parse(JSON.stringify(storeSnapshot(profile))) : blankProfile("mysql");
+    // Null key because the draft's id changes from one connection to the next.
+    writeDraft(reconcile(initial, null));
+    writePending(reconcile({}));
     setStoredSlots([]);
     setTestResult(null);
     setConnectionString("");
 
     if (profile) {
-      safeInvoke("get_stored_secrets", { connectionId: profile.id })
+      safeInvoke("get_stored_secrets", { connectionId: initial.id })
         .then(setStoredSlots)
         .catch(() => setStoredSlots([]));
     }
-  }));
+  });
 
   const secretRefs: SecretRefsEditor = {
     get: key => draft.secretRefs?.[key],
     set: (key, secretId) => {
-      setDraft(produce(profile => {
+      setDraft(profile => {
         const refs = profile.secretRefs ??= {};
         if (secretId) refs[key] = secretId;
         else delete refs[key];
-      }));
+      });
       setTestResult(null);
     },
   };
@@ -132,7 +138,7 @@ function ConnectionEditor(props: ConnectionEditorProps) {
   };
 
   function snapshot(): ConnectionProfile {
-    const copy: ConnectionProfile = JSON.parse(JSON.stringify(unwrap(draft)));
+    const copy: ConnectionProfile = JSON.parse(JSON.stringify(storeSnapshot(draft)));
     copy.name = copy.name.trim() || suggestedName();
     // A saved host brings its own VPN, and files and sockets can't use one.
     const leg = vpnLeg();
@@ -150,20 +156,20 @@ function ConnectionEditor(props: ConnectionEditorProps) {
 
   function changeKind(kind: DatabaseKind) {
     if (kind === draft.kind) return;
-    setDraft(produce(profile => {
+    setDraft(profile => {
       Object.assign(profile, defaultDriver(kind));
       profile.secretRefs = {};
-    }));
-    setPending(reconcile({}));
+    });
+    clearPending();
   }
 
   function updateOptions(mutate: (options: DriverOptions["options"]) => void) {
-    setDraft("options", produce(mutate));
+    setDraft(profile => mutate(profile.options));
   }
 
   function hasFormChanges(): boolean {
     if (!isNew()) return true;
-    return JSON.stringify(unwrap(draft.options)) !== JSON.stringify(defaultDriver(draft.kind).options);
+    return JSON.stringify(storeSnapshot(draft.options)) !== JSON.stringify(defaultDriver(draft.kind).options);
   }
 
   async function applyParsed(parsed: ParsedDriver) {
@@ -180,11 +186,11 @@ function ConnectionEditor(props: ConnectionEditorProps) {
     }
 
     // The string's own values replace whatever secrets the fields used.
-    setDraft(produce(profile => {
+    setDraft(profile => {
       Object.assign(profile, parsed.driver);
       profile.secretRefs = {};
-    }));
-    if (switching) setPending(reconcile({}));
+    });
+    if (switching) clearPending();
     if (parsed.password !== null) setPending("password", parsed.password);
     setConnectionString("");
     setTestResult(null);
@@ -194,7 +200,7 @@ function ConnectionEditor(props: ConnectionEditorProps) {
   function takeConnectionString(text: string): boolean {
     let parsed: ParsedDriver | null;
     try {
-      parsed = parseConnectionString(text, unwrap(draft));
+      parsed = parseConnectionString(text, storeSnapshot(draft));
     } catch (error) {
       if (!(error instanceof ConnectionStringError)) throw error;
       return true;
@@ -269,9 +275,8 @@ function ConnectionEditor(props: ConnectionEditorProps) {
             <Show when={testResult()}>
               {result => (
                 <span
-                  ref={element => tooltip(element, () => result().message)}
-                  class={styles.TestResult}
-                  classList={{ [styles.Failed]: !result().ok }}
+                  ref={tooltip(() => result().message)}
+                  class={[styles.TestResult, { [styles.Failed]: !result().ok }]}
                 >
                   {result().ok ? <CircleCheck size={14} /> : <CircleAlert size={14} />}
                   <span>{result().message}</span>
@@ -291,7 +296,7 @@ function ConnectionEditor(props: ConnectionEditorProps) {
           <Field label="Name" grow>
             <Input
               value={draft.name}
-              onValue={value => setDraft("name", value)}
+              onValue={value => setField("name", value)}
               placeholder={suggestedName()}
               autofocus
             />
@@ -312,12 +317,12 @@ function ConnectionEditor(props: ConnectionEditorProps) {
               class={styles.GroupInput}
               value={draft.group ?? ""}
               suggestions={groups()}
-              onCommit={value => setDraft("group", value || null)}
+              onCommit={value => setField("group", value || null)}
               placeholder="No group"
             />
           </Field>
           <Field label="Color">
-            <ColorSwatches value={draft.color} onChange={color => setDraft("color", color)} />
+            <ColorSwatches value={draft.color} onChange={color => setField("color", color)} />
           </Field>
         </FieldRow>
 

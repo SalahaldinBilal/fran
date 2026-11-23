@@ -1,7 +1,7 @@
 import styles from "./TableDesignerTab.module.scss";
-import { Index, JSX, Match, Show, Switch, createEffect, createMemo, createSignal, on, untrack } from "solid-js";
-import { createStore, produce, reconcile, unwrap } from "solid-js/store";
-import { Dynamic } from "solid-js/web";
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal, createStore, reconcile, snapshot, untrack } from "solid-js";
+import { Dynamic, JSX } from "@solidjs/web";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import {
   ArrowDown, ArrowRight, ArrowUp, CircleAlert, Columns3, Fingerprint, KeyRound, Link2, ListTree, Plus, RotateCcw,
   Trash2, TriangleAlert, X,
@@ -107,7 +107,7 @@ function Inspector(props: { kind: string, title: string, children: JSX.Element }
     <aside class={styles.Inspector}>
       <header class={styles.InspectorHeader}>
         <span class={styles.InspectorKind}>{props.kind}</span>
-        <span class={styles.InspectorTitle} ref={element => tooltip(element, () => props.title)}>{props.title}</span>
+        <span class={styles.InspectorTitle} ref={tooltip(() => props.title)}>{props.title}</span>
       </header>
       <div class={styles.InspectorBody}>{props.children}</div>
     </aside>
@@ -131,7 +131,8 @@ function TableDesignerTab(props: TableDesignerTabProps) {
   const transactionalDdl = untrack(() => workspace.store.sessions[props.sessionId].info.server.transactionalDdl);
   const applySafety: ApplySafety = transactionalDdl ? { kind: "transaction" } : { kind: "schema", atomic: atomicDdl };
 
-  const [design, setDesign] = createStore<TableDesign>(blankDesign(null));
+  const [design, writeDesign] = createStore<TableDesign>(blankDesign(null));
+  const setDesign = immediateWrite(writeDesign);
   const [original, setOriginal] = createSignal<TableDesign | null>(null);
   const [options, setOptions] = createSignal<DesignOptions | null>(null);
   const [loading, setLoading] = createSignal(true);
@@ -292,7 +293,9 @@ function TableDesignerTab(props: TableDesignerTabProps) {
     }
   }
 
-  createEffect(on(() => props.table, table => load(table)));
+  createEffect(() => props.table, table => {
+    queueMicrotask(() => void load(table));
+  });
 
   function revert() {
     const initial = JSON.parse(baseline()) as TableDesign;
@@ -304,13 +307,15 @@ function TableDesignerTab(props: TableDesignerTabProps) {
 
   function addColumn() {
     const name = uniqueName("column", columnNames());
-    setDesign("columns", columns => [...columns, newColumn(name, "VARCHAR(45)")]);
+    setDesign(table => {
+      table.columns.push(newColumn(name, "VARCHAR(45)"));
+    });
     setSelectedColumn(design.columns.length - 1);
   }
 
   function removeColumn(position: number) {
     const name = design.columns[position].name;
-    setDesign(produce(table => {
+    setDesign(table => {
       table.columns.splice(position, 1);
       for (const index of table.indexes) index.columns = index.columns.filter(column => column.name !== name);
       table.indexes = table.indexes.filter(index => index.columns.length > 0);
@@ -320,7 +325,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
         key.referencedColumns = key.referencedColumns.filter((_, at) => keep[at]);
       }
       table.foreignKeys = table.foreignKeys.filter(key => key.columns.length > 0);
-    }));
+    });
     setSelectedColumn(design.columns.length === 0 ? null : Math.min(position, design.columns.length - 1));
     if ((selectedIndex() ?? 0) >= design.indexes.length) setSelectedIndex(design.indexes.length > 0 ? 0 : null);
     if ((selectedKey() ?? 0) >= design.foreignKeys.length) setSelectedKey(design.foreignKeys.length > 0 ? 0 : null);
@@ -329,16 +334,16 @@ function TableDesignerTab(props: TableDesignerTabProps) {
   function moveColumn(position: number, delta: number) {
     const target = position + delta;
     if (target < 0 || target >= design.columns.length) return;
-    setDesign("columns", produce(columns => {
-      const [column] = columns.splice(position, 1);
-      columns.splice(target, 0, column);
-    }));
+    setDesign(table => {
+      const [column] = table.columns.splice(position, 1);
+      table.columns.splice(target, 0, column);
+    });
     setSelectedColumn(target);
   }
 
   function renameColumn(position: number, name: string) {
     const previous = design.columns[position].name;
-    setDesign(produce(table => {
+    setDesign(table => {
       table.columns[position].name = name;
       for (const index of table.indexes) {
         for (const column of index.columns) if (column.name === previous) column.name = name;
@@ -346,11 +351,11 @@ function TableDesignerTab(props: TableDesignerTabProps) {
       for (const key of table.foreignKeys) {
         key.columns = key.columns.map(column => (column === previous ? name : column));
       }
-    }));
+    });
   }
 
   function updateColumn(position: number, change: (column: ColumnDesign) => void) {
-    setDesign("columns", position, produce(change));
+    setDesign(table => change(table.columns[position]));
   }
 
   function hasTypeFlag(dataType: string, flag: string): boolean {
@@ -403,10 +408,9 @@ function TableDesignerTab(props: TableDesignerTabProps) {
       return;
     }
     const indexName = uniqueName(`${name}_unique`, design.indexes.map(index => index.name));
-    setDesign("indexes", indexes => [
-      ...indexes,
-      { originalName: null, name: indexName, kind: "unique", columns: [{ name, length: null }], method: null, constraint: false },
-    ]);
+    setDesign(table => {
+      table.indexes.push({ originalName: null, name: indexName, kind: "unique", columns: [{ name, length: null }], method: null, constraint: false });
+    });
   }
 
   function isPrimary(name: string): boolean {
@@ -415,11 +419,11 @@ function TableDesignerTab(props: TableDesignerTabProps) {
   }
 
   function togglePrimary(name: string) {
-    setDesign(produce(table => {
+    setDesign(table => {
       let index = table.indexes.find(candidate => candidate.kind === "primary");
       if (!index) {
-        index = { originalName: null, name: "PRIMARY", kind: "primary", columns: [], method: null, constraint: false };
-        table.indexes.unshift(index);
+        table.indexes.unshift({ originalName: null, name: "PRIMARY", kind: "primary", columns: [], method: null, constraint: false });
+        index = table.indexes[0];
       }
 
       if (index.columns.some(column => column.name === name)) {
@@ -430,33 +434,34 @@ function TableDesignerTab(props: TableDesignerTabProps) {
         const column = table.columns.find(candidate => candidate.name === name);
         if (column) column.nullable = false;
       }
-    }));
+    });
   }
 
   function addIndex() {
     const name = uniqueName(`${design.name || "table"}_idx`, design.indexes.map(index => index.name));
     const column = selectedColumn() !== null ? design.columns[selectedColumn()!]?.name : undefined;
-    setDesign("indexes", indexes => [
-      ...indexes,
-      {
+    setDesign(table => {
+      table.indexes.push({
         originalName: null,
         name,
         kind: "index",
         columns: column ? [{ name: column, length: null }] : [],
         method: null,
         constraint: false,
-      },
-    ]);
+      });
+    });
     setSelectedIndex(design.indexes.length - 1);
   }
 
   function removeIndex(position: number) {
-    setDesign("indexes", indexes => indexes.filter((_, at) => at !== position));
+    setDesign(table => {
+      table.indexes.splice(position, 1);
+    });
     setSelectedIndex(design.indexes.length === 0 ? null : Math.min(position, design.indexes.length - 1));
   }
 
   function updateIndex(position: number, change: (index: IndexDesign) => void) {
-    setDesign("indexes", position, produce(change));
+    setDesign(table => change(table.indexes[position]));
   }
 
   function moveIndexColumn(position: number, from: number, delta: number) {
@@ -472,29 +477,31 @@ function TableDesignerTab(props: TableDesignerTabProps) {
     const name = uniqueName(`fk_${design.name || "table"}`, design.foreignKeys.map(key => key.name));
     const action = module.referentialActions[0];
     const column = selectedColumn() !== null ? design.columns[selectedColumn()!]?.name ?? "" : "";
-    setDesign("foreignKeys", keys => [
-      ...keys,
-      {
+    const referencedDatabase = props.database;
+    setDesign(table => {
+      table.foreignKeys.push({
         originalName: null,
         name,
         columns: [column],
-        referencedDatabase: props.database,
+        referencedDatabase,
         referencedTable: "",
         referencedColumns: [""],
         onUpdate: action,
         onDelete: action,
-      },
-    ]);
+      });
+    });
     setSelectedKey(design.foreignKeys.length - 1);
   }
 
   function removeKey(position: number) {
-    setDesign("foreignKeys", keys => keys.filter((_, at) => at !== position));
+    setDesign(table => {
+      table.foreignKeys.splice(position, 1);
+    });
     setSelectedKey(design.foreignKeys.length === 0 ? null : Math.min(position, design.foreignKeys.length - 1));
   }
 
   function updateKey(position: number, change: (key: ForeignKeyDesign) => void) {
-    setDesign("foreignKeys", position, produce(change));
+    setDesign(table => change(table.foreignKeys[position]));
   }
 
   // Each pair keeps or picks a referenced column whose type fits its own column, `id` first. None fits, none is picked.
@@ -523,7 +530,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
         sessionId: props.sessionId,
         database: props.database,
         original: original(),
-        design: clone(unwrap(design)),
+        design: clone(snapshot(design)),
       });
       if (statements.length === 0) {
         pushToast("Nothing to change", "info", 2000);
@@ -608,14 +615,14 @@ function TableDesignerTab(props: TableDesignerTabProps) {
         <Match when={true}>
           <div class={styles.TableForm}>
             <Field label="Table name" width={240}>
-              <Input value={design.name} onValue={value => setDesign("name", value)} placeholder="new_table" autofocus={isNew()} />
+              <Input value={design.name} onValue={value => setDesign(table => { table.name = value; })} placeholder="new_table" autofocus={isNew()} />
             </Field>
             <Show when={capabilities()?.engines}>
               <Field label="Engine" width={150}>
                 <Select
                   value={design.engine ?? DEFAULT_OPTION}
                   items={engineItems()}
-                  onChange={value => setDesign("engine", value || null)}
+                  onChange={value => setDesign(table => { table.engine = value || null; })}
                 />
               </Field>
             </Show>
@@ -626,10 +633,10 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                   items={charsetItems()}
                   onChange={value => {
                     const charset = options()?.charsets.find(item => item.name === value);
-                    setDesign(produce(table => {
+                    setDesign(table => {
                       table.charset = value || null;
                       table.collation = charset?.defaultCollation ?? null;
-                    }));
+                    });
                   }}
                 />
               </Field>
@@ -637,12 +644,12 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                 <Select
                   value={design.collation ?? DEFAULT_OPTION}
                   items={collationItems()}
-                  onChange={value => setDesign("collation", value || null)}
+                  onChange={value => setDesign(table => { table.collation = value || null; })}
                 />
               </Field>
             </Show>
             <Field label="Comment" grow>
-              <Input value={design.comment} onValue={value => setDesign("comment", value)} placeholder="What this table holds" />
+              <Input value={design.comment} onValue={value => setDesign(table => { table.comment = value; })} placeholder="What this table holds" />
             </Field>
           </div>
 
@@ -706,27 +713,27 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                           <th class={styles.Lead} />
                           <th class={styles.NameHead}>Name</th>
                           <th class={styles.TypeHead}>Type</th>
-                          <th class={styles.Check} ref={element => tooltip(element, () => "Primary key")}>PK</th>
-                          <th class={styles.Check} ref={element => tooltip(element, () => "Not null")}>NN</th>
-                          <th class={styles.Check} ref={element => tooltip(element, () => "Unique")}>UQ</th>
+                          <th class={styles.Check} ref={tooltip(() => "Primary key")}>PK</th>
+                          <th class={styles.Check} ref={tooltip(() => "Not null")}>NN</th>
+                          <th class={styles.Check} ref={tooltip(() => "Unique")}>UQ</th>
                           <Show when={capabilities()?.unsigned}>
-                            <th class={styles.Check} ref={element => tooltip(element, () => "Unsigned")}>UN</th>
+                            <th class={styles.Check} ref={tooltip(() => "Unsigned")}>UN</th>
                           </Show>
                           <Show when={capabilities()?.zerofill}>
-                            <th class={styles.Check} ref={element => tooltip(element, () => "Zero fill, pads numbers with leading zeros")}>ZF</th>
+                            <th class={styles.Check} ref={tooltip(() => "Zero fill, pads numbers with leading zeros")}>ZF</th>
                           </Show>
-                          <th class={styles.Check} ref={element => tooltip(element, () => "Auto increment")}>AI</th>
-                          <th class={styles.Check} ref={element => tooltip(element, () => "Generated")}>G</th>
+                          <th class={styles.Check} ref={tooltip(() => "Auto increment")}>AI</th>
+                          <th class={styles.Check} ref={tooltip(() => "Generated")}>G</th>
                           <th>Default</th>
                           <th>Comment</th>
                           <th class={styles.Lead} />
                         </tr>
                       </thead>
                       <tbody>
-                        <Index each={design.columns}>
+                        <For each={design.columns} keyed={false}>
                           {(column, position) => (
                             <tr
-                              classList={{ [styles.SelectedRow]: selectedColumn() === position }}
+                              class={{ [styles.SelectedRow]: selectedColumn() === position }}
                               onFocusIn={() => setSelectedColumn(position)}
                               onClick={() => setSelectedColumn(position)}
                             >
@@ -737,7 +744,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                                 <input
                                   class={styles.CellInput}
                                   value={column().name}
-                                  spellcheck={false}
+                                  spellcheck="false"
                                   onChange={event => renameColumn(position, event.currentTarget.value.trim())}
                                 />
                               </td>
@@ -816,13 +823,12 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                               </td>
                               <td>
                                 <input
-                                  class={`${styles.CellInput} ${styles.Mono}`}
-                                  classList={{ [styles.Invalid]: defaultProblem(column()) !== null }}
-                                  ref={element => tooltip(element, () => defaultProblem(column())?.message)}
+                                  class={[styles.CellInput, styles.Mono, { [styles.Invalid]: defaultProblem(column()) !== null }]}
+                                  ref={tooltip(() => defaultProblem(column())?.message)}
                                   value={column().defaultValue ?? ""}
                                   placeholder={column().generatedExpression !== null ? "generated" : column().autoIncrement ? "auto" : "none"}
                                   disabled={column().generatedExpression !== null || column().autoIncrement}
-                                  spellcheck={false}
+                                  spellcheck="false"
                                   onChange={event => setDefault(position, event.currentTarget.value)}
                                 />
                               </td>
@@ -843,7 +849,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                               </td>
                             </tr>
                           )}
-                        </Index>
+                        </For>
                       </tbody>
                     </table>
                   </div>
@@ -961,17 +967,15 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        <Index each={design.indexes}>
+                        <For each={design.indexes} keyed={false}>
                           {(index, position) => (
                             <tr
-                              class={styles.ListRow}
-                              classList={{ [styles.SelectedRow]: selectedIndex() === position }}
+                              class={[styles.ListRow, { [styles.SelectedRow]: selectedIndex() === position }]}
                               onClick={() => setSelectedIndex(position)}
                             >
                               <td class={styles.Lead}>
                                 <span
-                                  class={styles.KindIcon}
-                                  classList={{ [styles.KeyIcon]: index().kind === "primary" }}
+                                  class={[styles.KindIcon, { [styles.KeyIcon]: index().kind === "primary" }]}
                                 >
                                   <Dynamic component={indexIcon(index().kind)} size={14} />
                                 </span>
@@ -983,14 +987,14 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                                   fallback={<span class={styles.Warning}>No columns</span>}
                                 >
                                   <div class={styles.Chips}>
-                                    <Index each={index().columns}>
+                                    <For each={index().columns} keyed={false}>
                                       {column => (
                                         <span class={styles.Chip}>
                                           {column().name}
                                           <Show when={column().length}>{length => <span class={styles.ChipNote}>({length()})</span>}</Show>
                                         </span>
                                       )}
-                                    </Index>
+                                    </For>
                                   </div>
                                 </Show>
                               </td>
@@ -1016,7 +1020,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                               </td>
                             </tr>
                           )}
-                        </Index>
+                        </For>
                       </tbody>
                     </table>
                   </div>
@@ -1063,7 +1067,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                             fallback={<div class={styles.GroupEmpty}>No columns yet. Add one below.</div>}
                           >
                             <div class={styles.OrderList}>
-                              <Index each={index().columns}>
+                              <For each={index().columns} keyed={false}>
                                 {(column, at) => (
                                   <div class={styles.OrderItem}>
                                     <span class={styles.Ordinal}>{at + 1}</span>
@@ -1072,7 +1076,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                                       <input
                                         class={`${styles.CellInput} ${styles.LengthInput}`}
                                         placeholder="length"
-                                        ref={element => tooltip(element, () => "Index only this many leading characters")}
+                                        ref={tooltip(() => "Index only this many leading characters")}
                                         value={column().length ?? ""}
                                         onChange={event => {
                                           const length = Number.parseInt(event.currentTarget.value, 10);
@@ -1104,7 +1108,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                                     </Button>
                                   </div>
                                 )}
-                              </Index>
+                              </For>
                             </div>
                           </Show>
                           <Select
@@ -1146,11 +1150,10 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                         </tr>
                       </thead>
                       <tbody>
-                        <Index each={design.foreignKeys}>
+                        <For each={design.foreignKeys} keyed={false}>
                           {(key, position) => (
                             <tr
-                              class={styles.ListRow}
-                              classList={{ [styles.SelectedRow]: selectedKey() === position }}
+                              class={[styles.ListRow, { [styles.SelectedRow]: selectedKey() === position }]}
                               onClick={() => setSelectedKey(position)}
                             >
                               <td class={styles.Lead}>
@@ -1194,7 +1197,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                               </td>
                             </tr>
                           )}
-                        </Index>
+                        </For>
                       </tbody>
                     </table>
                   </div>
@@ -1229,7 +1232,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                               <span>{keyToLabel()}</span>
                               <span />
                             </div>
-                            <Index each={key().columns}>
+                            <For each={key().columns} keyed={false}>
                               {(column, pair) => {
                                 const referenced = createMemo(() => key().referencedColumns[pair]);
                                 const localItems = createMemo(() => {
@@ -1283,7 +1286,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
                                   </div>
                                 );
                               }}
-                            </Index>
+                            </For>
                           </Show>
                           <Button
                             size="sm"
@@ -1334,7 +1337,7 @@ function TableDesignerTab(props: TableDesignerTabProps) {
 
           <div class={styles.Footer}>
             <Show when={loading()}><Spinner size={12} /></Show>
-            <span class={styles.FooterNote} classList={{ [styles.Pending]: modified() && !isNew() }}>
+            <span class={[styles.FooterNote, { [styles.Pending]: modified() && !isNew() }]}>
               {isNew() ? `New table in ${props.database}` : modified() ? "Unapplied changes" : "No changes"}
             </span>
             <div class={styles.Spacer} />

@@ -1,6 +1,6 @@
 import styles from "./TabStrip.module.scss";
-import { For, JSX, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
+import { Dynamic, JSX } from "@solidjs/web";
 import { LucideIcon, X } from "@core/icons";
 import { tooltip } from "../Tooltip/Tooltip";
 import { skipsConfirm } from "@core/helpers/platform";
@@ -81,9 +81,9 @@ function TabStrip(props: TabStripProps) {
   let gesture: DragGesture | null = null;
   let scrollFrame = 0;
 
-  createEffect(on(() => props.activeId, id => {
+  createEffect(() => props.activeId, id => {
     if (id) tabElements.get(id)?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }));
+  });
 
   props.onReady?.({ startRename: id => setRenaming(id) });
 
@@ -221,8 +221,7 @@ function TabStrip(props: TabStripProps) {
 
   return (
     <div
-      class={`${styles.Strip} ${styles[props.variant ?? "inner"]}`}
-      classList={{ [styles.Locked]: props.locked ?? false, [styles.Dragging]: drag() !== null }}
+      class={[styles.Strip, styles[props.variant ?? "inner"], { [styles.Locked]: props.locked ?? false, [styles.Dragging]: drag() !== null }]}
       data-tauri-drag-region={dragAttribute()}
     >
       <Show when={props.leading}>
@@ -239,103 +238,105 @@ function TabStrip(props: TabStripProps) {
           scroller.scrollLeft += event.deltaY;
         }}
       >
-        <For each={props.items}>
-          {item => (
-            <div
-              ref={element => tabElements.set(item.id, element)}
-              role="tab"
-              tabIndex={0}
-              aria-selected={item.id === props.activeId}
-              class={styles.Tab}
-              classList={{
-                [styles.Active]: item.id === props.activeId,
-                [styles.Tinted]: !!item.tint,
-                [styles.Lifted]: drag()?.id === item.id,
-              }}
-              style={{ "--tint": item.tint ?? undefined, transform: tabTransform(item.id) }}
-              onPointerDown={event => beginDrag(event, item)}
-              onClick={() => props.onSelect(item.id)}
-              onDblClick={() => {
-                if (item.renamable) setRenaming(item.id);
-              }}
-              onKeyDown={event => {
-                if (event.target !== event.currentTarget) return;
-                if (event.key === "Enter" || event.key === " ") props.onSelect(item.id);
-                if (event.key === "F2" && item.renamable) setRenaming(item.id);
-              }}
-              onMouseDown={event => {
-                if (event.button === 1 && item.closable) event.preventDefault();
-              }}
-              onAuxClick={event => {
-                if (event.button === 1 && item.closable) props.onClose?.(item.id, true);
-              }}
-              onContextMenu={event => props.onContextMenu?.(event, item.id)}
-            >
-              <Show when={item.dot}>
-                {dot => <span class={styles.Dot} style={{ "background-color": dot() }} />}
-              </Show>
-              <Show when={item.icon}>
-                {icon => (
-                  <span class={styles.Icon} classList={{ [styles.Busy]: item.busy ?? false }} style={{ color: item.iconColor ?? undefined }}>
-                    <Dynamic component={icon()} size={14} />
-                  </span>
-                )}
-              </Show>
-              <Show
-                when={renaming() === item.id}
-                fallback={<span class={styles.Label}>{item.label}</span>}
+        <For each={props.items} keyed={tab => tab.id}>
+          {item => {
+            // The row's key, so it can't change.
+            const id = untrack(() => item().id);
+            return (
+              <div
+                ref={element => tabElements.set(id, element)}
+                role="tab"
+                tabindex={0}
+                aria-selected={id === props.activeId ? "true" : "false"}
+                class={[styles.Tab, {
+                  [styles.Active]: id === props.activeId,
+                  [styles.Tinted]: !!item().tint,
+                  [styles.Lifted]: drag()?.id === id,
+                }]}
+                style={{ "--tint": item().tint ?? undefined, transform: tabTransform(id) }}
+                onPointerDown={event => beginDrag(event, item())}
+                onClick={() => props.onSelect(id)}
+                onDblClick={() => {
+                  if (item().renamable) setRenaming(id);
+                }}
+                onKeyDown={event => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === "Enter" || event.key === " ") props.onSelect(id);
+                  if (event.key === "F2" && item().renamable) setRenaming(id);
+                }}
+                onMouseDown={event => {
+                  if (event.button === 1 && item().closable) event.preventDefault();
+                }}
+                onAuxClick={event => {
+                  if (event.button === 1 && item().closable) props.onClose?.(id, true);
+                }}
+                onContextMenu={event => props.onContextMenu?.(event, id)}
               >
-                <input
-                  class={styles.RenameInput}
-                  value={item.label}
-                  size={Math.max(6, item.label.length + 1)}
-                  ref={input => queueMicrotask(() => {
-                    input.focus();
-                    input.select();
-                  })}
-                  onClick={event => event.stopPropagation()}
-                  onDblClick={event => event.stopPropagation()}
-                  onKeyDown={event => {
-                    event.stopPropagation();
-                    if (event.key === "Enter") commitRename(item.id, event.currentTarget.value);
-                    if (event.key === "Escape") setRenaming(null);
-                  }}
-                  onBlur={event => {
-                    if (renaming() === item.id) commitRename(item.id, event.currentTarget.value);
-                  }}
-                />
-              </Show>
-              <Show when={item.count !== undefined}>
-                <span class={styles.Count} classList={{ [styles.Warning]: item.countTone === "warning" }}>{item.count}</span>
-              </Show>
-              <Show when={item.flag}>
-                {flag => (
-                  <span
-                    class={styles.Flag}
-                    classList={{ [styles.FlagDanger]: flag().tone === "danger" }}
-                    ref={element => tooltip(element, () => flag().hint)}
-                  >
-                    {flag().label}
-                  </span>
-                )}
-              </Show>
-              <Show when={item.modified}>
-                <span class={styles.Modified} aria-label="Unsaved changes" />
-              </Show>
-              <Show when={item.closable}>
-                <button
-                  class={styles.Close}
-                  aria-label={`Close ${item.label}`}
-                  onClick={event => {
-                    event.stopPropagation();
-                    props.onClose?.(item.id, skipsConfirm(event));
-                  }}
+                <Show when={item().dot}>
+                  {dot => <span class={styles.Dot} style={{ "background-color": dot() }} />}
+                </Show>
+                <Show when={item().icon}>
+                  {icon => (
+                    <span class={[styles.Icon, { [styles.Busy]: item().busy ?? false }]} style={{ color: item().iconColor ?? undefined }}>
+                      <Dynamic component={icon()} size={14} />
+                    </span>
+                  )}
+                </Show>
+                <Show
+                  when={renaming() === id}
+                  fallback={<span class={styles.Label}>{item().label}</span>}
                 >
-                  <X size={14} />
-                </button>
-              </Show>
-            </div>
-          )}
+                  <input
+                    class={styles.RenameInput}
+                    value={item().label}
+                    size={Math.max(6, item().label.length + 1)}
+                    ref={input => queueMicrotask(() => {
+                      input.focus();
+                      input.select();
+                    })}
+                    onClick={event => event.stopPropagation()}
+                    onDblClick={event => event.stopPropagation()}
+                    onKeyDown={event => {
+                      event.stopPropagation();
+                      if (event.key === "Enter") commitRename(id, event.currentTarget.value);
+                      if (event.key === "Escape") setRenaming(null);
+                    }}
+                    onBlur={event => {
+                      if (renaming() === id) commitRename(id, event.currentTarget.value);
+                    }}
+                  />
+                </Show>
+                <Show when={item().count !== undefined}>
+                  <span class={[styles.Count, { [styles.Warning]: item().countTone === "warning" }]}>{item().count}</span>
+                </Show>
+                <Show when={item().flag}>
+                  {flag => (
+                    <span
+                      class={[styles.Flag, { [styles.FlagDanger]: flag().tone === "danger" }]}
+                      ref={tooltip(() => flag().hint)}
+                    >
+                      {flag().label}
+                    </span>
+                  )}
+                </Show>
+                <Show when={item().modified}>
+                  <span class={styles.Modified} aria-label="Unsaved changes" />
+                </Show>
+                <Show when={item().closable}>
+                  <button
+                    class={styles.Close}
+                    aria-label={`Close ${item().label}`}
+                    onClick={event => {
+                      event.stopPropagation();
+                      props.onClose?.(id, skipsConfirm(event));
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
+                </Show>
+              </div>
+            );
+          }}
         </For>
       </div>
       <Show when={props.dragRegion}>
@@ -343,8 +344,7 @@ function TabStrip(props: TabStripProps) {
       </Show>
       <Show when={props.trailing}>
         <div
-          class={styles.Trailing}
-          classList={{ [styles.AtEnd]: props.trailingAtEnd ?? false }}
+          class={[styles.Trailing, { [styles.AtEnd]: props.trailingAtEnd ?? false }]}
           data-tauri-drag-region={dragAttribute()}
         >
           {props.trailing}

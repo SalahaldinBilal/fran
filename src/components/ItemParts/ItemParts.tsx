@@ -1,5 +1,5 @@
 import styles from "./ItemParts.module.scss";
-import { JSX } from "solid-js";
+import { JSX } from "@solidjs/web";
 
 export type ItemIconProps = {
   color?: string | null,
@@ -11,8 +11,7 @@ export type ItemIconProps = {
 export function ItemIcon(props: ItemIconProps) {
   return (
     <span
-      class={styles.Icon}
-      classList={{ [styles.Large]: props.size === "lg" }}
+      class={[styles.Icon, { [styles.Large]: props.size === "lg" }]}
       style={{ "--item-color": props.color ?? "var(--row-color, var(--accent))" }}
     >
       {props.children}
@@ -26,5 +25,5 @@ export type ItemBadgeProps = {
 };
 
 export function ItemBadge(props: ItemBadgeProps) {
-  return <span class={styles.Badge} classList={{ [styles.Warning]: props.tone === "warning" }}>{props.children}</span>;
+  return <span class={[styles.Badge, { [styles.Warning]: props.tone === "warning" }]}>{props.children}</span>;
 }

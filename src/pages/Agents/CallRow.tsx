@@ -1,7 +1,8 @@
 import styles from "./Activity.module.scss";
-import { For, Show, createMemo, createResource } from "solid-js";
+import { For, Show, createMemo } from "solid-js";
 import { ChevronDown, ChevronRight, CircleAlert, ShieldCheck } from "@core/icons";
 import { AgentHistoryEntry } from "@core/types";
+import { createLoader } from "@core/helpers/createLoader";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { databaseModule } from "@core/databases";
 import useConnectionsState from "@core/states/connectionsState";
@@ -37,7 +38,7 @@ function sqlHint(entry: AgentHistoryEntry): string {
 }
 
 function CallDetail(props: { entry: AgentHistoryEntry }) {
-  const [full] = createResource(
+  const [full] = createLoader(
     () => props.entry,
     entry => safeInvoke("get_agent_history_entry", { id: entry.id, at: entry.at }),
   );
@@ -67,7 +68,7 @@ function CallDetail(props: { entry: AgentHistoryEntry }) {
   return (
     <div class={styles.Detail}>
       <Show when={props.entry.message}>
-        <div class={styles.Message} classList={{ [styles.Failed]: failed(), [styles.Wide]: true }}>
+        <div class={[styles.Message, { [styles.Failed]: failed(), [styles.Wide]: true }]}>
           <CircleAlert size={14} />
           <span>{props.entry.message}</span>
         </div>
@@ -80,7 +81,7 @@ function CallDetail(props: { entry: AgentHistoryEntry }) {
         </div>
       </Show>
 
-      <div class={styles.Block} classList={{ [styles.Wide]: !hasSql() }}>
+      <div class={[styles.Block, { [styles.Wide]: !hasSql() }]}>
         <div class={styles.Label}>Arguments</div>
         <div class={styles.Code}>
           <CodeView value={argumentsJson()} language="json" readOnly />
@@ -100,7 +101,7 @@ function CallDetail(props: { entry: AgentHistoryEntry }) {
         <div class={`${styles.Loading} ${styles.Wide}`}><Spinner size={14} /></div>
       </Show>
       <Show when={full.error}>
-        <div class={styles.Message} classList={{ [styles.Failed]: true, [styles.Wide]: true }}>
+        <div class={[styles.Message, styles.Failed, styles.Wide]}>
           <CircleAlert size={14} />
           <span>The reply couldn't be read. {errorMessage(full.error)}</span>
         </div>
@@ -139,7 +140,7 @@ function CallRow(props: CallRowProps) {
   const result = createMemo(() => outcome(props.entry));
 
   return (
-    <div class={styles.Call} classList={{ [styles.Open]: props.open }}>
+    <div class={[styles.Call, { [styles.Open]: props.open }]}>
       <button class={styles.CallRow} onClick={() => props.onToggle()}>
         {props.open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <span class={styles.Time}>{formatClock(props.entry.at)}</span>

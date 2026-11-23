@@ -72,7 +72,7 @@ function KnownHostsView() {
                     <span class={styles.NameText}><b class={styles.Mono}>{hostLabel(known)}</b></span>
                   </div>
                   <span class={styles.Cell}>{known.algorithm}</span>
-                  <span class={`${styles.Cell} ${styles.Mono}`} ref={element => tooltip(element, () => known.fingerprint)}>{known.fingerprint}</span>
+                  <span class={`${styles.Cell} ${styles.Mono}`} ref={tooltip(() => known.fingerprint)}>{known.fingerprint}</span>
                   <span class={styles.Cell}>{added()}</span>
                   <div class={styles.Tools}>
                     <Button icon size="sm" tooltip="Forget this key" onClick={() => forget(known)}><Trash2 size={14} /></Button>

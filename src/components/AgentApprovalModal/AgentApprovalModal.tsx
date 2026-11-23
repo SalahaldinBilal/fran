@@ -60,7 +60,7 @@ function ChangesTable(props: { approval: AgentApproval }) {
             {row => (
               <>
                 <tr class={styles.RowHead}>
-                  <td colSpan={4} classList={{ [styles.Missing]: row.found === false }}>{rowTitle(row)}</td>
+                  <td colspan={4} class={{ [styles.Missing]: row.found === false }}>{rowTitle(row)}</td>
                 </tr>
                 <For each={row.cells}>
                   {cell => (
@@ -74,7 +74,7 @@ function ChangesTable(props: { approval: AgentApproval }) {
                         </Switch>
                       </td>
                       <td class={styles.Arrow}><ArrowRight size={12} /></td>
-                      <td classList={{ [styles.New]: row.action !== "delete" }}>
+                      <td class={{ [styles.New]: row.action !== "delete" }}>
                         <Show when={row.action !== "delete"} fallback={<span class={styles.Unknown}>removed</span>}>
                           <Value value={cell.after} />
                         </Show>
@@ -87,7 +87,7 @@ function ChangesTable(props: { approval: AgentApproval }) {
           </For>
           <Show when={(preview()?.more ?? 0) > 0}>
             <tr class={styles.RowHead}>
-              <td colSpan={4}>And {plural(preview()?.more ?? 0, "more row")}, all in the SQL tab</td>
+              <td colspan={4}>And {plural(preview()?.more ?? 0, "more row")}, all in the SQL tab</td>
             </tr>
           </Show>
         </tbody>
@@ -98,7 +98,7 @@ function ChangesTable(props: { approval: AgentApproval }) {
 
 function ReviewDialog(props: { approval: AgentApproval }) {
   const agent = useAgentState;
-  const [pane, setPane] = createSignal<Pane>(props.approval.preview ? "changes" : "sql");
+  const [pane, setPane] = createSignal<Pane>((): Pane => (props.approval.preview ? "changes" : "sql"));
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [now, setNow] = createSignal(Date.now());
@@ -193,7 +193,7 @@ function ReviewDialog(props: { approval: AgentApproval }) {
 
         <Show when={note()}>
           {shown => (
-            <div class={styles.Safety} classList={{ [styles.Unsafe]: !shown().safe }}>
+            <div class={[styles.Safety, { [styles.Unsafe]: !shown().safe }]}>
               {shown().safe ? <ShieldCheck size={14} /> : <TriangleAlert size={14} />}
               <span>{shown().text}</span>
             </div>

@@ -1,7 +1,8 @@
 import styles from "./Server.module.scss";
-import { For, JSX, Match, Show, Switch as Branch, createMemo, createResource, createSignal } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { For, Match, Show, Switch as Branch, createMemo, createSignal } from "solid-js";
+import { Dynamic, JSX } from "@solidjs/web";
 import { Copy, Crown, KeyRound, Laptop, ShieldCheck, TriangleAlert, User as UserIcon } from "@core/icons";
+import { createLoader } from "@core/helpers/createLoader";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage } from "@core/helpers/errors";
 import { skipsConfirm } from "@core/helpers/platform";
@@ -76,7 +77,7 @@ function Meter(props: { used: number, limit: number }) {
   const full = createMemo(() => props.limit > 0 && props.used >= props.limit * 0.9);
   return (
     <div class={styles.Meter}>
-      <div class={styles.MeterFill} classList={{ [styles.MeterFull]: full() }} style={{ width: width() }} />
+      <div class={[styles.MeterFill, { [styles.MeterFull]: full() }]} style={{ width: width() }} />
     </div>
   );
 }
@@ -147,7 +148,7 @@ function UserRow(props: { cloud: Cloud, me: FranServerAccount, user: AdminUser, 
   const [confirming, setConfirming] = createSignal<"delete" | "transfer" | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  const [detail] = createResource(() => (open() ? props.user.id : null), userId => safeInvoke("fran_server_admin_user", { cloudId: props.cloud.id, userId }));
+  const [detail] = createLoader(() => (open() ? props.user.id : null), userId => safeInvoke("fran_server_admin_user", { cloudId: props.cloud.id, userId }));
 
   const isMe = createMemo(() => props.user.id === props.me.id);
   const iOwn = createMemo(() => props.me.role === "owner");
@@ -222,14 +223,14 @@ function UserRow(props: { cloud: Cloud, me: FranServerAccount, user: AdminUser, 
   }
 
   return (
-    <div class={styles.UserRow} classList={{ [styles.Open]: open() }}>
+    <div class={[styles.UserRow, { [styles.Open]: open() }]}>
       <button type="button" class={styles.UserHead} onClick={toggle}>
         <span class={styles.Avatar}>{initial()}</span>
         <span class={styles.UserText}>
           <span class={styles.UserName}>
             {props.user.email}
             <Show when={props.user.role !== "user"}>
-              <span class={styles.Badge} classList={{ [styles.BadgeOwner]: props.user.role === "owner" }}>{ROLE_LABELS[props.user.role]}</span>
+              <span class={[styles.Badge, { [styles.BadgeOwner]: props.user.role === "owner" }]}>{ROLE_LABELS[props.user.role]}</span>
             </Show>
             <Show when={isMe()}><span class={styles.Faint}>You</span></Show>
           </span>
@@ -314,7 +315,7 @@ function UserRow(props: { cloud: Cloud, me: FranServerAccount, user: AdminUser, 
 
 function Accounts(props: { cloud: Cloud, me: FranServerAccount, onChanged: () => void }) {
   const [search, setSearch] = createSignal("");
-  const [page, { refetch }] = createResource(search, text => safeInvoke("fran_server_admin_users", { cloudId: props.cloud.id, search: text, offset: 0 }));
+  const [page, { refetch }] = createLoader(search, text => safeInvoke("fran_server_admin_users", { cloudId: props.cloud.id, search: text, offset: 0 }));
   const more = createMemo(() => {
     const found = page();
     return found && found.total > found.users.length ? `Showing ${found.users.length} of ${found.total}. Search to narrow it down.` : "";
@@ -355,7 +356,7 @@ function Invites(props: { cloud: Cloud }) {
   const [made, setMade] = createSignal<string | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  const [invites, { refetch }] = createResource(() => safeInvoke("fran_server_admin_invites", { cloudId: props.cloud.id }));
+  const [invites, { refetch }] = createLoader(() => safeInvoke("fran_server_admin_invites", { cloudId: props.cloud.id }));
   const makeLabel = createMemo(() => (busy() ? "Making" : "Make an invite"));
 
   async function make(event: SubmitEvent) {
@@ -426,7 +427,7 @@ function Invites(props: { cloud: Cloud }) {
                         <span class={styles.UserName}>{invite.email || "Anyone"}</span>
                         <span class={styles.UserDetail}>Made {day(invite.createdAt)}</span>
                       </div>
-                      <span class={styles.State} classList={{ [styles.StateUsed]: state().tone === "used", [styles.StateExpired]: state().tone === "expired" }}>
+                      <span class={[styles.State, { [styles.StateUsed]: state().tone === "used", [styles.StateExpired]: state().tone === "expired" }]}>
                         {state().text}
                       </span>
                       <Show when={invite.usedAt === 0}>
@@ -458,7 +459,7 @@ function SettingLine(props: { label: string, hint: string, children: JSX.Element
 
 function Settings(props: { cloud: Cloud, onChanged: () => void }) {
   const { pushToast } = useToastState;
-  const [loaded, { mutate }] = createResource(() => safeInvoke("fran_server_admin_settings", { cloudId: props.cloud.id }));
+  const [loaded, { mutate }] = createLoader(() => safeInvoke("fran_server_admin_settings", { cloudId: props.cloud.id }));
   const [draft, setDraft] = createSignal<Record<string, string>>({});
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
@@ -554,7 +555,7 @@ function Settings(props: { cloud: Cloud, onChanged: () => void }) {
 }
 
 function Log(props: { cloud: Cloud }) {
-  const [entries] = createResource(() => safeInvoke("fran_server_admin_log", { cloudId: props.cloud.id }));
+  const [entries] = createLoader(() => safeInvoke("fran_server_admin_log", { cloudId: props.cloud.id }));
 
   function sentence(entry: AdminLogEntry): string {
     const verb = LOG_TEXT[entry.action] ?? entry.action;
@@ -586,7 +587,7 @@ function Log(props: { cloud: Cloud }) {
 
 export function ServerAdmin(props: { cloud: Cloud, me: FranServerAccount }) {
   const [tab, setTab] = createSignal<Tab>("accounts");
-  const [overview, { refetch }] = createResource(
+  const [overview, { refetch }] = createLoader(
     () => ({ id: props.cloud.id, synced: props.cloud.lastSync }),
     source => safeInvoke("fran_server_admin_overview", { cloudId: source.id }),
   );

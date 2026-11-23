@@ -1,6 +1,6 @@
 import styles from "./SchemaBrowser.module.scss";
 import { For, Match, Show, Switch, createMemo, createSignal, untrack } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { Dynamic } from "@solidjs/web";
 import { ChevronRight, CircleAlert, Database, Folder, Search } from "@core/icons";
 import useWorkspaceState from "@core/states/workspaceState";
 import useContextMenuState from "@core/states/contextMenuState";
@@ -35,9 +35,10 @@ function SchemaTree(props: { sessionId: string }) {
   const databaseKind = untrack(() => workspace.store.sessions[props.sessionId].info.kind);
   const namespace = databaseModule(databaseKind).namespace;
   const needle = createMemo(() => filter().trim().toLowerCase());
-  const server = untrack(() => workspace.store.sessions[props.sessionId].info.server);
-  const transactionalDdl = server.transactionalDdl;
-  const deleteSafety: ApplySafety = transactionalDdl ? { kind: "transaction" } : { kind: "schema", atomic: server.atomicDdl };
+  const deleteSafety = createMemo<ApplySafety>(() => {
+    const server = session()?.info.server;
+    return server?.transactionalDdl ? { kind: "transaction" } : { kind: "schema", atomic: server?.atomicDdl ?? false };
+  });
   const [pendingDelete, setPendingDelete] = createSignal<PendingDelete | null>(null);
   const deleteStatements = createMemo(() => pendingDelete()?.statements ?? null);
   const deleteDescription = createMemo(() => {
@@ -102,7 +103,7 @@ function SchemaTree(props: { sessionId: string }) {
         sessionId: props.sessionId,
         database: pending.database,
         statements: pending.statements,
-        transactional: transactionalDdl,
+        transactional: deleteSafety().kind === "transaction",
       });
     } catch (error) {
       return errorMessage(error);
@@ -131,8 +132,7 @@ function SchemaTree(props: { sessionId: string }) {
     return (
       <div>
         <div
-          class={styles.Row}
-          classList={{ [styles.Selected]: selected(), [styles.System]: nodeProps.database.system }}
+          class={[styles.Row, { [styles.Selected]: selected(), [styles.System]: nodeProps.database.system }]}
           style={{ "--depth": "0" }}
           onClick={() => workspace.selectDatabase(props.sessionId, name())}
           onDblClick={() => workspace.toggleExpanded(props.sessionId, name())}
@@ -142,8 +142,7 @@ function SchemaTree(props: { sessionId: string }) {
           }}
         >
           <button
-            class={styles.Chevron}
-            classList={{ [styles.Open]: expanded() }}
+            class={[styles.Chevron, { [styles.Open]: expanded() }]}
             aria-label={expanded() ? "Collapse" : "Expand"}
             onClick={event => {
               event.stopPropagation();
@@ -175,21 +174,21 @@ function SchemaTree(props: { sessionId: string }) {
               <For each={OBJECT_KINDS}>
                 {kind => {
                   const items = createMemo(() => filteredObjects().filter(object => object.kind === kind.kind));
-                  const key = `${name()}\u0000${kind.kind}`;
-                  const open = createMemo(() => openFolders().has(key) || (needle() !== "" && items().length > 0));
+                  const key = createMemo(() => `${name()}\u0000${kind.kind}`);
+                  const open = createMemo(() => openFolders().has(key()) || (needle() !== "" && items().length > 0));
 
                   return (
                     <Show when={items().length > 0 || (ALWAYS_SHOWN.has(kind.kind) && needle() === "")}>
                       <div
                         class={`${styles.Row} ${styles.Folder}`}
                         style={{ "--depth": "1" }}
-                        onClick={() => toggleFolder(key)}
+                        onClick={() => toggleFolder(key())}
                         onContextMenu={event => openContextMenu(
                           event,
                           folderMenu(props.sessionId, name(), kind.kind === "table"),
                         )}
                       >
-                        <span class={styles.Chevron} classList={{ [styles.Open]: open(), [styles.Hidden]: items().length === 0 }}>
+                        <span class={[styles.Chevron, { [styles.Open]: open(), [styles.Hidden]: items().length === 0 }]}>
                           <ChevronRight size={14} />
                         </span>
                         <Folder size={14} class={styles.NodeIcon} />
@@ -210,11 +209,11 @@ function SchemaTree(props: { sessionId: string }) {
                             >
                               <span class={`${styles.Chevron} ${styles.Hidden}`} />
                               <Dynamic component={kind.icon} size={14} class={styles.NodeIcon} />
-                              <span class={styles.Name} ref={element => tooltip(element, () => object.comment ?? object.detail)}>
+                              <span class={styles.Name} ref={tooltip(() => object.comment ?? object.detail)}>
                                 {object.name}
                               </span>
                               <Show when={(object.kind === "function" || object.kind === "procedure") && object.signature !== null}>
-                                <span class={styles.Meta} ref={element => tooltip(element, () => `(${object.signature})`)}>
+                                <span class={styles.Meta} ref={tooltip(() => `(${object.signature})`)}>
                                   ({object.signature})
                                 </span>
                               </Show>
@@ -222,7 +221,7 @@ function SchemaTree(props: { sessionId: string }) {
                                 {rows => (
                                   <span
                                     class={styles.Meta}
-                                    ref={element => tooltip(element, () => (object.sizeBytes !== null ? formatBytes(object.sizeBytes) : null))}
+                                    ref={tooltip(() => (object.sizeBytes !== null ? formatBytes(object.sizeBytes) : null))}
                                   >
                                     {formatCount(rows())}
                                   </span>
@@ -277,7 +276,7 @@ function SchemaTree(props: { sessionId: string }) {
                 style={{ "--depth": "0" }}
                 onClick={() => setShowSystem(show => !show)}
               >
-                <span class={styles.Chevron} classList={{ [styles.Open]: showSystem() || needle() !== "" }}>
+                <span class={[styles.Chevron, { [styles.Open]: showSystem() || needle() !== "" }]}>
                   <ChevronRight size={14} />
                 </span>
                 <span class={styles.Name}>System {namespace.plural}</span>
@@ -298,7 +297,7 @@ function SchemaTree(props: { sessionId: string }) {
         title="Delete table"
         description={deleteDescription()}
         dialect={databaseModule(databaseKind).sqlDialect}
-        safety={deleteSafety}
+        safety={deleteSafety()}
         applyLabel="Delete"
         onApply={deleteTable}
         onClose={() => setPendingDelete(null)}

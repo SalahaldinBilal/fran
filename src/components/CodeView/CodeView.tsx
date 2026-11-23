@@ -1,5 +1,5 @@
 import styles from "./CodeView.module.scss";
-import { onCleanup, onMount } from "solid-js";
+import { onCleanup, onSettled } from "solid-js";
 import { EditorState } from "@codemirror/state";
 import { EditorView, drawSelection, highlightActiveLine, keymap, lineNumbers } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
@@ -37,7 +37,7 @@ function CodeView(props: CodeViewProps) {
     }
   }
 
-  onMount(() => {
+  onSettled(() => {
     const readOnly = props.readOnly ?? false;
     view = new EditorView({
       parent: container,

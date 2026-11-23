@@ -1,5 +1,5 @@
 import styles from "./SqlEditor.module.scss";
-import { createEffect, on, onCleanup, onMount } from "solid-js";
+import { createEffect, onCleanup, onSettled } from "solid-js";
 import { Compartment, EditorState, Extension, Prec, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
 import {
   Decoration, DecorationSet, EditorView, crosshairCursor, drawSelection, dropCursor, highlightActiveLine,
@@ -85,16 +85,16 @@ function SqlEditor(props: SqlEditorProps) {
   let view: EditorView | undefined;
   const language = new Compartment();
 
-  function languageExtension() {
+  function languageExtension(config: Pick<SqlEditorProps, "dialect" | "schema" | "defaultSchema">) {
     return sql({
-      dialect: props.dialect,
-      schema: props.schema,
-      defaultSchema: props.defaultSchema,
+      dialect: config.dialect,
+      schema: config.schema,
+      defaultSchema: config.defaultSchema,
       upperCaseKeywords: true,
     });
   }
 
-  onMount(() => {
+  onSettled(() => {
     const readOnly = props.readOnly ?? false;
 
     const commandKeys = Prec.highest(keymap.of([
@@ -147,7 +147,7 @@ function SqlEditor(props: SqlEditorProps) {
             ...completionKeymap,
             indentWithTab,
           ]),
-          language.of(languageExtension()),
+          language.of(languageExtension(props)),
           props.wrap ? EditorView.lineWrapping : [],
           EditorState.readOnly.of(readOnly),
           editorTheme,
@@ -156,7 +156,8 @@ function SqlEditor(props: SqlEditorProps) {
     });
 
     const editor = view;
-    onCleanup(fadeOutHoverTooltips(editor));
+    const stopFade = fadeOutHoverTooltips(editor);
+    if (!readOnly && props.statements) editor.dispatch({ effects: setStatements.of(props.statements) });
 
     props.onReady?.({
       text: () => editor.state.doc.toString(),
@@ -172,19 +173,21 @@ function SqlEditor(props: SqlEditorProps) {
         selection: { anchor: from, head: from + text.length },
       }),
     });
+
+    return stopFade;
   });
 
-  createEffect(on(() => [props.schema, props.defaultSchema, props.dialect], () => {
-    view?.dispatch({ effects: language.reconfigure(languageExtension()) });
-  }, { defer: true }));
+  createEffect(() => ({ schema: props.schema, defaultSchema: props.defaultSchema, dialect: props.dialect }), config => {
+    view?.dispatch({ effects: language.reconfigure(languageExtension(config)) });
+  }, { defer: true });
 
-  createEffect(on(() => props.statements, ranges => {
-    if (view && !props.readOnly) view.dispatch({ effects: setStatements.of(ranges ?? []) });
-  }));
+  createEffect(() => ({ ranges: props.statements, readOnly: props.readOnly }), ({ ranges, readOnly }) => {
+    if (view && !readOnly) view.dispatch({ effects: setStatements.of(ranges ?? []) });
+  });
 
-  createEffect(on(() => props.catalog, () => {
-    if (view && !props.readOnly) forceLinting(view);
-  }, { defer: true }));
+  createEffect(() => ({ catalog: props.catalog, readOnly: props.readOnly }), ({ readOnly }) => {
+    if (view && !readOnly) forceLinting(view);
+  }, { defer: true });
 
   onCleanup(() => view?.destroy());
 

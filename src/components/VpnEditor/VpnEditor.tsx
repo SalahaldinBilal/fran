@@ -2,8 +2,8 @@ import hostStyles from "../HostEditor/HostEditor.module.scss";
 import formStyles from "@core/databases/shared/ConnectionForm.module.scss";
 import editorStyles from "@core/pages/Home/ConnectionEditor/ConnectionEditor.module.scss";
 import styles from "./VpnEditor.module.scss";
-import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
-import { createStore, produce, reconcile, unwrap } from "solid-js/store";
+import { For, Show, createEffect, createMemo, createSignal, createStore, reconcile, snapshot } from "solid-js";
+import { fieldSetter, immediateWrite } from "@core/helpers/immediateWrite";
 import { ArrowDown, ArrowUp, FileText, KeyRound, Monitor, Plus, Server, ShieldCheck, Trash2, User, X } from "@core/icons";
 import { CertSummary, SecretRefs, TlsWrap, VerifyNameKind, VpnAuth, VpnProfile, VpnProto } from "@core/types";
 import { PendingSecret, SecretEditor } from "@core/databases/types";
@@ -132,31 +132,43 @@ function VpnEditor() {
   const { confirm } = usePromptState;
   const { pushToast, pushError } = useToastState;
 
-  const [draft, setDraft] = createStore<VpnProfile>(blankProfile());
-  const [pending, setPending] = createStore<Record<string, PendingSecret>>({});
+  const [draft, writeDraft] = createStore<VpnProfile>(blankProfile());
+  const setDraft = immediateWrite(writeDraft);
+  const setField = fieldSetter(setDraft);
+  const [pending, writePending] = createStore<Record<string, PendingSecret>>({});
+  const setPendingStore = immediateWrite(writePending);
+  const setPending = fieldSetter(setPendingStore);
+  const clearPending = () => setPendingStore(reconcile({}));
   const [stored, setStored] = createSignal<string[]>([]);
   const [fingerprints, setFingerprints] = createSignal("");
   const [certs, setCerts] = createSignal<{ ca: CertSummary[], cert: CertSummary[] }>({ ca: [], cert: [] });
   const [saving, setSaving] = createSignal(false);
   const [generate, setGenerate] = createSignal(false);
 
-  createEffect(on(editor.request, request => {
+  createEffect(editor.request, request => {
     if (!request) return;
-    const initial: VpnProfile = request.profile ? JSON.parse(JSON.stringify(unwrap(request.profile))) : blankProfile();
-    setDraft(reconcile(initial));
-    setPending(reconcile({}));
+    const initial: VpnProfile = request.profile ? JSON.parse(JSON.stringify(snapshot(request.profile))) : blankProfile();
+    // Null key because the draft's id changes from one profile to the next.
+    writeDraft(reconcile(initial, null));
+    writePending(reconcile({}));
     setGenerate(false);
     setFingerprints(initial.peerFingerprints.join("\n"));
     setStored([]);
     if (initial.id) {
       safeInvoke("get_owner_secrets", { owner: { kind: "vpn", id: initial.id } }).then(setStored).catch(() => setStored([]));
     }
-  }));
+  });
 
-  createEffect(on(() => [draft.ca, draft.cert] as const, ([ca, cert]) => {
-    if (!editor.request()) return;
-    safeInvoke("describe_vpn_certificates", { ca, cert }).then(setCerts).catch(() => setCerts({ ca: [], cert: [] }));
-  }));
+  createEffect(() => ({ ca: draft.ca, cert: draft.cert, open: editor.request() !== null }), ({ ca, cert, open }) => {
+    if (!open) return;
+    let current = true;
+    safeInvoke("describe_vpn_certificates", { ca, cert })
+      .then(found => current && setCerts(found))
+      .catch(() => current && setCerts({ ca: [], cert: [] }));
+    return () => {
+      current = false;
+    };
+  });
 
   const secrets: SecretEditor = {
     isStored: slot => stored().includes(slot),
@@ -165,18 +177,18 @@ function VpnEditor() {
     owner: () => (draft.id ? { kind: "vpn", id: draft.id } : null),
     refs: {
       get: key => draft.secretRefs?.[key],
-      set: (key, secretId) => setDraft(produce(profile => {
+      set: (key, secretId) => setDraft(profile => {
         const refs = profile.secretRefs ??= {};
         if (secretId) refs[key] = secretId;
         else delete refs[key];
-      })),
+      }),
     },
   };
   const secretRefs = secrets.refs;
 
   // Server refs are keyed by position, so they move with their server. `from` is each server's old position.
   function moveRemoteRefs(from: number[]) {
-    setDraft(produce(profile => {
+    setDraft(profile => {
       const old = profile.secretRefs ?? {};
       const next: SecretRefs = {};
       for (const [key, secretId] of Object.entries(old)) {
@@ -189,12 +201,14 @@ function VpnEditor() {
         }
       });
       profile.secretRefs = next;
-    }));
+    });
   }
 
   function removeRemote(index: number) {
     moveRemoteRefs(draft.remotes.map((_, at) => at).filter(at => at !== index));
-    setDraft("remotes", items => items.filter((_, at) => at !== index));
+    setDraft(profile => {
+      profile.remotes.splice(index, 1);
+    });
   }
 
   const isNew = createMemo(() => !draft.id);
@@ -241,14 +255,14 @@ function VpnEditor() {
   function setKind(kind: VpnProfile["kind"]) {
     const port = kind === "wireGuard" ? WIREGUARD_PORT : OPENVPN_PORT;
     const first = draft.remotes[0];
-    setDraft("kind", kind);
-    setDraft("remotes", [{ host: first?.host ?? "", port, proto: "udp" }]);
+    setField("kind", kind);
+    setField("remotes", [{ host: first?.host ?? "", port, proto: "udp" }]);
     moveRemoteRefs([0]);
     secretRefs?.set("remotes.0.port", null);
   }
 
   function updateRemote(index: number, change: (remote: VpnProfile["remotes"][number]) => void) {
-    setDraft("remotes", index, produce(change));
+    setDraft(profile => change(profile.remotes[index]));
   }
 
   function moveRemote(index: number, by: number) {
@@ -256,14 +270,14 @@ function VpnEditor() {
     const [moved] = from.splice(index, 1);
     from.splice(index + by, 0, moved);
     moveRemoteRefs(from);
-    setDraft("remotes", produce(remotes => {
-      const [moved] = remotes.splice(index, 1);
-      remotes.splice(index + by, 0, moved);
-    }));
+    setDraft(profile => {
+      const [remote] = profile.remotes.splice(index, 1);
+      profile.remotes.splice(index + by, 0, remote);
+    });
   }
 
   function setChallenge(on: boolean) {
-    setDraft("challenge", on ? { kind: "static", echo: true, text: "Enter your one-time code" } : { kind: "none" });
+    setField("challenge", on ? { kind: "static", echo: true, text: "Enter your one-time code" } : { kind: "none" });
   }
 
   // A generated key leaves the editor open afterwards, so its public key can be copied for the server.
@@ -271,15 +285,21 @@ function VpnEditor() {
     const key = pending.private;
     let generated = false;
     if (generate()) {
-      setDraft("wireGuard", "publicKey", (await vpn.generateWireGuardKey(id)).wireGuard.publicKey);
+      const { publicKey } = (await vpn.generateWireGuardKey(id)).wireGuard;
+      setDraft(profile => {
+        profile.wireGuard.publicKey = publicKey;
+      });
       generated = true;
     } else if (typeof key === "string" && key.trim()) {
-      setDraft("wireGuard", "publicKey", (await vpn.setWireGuardKey(id, key)).wireGuard.publicKey);
+      const { publicKey } = (await vpn.setWireGuardKey(id, key)).wireGuard;
+      setDraft(profile => {
+        profile.wireGuard.publicKey = publicKey;
+      });
     }
     const preshared = pending.presharedKey;
     if (typeof preshared === "string" && preshared.trim()) await safeInvoke("set_vpn_preshared_key", { id, key: preshared });
     if (preshared === null) await safeInvoke("set_vpn_preshared_key", { id, key: "" });
-    setPending(reconcile({}));
+    clearPending();
     setGenerate(false);
     return generated;
   }
@@ -290,11 +310,11 @@ function VpnEditor() {
     if (typeof password === "string") await safeInvoke("set_owner_secret", { owner, slot: "password", value: password });
     if (password === null) await safeInvoke("clear_owner_secret", { owner, slot: "password" });
     const key = pending.key;
-    if (typeof key === "string" && key.trim()) setDraft("keyKind", (await vpn.setKey(id, key)).keyKind);
-    if (key === null) setDraft("keyKind", (await vpn.clearKey(id)).keyKind);
+    if (typeof key === "string" && key.trim()) setField("keyKind", (await vpn.setKey(id, key)).keyKind);
+    if (key === null) setField("keyKind", (await vpn.clearKey(id)).keyKind);
     const tlsKey = pending.tlsKey;
     if (typeof tlsKey === "string" && tlsKey.trim()) await safeInvoke("set_vpn_tls_key", { id, text: tlsKey });
-    setPending(reconcile({}));
+    clearPending();
   }
 
   async function save() {
@@ -302,12 +322,12 @@ function VpnEditor() {
     if (!request) return;
     setSaving(true);
     try {
-      const profile: VpnProfile = JSON.parse(JSON.stringify(unwrap(draft)));
+      const profile: VpnProfile = JSON.parse(JSON.stringify(snapshot(draft)));
       profile.peerFingerprints = fingerprints().split("\n").map(line => line.trim()).filter(Boolean);
       const saved = await vpn.save(profile);
       const added = isNew();
       // Kept, so a key that fails below doesn't add the profile a second time.
-      setDraft("id", saved.id);
+      setField("id", saved.id);
       let generated = false;
       if (wireGuard()) generated = await writeWireGuardSecrets(saved.id);
       else await writeSecrets(saved.id);
@@ -379,20 +399,20 @@ function VpnEditor() {
 
         <FieldRow>
           <Field label="Name" grow>
-            <Input value={draft.label} onValue={value => setDraft("label", value)} placeholder="Office" autofocus />
+            <Input value={draft.label} onValue={value => setField("label", value)} placeholder="Office" autofocus />
           </Field>
           <Field label="Group" grow>
             <SuggestInput
               class={editorStyles.GroupInput}
               value={draft.group ?? ""}
               suggestions={groups()}
-              onCommit={value => setDraft("group", value || null)}
+              onCommit={value => setField("group", value || null)}
               placeholder="No group"
             />
           </Field>
         </FieldRow>
         <Field label="Color">
-          <ColorSwatches value={draft.color} onChange={color => setDraft("color", color)} />
+          <ColorSwatches value={draft.color} onChange={color => setField("color", color)} />
         </Field>
         <SyncField itemKey={syncKey()} label={draft.label} category="vpnProfiles" />
 
@@ -449,12 +469,14 @@ function VpnEditor() {
               )}
             </For>
             <div class={styles.RemoteActions}>
-              <Button size="sm" variant="subtle" onClick={() => setDraft("remotes", items => [...items, { host: "", port: 1194, proto: "udp" }])}>
+              <Button size="sm" variant="subtle" onClick={() => setDraft(profile => {
+                profile.remotes.push({ host: "", port: 1194, proto: "udp" });
+              })}>
                 <Plus size={14} />
                 Add server
               </Button>
               <Show when={draft.remotes.length > 1}>
-                <Toggle checked={draft.remoteRandom} onChange={value => setDraft("remoteRandom", value)} label="Random order" />
+                <Toggle checked={draft.remoteRandom} onChange={value => setField("remoteRandom", value)} label="Random order" />
               </Show>
             </div>
           </div>
@@ -465,7 +487,7 @@ function VpnEditor() {
           <Field label="Log in with">
             <SegmentedControl<VpnAuth>
               value={draft.auth}
-              onChange={auth => setDraft("auth", auth)}
+              onChange={auth => setField("auth", auth)}
               options={[
                 { value: "cert", label: "Certificate" },
                 { value: "userPass", label: "User and password" },
@@ -476,7 +498,7 @@ function VpnEditor() {
           <Show when={usesPassword()}>
             <FieldRow>
               <Field label="User" grow>
-                <SecretInput path="user" refs={secretRefs} value={draft.user} onValue={value => setDraft("user", value)} />
+                <SecretInput path="user" refs={secretRefs} value={draft.user} onValue={value => setField("user", value)} />
               </Field>
               <Field label="Password" grow>
                 <SecretField slot="password" secrets={secrets} />
@@ -493,7 +515,9 @@ function VpnEditor() {
               <Field label="Prompt" hint="Shown when Fran asks for the code. The server checks it with the password.">
                 <Input
                   value={challengeText()}
-                  onValue={value => setDraft("challenge", challenge => (challenge.kind === "static" ? { ...challenge, text: value } : challenge))}
+                  onValue={value => setDraft(profile => {
+                    if (profile.challenge.kind === "static") profile.challenge.text = value;
+                  })}
                 />
               </Field>
             </Show>
@@ -502,9 +526,9 @@ function VpnEditor() {
             <Field label="Client certificate">
               <textarea
                 class={formStyles.Textarea}
-                spellcheck={false}
+                spellcheck="false"
                 value={draft.cert}
-                onInput={event => setDraft("cert", event.currentTarget.value)}
+                onInput={event => setField("cert", event.currentTarget.value)}
                 placeholder="-----BEGIN CERTIFICATE-----"
               />
               <CertList certs={certs().cert} />
@@ -524,7 +548,7 @@ function VpnEditor() {
                 >
                   <FilePathInput
                     value={draft.pkcs11Provider ?? ""}
-                    onValue={value => setDraft("pkcs11Provider", value.trim() ? value : null)}
+                    onValue={value => setField("pkcs11Provider", value.trim() ? value : null)}
                     placeholder="Choose the PKCS#11 library"
                     dialogTitle="Choose the smartcard library"
                   />
@@ -534,7 +558,7 @@ function VpnEditor() {
             <Show when={!keyElsewhere()}>
             <Field label="Client key" hint="Goes straight to the vault. Fran signs with it, OpenVPN never gets the key itself.">
               <div class={styles.KeyStatus}>
-                <KeyRound size={14} class={keySaved() ? styles.Saved : undefined} />
+                <div class={[styles.KeyIcon, { [styles.Saved]: keySaved() }]}><KeyRound size={14} /></div>
                 <span>{keyStatus()}</span>
                 <Show when={keySaved()}>
                   <Button size="sm" variant="danger" onClick={() => setPending("key", null)}>Remove</Button>
@@ -546,7 +570,7 @@ function VpnEditor() {
               </div>
               <textarea
                 class={formStyles.Textarea}
-                spellcheck={false}
+                spellcheck="false"
                 value={keyText()}
                 onInput={event => setPending("key", event.currentTarget.value || undefined)}
                 placeholder="Paste a PEM private key to save a new one"
@@ -561,9 +585,9 @@ function VpnEditor() {
           <Field label="CA certificate" hint="Fran refuses a server it can't check against the CA or a fingerprint.">
             <textarea
               class={formStyles.Textarea}
-              spellcheck={false}
+              spellcheck="false"
               value={draft.ca}
-              onInput={event => setDraft("ca", event.currentTarget.value)}
+              onInput={event => setField("ca", event.currentTarget.value)}
               placeholder="-----BEGIN CERTIFICATE-----"
             />
             <CertList certs={certs().ca} />
@@ -573,7 +597,7 @@ function VpnEditor() {
               <span class={hostStyles.SwitchLabel}>Check that it's a server certificate</span>
               <span class={hostStyles.SwitchHint}>Stops another client of the same CA from posing as the server.</span>
             </div>
-            <Toggle checked={draft.requireServerCert} onChange={value => setDraft("requireServerCert", value)} />
+            <Toggle checked={draft.requireServerCert} onChange={value => setField("requireServerCert", value)} />
           </div>
           <Show when={!draft.requireServerCert}>
             <Note tone="warning">Anyone with a client certificate from this CA could pose as the VPN server.</Note>
@@ -582,7 +606,7 @@ function VpnEditor() {
             <Field label="Name to match" grow>
               <Input
                 value={verifyText()}
-                onValue={value => setDraft("verifyName", value.trim() ? { name: value, kind: verifyKind() } : null)}
+                onValue={value => setField("verifyName", value.trim() ? { name: value, kind: verifyKind() } : null)}
                 placeholder="Any name"
               />
             </Field>
@@ -591,14 +615,16 @@ function VpnEditor() {
                 value={verifyKind()}
                 items={NAME_KINDS}
                 disabled={draft.verifyName === null}
-                onChange={kind => setDraft("verifyName", current => (current ? { ...current, kind } : current))}
+                onChange={kind => setDraft(profile => {
+                  if (profile.verifyName) profile.verifyName.kind = kind;
+                })}
               />
             </Field>
           </FieldRow>
           <Field label="Server fingerprints" hint="SHA-256, one per line. Works with or without a CA.">
             <textarea
               class={formStyles.Textarea}
-              spellcheck={false}
+              spellcheck="false"
               value={fingerprints()}
               onInput={event => setFingerprints(event.currentTarget.value)}
               placeholder="AB:CD:..."
@@ -606,11 +632,11 @@ function VpnEditor() {
           </Field>
           <FieldRow>
             <Field label="TLS wrapping" grow>
-              <Select value={draft.tlsWrap.kind} items={TLS_WRAPS} onChange={kind => setDraft("tlsWrap", tlsWrapOf(kind, draft.tlsWrap))} />
+              <Select value={draft.tlsWrap.kind} items={TLS_WRAPS} onChange={kind => setField("tlsWrap", tlsWrapOf(kind, draft.tlsWrap))} />
             </Field>
             <Show when={draft.tlsWrap.kind === "auth"}>
               <Field label="Key direction" width={170}>
-                <Select value={authDirection()} items={DIRECTIONS} onChange={direction => setDraft("tlsWrap", { kind: "auth", direction })} />
+                <Select value={authDirection()} items={DIRECTIONS} onChange={direction => setField("tlsWrap", { kind: "auth", direction })} />
               </Field>
             </Show>
           </FieldRow>
@@ -618,7 +644,7 @@ function VpnEditor() {
             <Field label="TLS key" hint="Goes straight to the vault.">
               <textarea
                 class={formStyles.Textarea}
-                spellcheck={false}
+                spellcheck="false"
                 value={tlsKeyText()}
                 onInput={event => setPending("tlsKey", event.currentTarget.value || undefined)}
                 placeholder={tlsKeyPlaceholder()}
@@ -636,7 +662,7 @@ function VpnEditor() {
               <span class={hostStyles.SwitchLabel}>Send all traffic through the VPN</span>
               <span class={hostStyles.SwitchHint}>{routeAllHint()}</span>
             </div>
-            <Toggle checked={sendsAllTraffic()} onChange={value => setDraft("routeAll", value ? "followServer" : "vpnNetworksOnly")} />
+            <Toggle checked={sendsAllTraffic()} onChange={value => setField("routeAll", value ? "followServer" : "vpnNetworksOnly")} />
           </div>
           <div class={hostStyles.SwitchRow}>
             <div class={hostStyles.SwitchText}>
@@ -646,7 +672,7 @@ function VpnEditor() {
                 VPN service and systemd-resolved, or with OpenVPN 2.7.
               </span>
             </div>
-            <Toggle checked={draft.useVpnDns} onChange={value => setDraft("useVpnDns", value)} />
+            <Toggle checked={draft.useVpnDns} onChange={value => setField("useVpnDns", value)} />
           </div>
         </section>
 

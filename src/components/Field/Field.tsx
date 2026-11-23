@@ -1,5 +1,6 @@
 import styles from "./Field.module.scss";
-import { JSX, Show } from "solid-js";
+import { Show } from "solid-js";
+import { JSX } from "@solidjs/web";
 
 export type FieldProps = {
   label: string,
@@ -12,8 +13,7 @@ export type FieldProps = {
 function Field(props: FieldProps) {
   return (
     <div
-      class={styles.Field}
-      classList={{ [styles.Grow]: props.grow ?? false }}
+      class={[styles.Field, { [styles.Grow]: props.grow ?? false }]}
       style={{ width: props.width ? `${props.width}px` : undefined }}
     >
       <span class={styles.Label}>{props.label}</span>

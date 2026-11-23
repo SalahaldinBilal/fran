@@ -24,8 +24,7 @@ function RoutePreview(props: RoutePreviewProps) {
           <>
             <Arrow />
             <span
-              class={styles.Hop}
-              classList={{ [styles.Colored]: vpn().color !== null }}
+              class={[styles.Hop, { [styles.Colored]: vpn().color !== null }]}
               style={{ "--hop-color": vpn().color ?? undefined }}
             >
               <Shield size={12} />
@@ -47,8 +46,7 @@ function RoutePreview(props: RoutePreviewProps) {
           <>
             <Arrow />
             <span
-              class={styles.Hop}
-              classList={{ [styles.End]: !props.database && index() === props.hosts.length - 1 }}
+              class={[styles.Hop, { [styles.End]: !props.database && index() === props.hosts.length - 1 }]}
             >
               <Server size={12} />
               {host.label}

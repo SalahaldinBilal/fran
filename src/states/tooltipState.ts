@@ -1,4 +1,5 @@
-import { Accessor, JSX, createRoot, createSignal } from "solid-js";
+import { Accessor, createRoot, createSignal } from "solid-js";
+import { JSX } from "@solidjs/web";
 
 export type TooltipSide = "top" | "bottom" | "left" | "right";
 
@@ -21,33 +22,44 @@ const WARM_WINDOW = 300;
 
 function useTooltipStateInner() {
   const [active, setActive] = createSignal<TooltipAnchor | null>(null);
+  // Plain, since the show and hide calls run from effects and need the latest value before a flush.
+  let current: TooltipAnchor | null = null;
   let showTimer: ReturnType<typeof setTimeout> | undefined;
   let lastHiddenAt = 0;
+
+  function setCurrent(next: TooltipAnchor | null) {
+    current = next;
+    setActive(next);
+  }
+
+  function isShowing(element: HTMLElement): boolean {
+    return current?.element === element;
+  }
 
   // The first tooltip waits a moment. Moving to a neighbour while one is open, or just was, shows it right away.
   function showTooltip(anchor: TooltipAnchor) {
     clearTimeout(showTimer);
-    const warm = active() !== null || performance.now() - lastHiddenAt < WARM_WINDOW;
+    const warm = current !== null || performance.now() - lastHiddenAt < WARM_WINDOW;
     if (warm) {
-      setActive(anchor);
+      setCurrent(anchor);
       return;
     }
     showTimer = setTimeout(() => {
-      if (anchor.element.isConnected) setActive(anchor);
+      if (anchor.element.isConnected) setCurrent(anchor);
     }, SHOW_DELAY);
   }
 
   function hideTooltip() {
     clearTimeout(showTimer);
-    if (active()) lastHiddenAt = performance.now();
-    setActive(null);
+    if (current) lastHiddenAt = performance.now();
+    setCurrent(null);
   }
 
   function cancelPendingTooltip() {
     clearTimeout(showTimer);
   }
 
-  return { active, showTooltip, hideTooltip, cancelPendingTooltip };
+  return { active, isShowing, showTooltip, hideTooltip, cancelPendingTooltip };
 }
 
 const useTooltipState = createRoot(useTooltipStateInner);

@@ -1,5 +1,5 @@
 import styles from "./SecretInput.module.scss";
-import { Show, createMemo, splitProps } from "solid-js";
+import { Show, createMemo, omit } from "solid-js";
 import { KeyRound, X } from "@core/icons";
 import Input, { InputProps } from "../Input/Input";
 import Button from "../Button/Button";
@@ -14,9 +14,8 @@ export function SecretChip(props: { secretId: string, onClear: () => void, class
 
   return (
     <div
-      class={`${styles.Chip} ${props.class ?? ""}`}
-      classList={{ [styles.Missing]: !secret() }}
-      ref={element => tooltip(element, () => `Filled from the secret ${name()} when connecting`)}
+      class={[styles.Chip, props.class, { [styles.Missing]: !secret() }]}
+      ref={tooltip(() => `Filled from the secret ${name()} when connecting`)}
     >
       <KeyRound size={14} />
       <span class={styles.Name}>{name()}</span>
@@ -36,9 +35,9 @@ export type SecretInputProps = InputProps & {
 
 // An Input that can take its value from a named secret instead.
 function SecretInput(props: SecretInputProps) {
-  const [own, input] = splitProps(props, ["path", "refs", "after"]);
-  const secretId = createMemo(() => own.refs?.get(own.path));
-  const canPick = createMemo(() => own.refs !== undefined && !input.disabled && !input.readOnly);
+  const input = omit(props, "path", "refs", "after");
+  const secretId = createMemo(() => props.refs?.get(props.path));
+  const canPick = createMemo(() => props.refs !== undefined && !props.disabled && !props.readOnly);
 
   return (
     <Show
@@ -48,13 +47,13 @@ function SecretInput(props: SecretInputProps) {
           {...input}
           after={
             <>
-              {own.after}
+              {props.after}
               <Show when={canPick()}>
                 <Button
                   icon
                   size="sm"
                   tooltip="Use a secret"
-                  onClick={event => pickSecret(event, id => own.refs?.set(own.path, id))}
+                  onClick={event => pickSecret(event, id => props.refs?.set(props.path, id))}
                 >
                   <KeyRound size={13} />
                 </Button>
@@ -64,7 +63,7 @@ function SecretInput(props: SecretInputProps) {
         />
       }
     >
-      {id => <SecretChip secretId={id()} class={input.class} onClear={() => own.refs?.set(own.path, null)} />}
+      {id => <SecretChip secretId={id()} class={props.class} onClear={() => props.refs?.set(props.path, null)} />}
     </Show>
   );
 }

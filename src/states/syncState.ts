@@ -1,5 +1,5 @@
-import { createMemo, createRoot, createSignal } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { createMemo, createRoot, createSignal, createStore, reconcile } from "solid-js";
+import { immediateWrite } from "@core/helpers/immediateWrite";
 import { listen } from "@tauri-apps/api/event";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { Cloud, CloudKind, SyncCategory, SyncPhase, SyncTarget, SyncView } from "@core/types";
@@ -70,7 +70,8 @@ function sameTarget(left: SyncTarget | null, right: SyncTarget | null): boolean 
 
 function useSyncStateInner() {
   const { pushError } = useToastState;
-  const [view, setView] = createStore<SyncView>(EMPTY);
+  const [view, writeView] = createStore<SyncView>(EMPTY);
+  const setView = immediateWrite(writeView);
   const [loaded, setLoaded] = createSignal(false);
   const [addRequest, setAddRequest] = createSignal<AddCloudRequest | null>(null);
   // Shown once after sign-up or after a new key is made, then dropped.

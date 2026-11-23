@@ -1,6 +1,6 @@
 import styles from "./LockScreen.module.scss";
-import { Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { Portal } from "solid-js/web";
+import { Show, createMemo, createSignal, onSettled } from "solid-js";
+import { Portal } from "@solidjs/web";
 import { Lock } from "@core/icons";
 import useLockState from "@core/states/lockState";
 import useVaultState from "@core/states/vaultState";
@@ -18,9 +18,9 @@ function LockScreen() {
   const submitLabel = createMemo(() => (busy() ? "Unlocking" : "Unlock"));
   let input: HTMLInputElement | undefined;
 
-  onMount(() => {
-    onCleanup(useModalState.track());
+  onSettled(() => {
     input?.focus();
+    return useModalState.track();
   });
 
   async function submit(event: SubmitEvent) {
