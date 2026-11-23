@@ -91,6 +91,28 @@ pub(crate) fn describe(name: &str, info: &str) -> String {
     }
 }
 
+/// A temporary refusal from the server (`AUTH_FAILED,TEMP`, like a full license), which OpenVPN only logs before
+/// trying again after the server's backoff. Core logs `AUTH_FAILED_TEMP:<reason>`, OpenVPN 2 the control message.
+pub(crate) fn temp_refusal(line: &str) -> Option<String> {
+    let rest = match line.find("AUTH_FAILED_TEMP") {
+        Some(at) => &line[at + "AUTH_FAILED_TEMP".len()..],
+        None => {
+            let at = line.find("AUTH_FAILED,TEMP")?;
+            &line[at + "AUTH_FAILED,TEMP".len()..]
+        }
+    };
+    let rest = match rest.strip_prefix('[') {
+        Some(flags) => flags.split_once(']').map_or("", |(_, after)| after),
+        None => rest,
+    };
+    let reason = rest.strip_prefix(':').unwrap_or("").trim().trim_end_matches('\'').trim();
+    Some(if reason.is_empty() {
+        "The VPN server refused the connection for now".to_string()
+    } else {
+        format!("The VPN server refused the connection for now: {reason}")
+    })
+}
+
 /// An event as the VPN log shows it. A dynamic challenge carries the server's session cookie, so only its name goes in.
 pub(crate) fn event_line(name: &str, info: &str) -> String {
     let info = if name == "DYNAMIC_CHALLENGE" { "" } else { info.trim() };
@@ -211,7 +233,17 @@ impl Tunnel {
                 return Some(Some("Fran's VPN worker doesn't match this version of Fran. Reinstall Fran.".to_string()));
             }
             FromWorker::Hello { .. } | FromWorker::Evaluated { .. } => {}
-            FromWorker::Log { line } => self.log.vpn(false, line),
+            FromWorker::Log { line } => {
+                let refusal = temp_refusal(&line);
+                self.log.vpn(refusal.is_some(), line);
+                if let Some(text) = refusal {
+                    // Before the first connect the server's backoff outlasts the connect timeout, so it ends now.
+                    if self.state().phase == Phase::Connecting {
+                        return Some(Some(text));
+                    }
+                    self.update(|state| state.error = Some(text));
+                }
+            }
             FromWorker::Refused { message } => return Some(Some(message)),
             FromWorker::AdapterUp { .. } => return Some(Some("Fran's VPN worker set up an adapter for an own tunnel".to_string())),
             FromWorker::EvalFailed { message } => return Some(Some(format!("OpenVPN refused the profile: {message}"))),
@@ -389,5 +421,26 @@ impl Tunnel {
 impl Drop for Tunnel {
     fn drop(&mut self) {
         self.drop_stack();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_temporary_refusal_gives_the_servers_reason() {
+        let core = "AUTH_FAILED_TEMP:LICENSE: Access Server license failure: Connection exceeds currently allocated connection to this server (5)";
+        assert_eq!(
+            temp_refusal(core).as_deref(),
+            Some("The VPN server refused the connection for now: LICENSE: Access Server license failure: Connection exceeds currently allocated connection to this server (5)")
+        );
+
+        let openvpn2 = "AUTH: Received control message: AUTH_FAILED,TEMP[backoff 60,advance no]:LICENSE: Access Server license failure";
+        assert_eq!(temp_refusal(openvpn2).as_deref(), Some("The VPN server refused the connection for now: LICENSE: Access Server license failure"));
+
+        assert_eq!(temp_refusal("AUTH_FAILED_TEMP:").as_deref(), Some("The VPN server refused the connection for now"));
+        assert_eq!(temp_refusal("Sending PUSH_REQUEST to server..."), None);
+        assert_eq!(temp_refusal("AUTH_FAILED"), None);
     }
 }

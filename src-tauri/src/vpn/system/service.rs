@@ -28,7 +28,7 @@ use crate::connections::SecretSlot;
 use crate::vpn::frames::Login;
 use crate::vpn::keys;
 use crate::vpn::log::VpnLog;
-use crate::vpn::tunnel::{ChangeHook, Phase, TunnelState, WorkerStart, describe, event_line};
+use crate::vpn::tunnel::{ChangeHook, Phase, TunnelState, WorkerStart, describe, event_line, temp_refusal};
 
 const STOP_GRACE: Duration = Duration::from_secs(5);
 const CONNECT_WAIT: Duration = Duration::from_secs(3);
@@ -285,7 +285,18 @@ impl ServiceVpn {
                 Err(error) => return Outcome::Failed(format!("Fran's VPN service sent something broken: {error}")),
             };
             match message {
-                FromWorker::Log { line } => self.log.vpn(false, line),
+                FromWorker::Log { line } => {
+                    let refusal = temp_refusal(&line);
+                    self.log.vpn(refusal.is_some(), line);
+                    if let Some(text) = refusal {
+                        // Before the first connect the server's backoff outlasts the connect timeout, so it ends now.
+                        if self.state().phase == Phase::Connecting {
+                            let _ = send(&mut writer, &ToWorker::Stop).await;
+                            return Outcome::Failed(text);
+                        }
+                        self.update(|state| state.error = Some(text));
+                    }
+                }
                 FromWorker::Event { name, info, fatal, error } => {
                     self.log.vpn(fatal || error, event_line(&name, &info));
                     match name.as_str() {

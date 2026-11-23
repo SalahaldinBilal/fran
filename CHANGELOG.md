@@ -15,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - The review dialog for SQL changes only explains how a failure is handled when one could leave things half done, or when the change joins a transaction open in the tab. A single statement that applies fully or not at all gets no note.
+- A VPN card shows why the VPN failed in place of its server, not just a Failed badge. It also shows what went wrong while OpenVPN is still retrying. Click it to open the log.
+
+### Fixed
+
+- A VPN server that turns a login down for now, like an Access Server with no free licenses, used to look like a timeout after 30 seconds. Fran now stops right away and shows the server's reason.
 
 ## [0.3.1] - 2026-11-19
 

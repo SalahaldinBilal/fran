@@ -29,7 +29,7 @@ use adapter::Adapter;
 use super::frames::Login;
 use super::keys::{self, ClientKey};
 use super::log::VpnLog;
-use super::tunnel::{ChangeHook, Phase, TunnelState};
+use super::tunnel::{ChangeHook, Phase, TunnelState, temp_refusal};
 use crate::connections::SecretSlot;
 use crate::error::{AppError, AppResult};
 use management::{DynamicChallenge, Event};
@@ -553,8 +553,15 @@ impl SystemVpn {
                 self.update(|state| state.error = Some(text));
             }
             Event::Log { error, text } => {
-                self.log.vpn(error, text.clone());
-                if error {
+                let refusal = temp_refusal(&text);
+                self.log.vpn(error || refusal.is_some(), text.clone());
+                if let Some(message) = refusal {
+                    // Before the first connect the server's backoff outlasts the connect timeout, so it ends now.
+                    if self.state().phase == Phase::Connecting {
+                        return self.fail(message);
+                    }
+                    self.update(|state| state.error = Some(message));
+                } else if error {
                     session.last_log_error = Some(text);
                 }
             }

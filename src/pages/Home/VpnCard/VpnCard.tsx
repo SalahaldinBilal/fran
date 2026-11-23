@@ -52,6 +52,11 @@ export function useVpnView(profile: () => VpnProfile) {
   const stateLabel = createMemo(() => vpnStateLabel(status()));
   const live = createMemo(() => status()?.phase === "up");
   const failed = createMemo(() => (!running() && !turningOn() ? status()?.lastError ?? null : null));
+  // The failure, or what went wrong on the way up while OpenVPN keeps trying.
+  const problem = createMemo(() => {
+    const phase = status()?.phase;
+    return failed() ?? (phase === "connecting" || phase === "reconnecting" ? status()?.lastError ?? null : null);
+  });
   const server = createMemo(() => vpnServer(profile()));
   const filled = createMemo(() => useSettingsState.settings.colorFill && profile().color !== null);
   const systemOnly = createMemo(() => profile().needsSystem.length > 0 && !onComputer());
@@ -61,7 +66,7 @@ export function useVpnView(profile: () => VpnProfile) {
     const backend = vpnBackendLabel(status());
     return backend ? `On for this computer ${backend}. Turn off.` : "On for this computer. Turn off.";
   });
-  return { status, running, turningOn, onComputer, ownRunning, ownStopLabel, stateLabel, live, failed, server, filled, systemOnly, switchTooltip };
+  return { status, running, turningOn, onComputer, ownRunning, ownStopLabel, stateLabel, live, failed, problem, server, filled, systemOnly, switchTooltip };
 }
 
 export function VpnStateBadges(props: { view: ReturnType<typeof useVpnView>, profile: VpnProfile }) {
@@ -180,10 +185,31 @@ function VpnCard(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) =>
         </div>
       </div>
 
-      <div class={styles.Target} ref={element => tooltip(element, view.server)}>
-        <Server size={14} />
-        <span>{view.server()}</span>
-      </div>
+      <Show
+        when={view.problem()}
+        fallback={
+          <div class={styles.Target} ref={element => tooltip(element, view.server)}>
+            <Server size={14} />
+            <span>{view.server()}</span>
+          </div>
+        }
+      >
+        {problem => (
+          <button
+            type="button"
+            class={`${styles.Target} ${vpnStyles.Problem}`}
+            ref={element => tooltip(element, () => `${problem()}. Click to see the log.`)}
+            onClick={event => {
+              event.stopPropagation();
+              useVpnState.showLog(props.profile.id);
+            }}
+            onKeyDown={event => event.stopPropagation()}
+          >
+            <CircleAlert size={14} />
+            <span>{problem()}</span>
+          </button>
+        )}
+      </Show>
 
       <div class={styles.Bottom}>
         <span class={styles.Badges}>

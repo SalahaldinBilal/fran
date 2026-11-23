@@ -381,6 +381,7 @@ impl VpnManager {
                             slot.log.fran_error(format!("Couldn't start the own tunnel: {}", error.message));
                         }
                     })?;
+                    slot.set_error(None);
                     slot.log.fran(format!("Starting Fran's own tunnel, waiting up to {} seconds", connect_timeout().as_secs()));
                     let tunnel = Tunnel::spawn(start, self.change_hook(), slot.log.clone()).map_err(|error| {
                         slot.log.fran_error(error.to_string());
@@ -415,7 +416,11 @@ impl VpnManager {
             // A tunnel stuck reconnecting has already dropped its connections, and keeping it would fail every later
             // connect the same way for as long as anything holds the VPN.
             let phase = tunnel.state().phase;
-            slot.log.fran_error(format!("Not up in time ({phase:?}): {error}. Stopped it, so the next connect starts a new one."));
+            slot.log.fran_error(if phase == Phase::Down {
+                format!("Couldn't connect: {error}")
+            } else {
+                format!("Not up in time ({phase:?}): {error}. Stopped it, so the next connect starts a new one.")
+            });
             tunnel.stop().await;
             if let Ok(mut current) = slot.tunnel.lock() {
                 if current.as_ref().is_some_and(|current| Arc::ptr_eq(current, &tunnel)) {
@@ -486,6 +491,7 @@ impl VpnManager {
             *with = Some(backend);
         }
         let turn_offs = slot.turn_offs.load(Ordering::SeqCst);
+        slot.set_error(None);
         slot.turning_on.store(true, Ordering::SeqCst);
         slot.log.fran(match backend {
             SystemBackend::Fran => "Turning on for this computer with Fran's VPN service",
@@ -537,7 +543,11 @@ impl VpnManager {
                 self.notify();
                 return Err(vpn_stopped(&label));
             }
-            slot.log.fran_error(format!("Not up in time: {error}. Turned it off again."));
+            slot.log.fran_error(if system.state().phase == Phase::Down {
+                format!("Couldn't turn it on: {error}")
+            } else {
+                format!("Not up in time: {error}. Turned it off again.")
+            });
             system.stop().await;
             if let Ok(mut current) = slot.system.lock() {
                 if current.as_ref().is_some_and(|current| current.same(&system)) {

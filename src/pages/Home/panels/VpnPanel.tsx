@@ -1,6 +1,7 @@
 import shared from "./Panels.module.scss";
 import groups from "./DatabasesPanel.module.scss";
 import hostStyles from "./SshHostsPanel.module.scss";
+import vpnStyles from "./VpnPanel.module.scss";
 import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
 import { Check, CircleAlert, Download, GripVertical, LayoutGrid, Pencil, Plus, Rows3, Shield, Unplug, X } from "@core/icons";
 import useVpnState from "@core/states/vpnState";
@@ -17,6 +18,7 @@ import Button from "@core/components/Button/Button";
 import Input from "@core/components/Input/Input";
 import EmptyState from "@core/components/EmptyState/EmptyState";
 import Spinner from "@core/components/Spinner/Spinner";
+import { tooltip } from "@core/components/Tooltip/Tooltip";
 import { ItemIcon } from "@core/components/ItemParts/ItemParts";
 import VpnCard, { VpnComputerSwitch, VpnStateBadges, useVpnView, vpnMenuItems } from "../VpnCard/VpnCard";
 import PanelFrame from "./PanelFrame";
@@ -53,7 +55,11 @@ function VpnRow(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) => 
       <ItemIcon><Shield size={15} /></ItemIcon>
       <span class={shared.RowText}>
         <span class={shared.RowName}>{props.profile.label}</span>
-        <span class={shared.RowSub}>{view.server()}</span>
+        <Show when={view.problem()} fallback={<span class={shared.RowSub}>{view.server()}</span>}>
+          {problem => (
+            <span class={`${shared.RowSub} ${vpnStyles.ProblemText}`} ref={element => tooltip(element, problem)}>{problem()}</span>
+          )}
+        </Show>
       </span>
       <span class={hostStyles.Badges}>
         <VpnStateBadges view={view} profile={props.profile} />
