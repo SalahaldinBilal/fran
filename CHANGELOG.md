@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-23
+
 ### Added
 
 - Delete table in a table's menu in the schema browser. It shows the DROP statement to review first, and closes the table's structure and designer tabs once it's gone.
