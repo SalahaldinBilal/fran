@@ -67,9 +67,8 @@ function menuItems(): TrayItem[] {
       const backend = vpnBackendLabel(status);
       items.push({
         id: `vpn:${profile.id}`,
-        label: turning ? `${profile.label}: turning on` : `${profile.label} on this computer${onComputer && backend ? ` ${backend}` : ""}`,
+        label: turning ? `${profile.label}: turning on, click to stop` : `${profile.label} on this computer${onComputer && backend ? ` ${backend}` : ""}`,
         checked: onComputer,
-        enabled: !turning,
         separatorBefore: index === 0,
       });
       if (vpnRunning(status) && !onComputer) items.push({ id: `own:${profile.id}`, label: `    ${vpnStateLabel(status)}`, enabled: false });

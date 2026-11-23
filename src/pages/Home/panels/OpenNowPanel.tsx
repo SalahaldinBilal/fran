@@ -79,7 +79,10 @@ function OpenNowPanel(props: PanelProps) {
     if (!vpnRunning(status) || !textMatches(profile.label, props.search)) return [];
     const backend = vpnBackendLabel(status);
     const state = (vpnStateLabel(status) ?? "").toLowerCase();
-    return [{ profile, system: status?.system ?? false, sub: `VPN, ${state}${backend ? ` ${backend}` : ""}` }];
+    const system = status?.system ?? false;
+    const up = status?.phase === "up";
+    const action = system ? (up ? "Turn off" : "Stop") : (up ? "Disconnect" : "Stop");
+    return [{ profile, system, action, sub: `VPN, ${state}${backend ? ` ${backend}` : ""}` }];
   }));
 
   const count = createMemo(() => sessions().length + running().length + terminalTabs().length + sftpTabs().length + runningRules().length + vpns().length);
@@ -217,7 +220,7 @@ function OpenNowPanel(props: PanelProps) {
                     void (item.system ? setVpnOnComputer(item.profile, false, force) : disconnectVpn(item.profile, force));
                   }}
                 >
-                  {item.system ? "Turn off" : "Disconnect"}
+                  {item.action}
                 </span>
               </button>
             )}

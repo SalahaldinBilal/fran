@@ -104,8 +104,7 @@ function App() {
         return {
           label: profile.label,
           icon: on ? ShieldCheck : Shield,
-          hint: turning ? "Turning on" : on ? (backend ? `On ${backend}` : "On for this computer") : "Off",
-          disabled: turning,
+          hint: turning ? "Turning on, click to stop" : on ? (backend ? `On ${backend}` : "On for this computer") : "Off",
           onSelect: event => void setVpnOnComputer(profile, !on, skipsConfirm(event)),
         };
       }));

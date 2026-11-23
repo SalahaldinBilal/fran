@@ -12,6 +12,7 @@ export type ErrorDetail =
   | { kind: "ssh" }
   | { kind: "syncSignedOut" }
   | { kind: "syncCodeRequired" }
+  | { kind: "vpnStopped" }
   | { kind: "database", code: number | null, sqlState: string | null }
   | { kind: "secretsRequired", slots: SecretSlot[] }
   | { kind: "unknownHostKey", key: HostKeyInfo, hop: HopPosition | null, opensshTrusted: boolean }

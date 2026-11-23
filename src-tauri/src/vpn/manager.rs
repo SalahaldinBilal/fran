@@ -195,6 +195,10 @@ pub struct VpnStatus {
     pub prompt: Option<VpnPrompt>,
 }
 
+fn vpn_stopped(label: &str) -> AppError {
+    AppError::new(format!("VPN {label} was stopped before it connected"), ErrorDetail::VpnStopped)
+}
+
 #[derive(Default)]
 struct Slot {
     tunnel: Mutex<Option<Arc<Tunnel>>>,
@@ -205,6 +209,9 @@ struct Slot {
     starting: tokio::sync::Mutex<()>,
     users: AtomicUsize,
     generation: AtomicU64,
+    /// Go up on every Disconnect and every turn off, so a wait that ends can tell a stop from a failure.
+    disconnects: AtomicU64,
+    turn_offs: AtomicU64,
     last_error: Mutex<Option<String>>,
     /// The last login a user brought, so the own tunnel can come back as soon as the computer's VPN is turned off.
     leg: Mutex<Option<VpnLeg>>,
@@ -355,6 +362,8 @@ impl VpnManager {
 
     /// The own tunnel, opened when nothing has it up yet.
     async fn own_tunnel(&self, slot: &Arc<Slot>, leg: &VpnLeg) -> AppResult<Arc<Tunnel>> {
+        let disconnects = slot.disconnects.load(Ordering::SeqCst);
+        let stopped = || slot.disconnects.load(Ordering::SeqCst) != disconnects;
         let tunnel = {
             let _starting = slot.starting.lock().await;
             match slot.own() {
@@ -386,7 +395,22 @@ impl VpnManager {
             }
         };
 
+        // A Disconnect before the tunnel was stored found nothing to take, so it's stopped here.
+        if stopped() {
+            if let Ok(mut current) = slot.tunnel.lock() {
+                if current.as_ref().is_some_and(|current| Arc::ptr_eq(current, &tunnel)) {
+                    *current = None;
+                }
+            }
+            tunnel.stop().await;
+            self.notify();
+            return Err(vpn_stopped(&leg.label));
+        }
         if let Err(error) = tunnel.wait_up(connect_timeout()).await {
+            if stopped() {
+                self.notify();
+                return Err(vpn_stopped(&leg.label));
+            }
             slot.set_error(Some(error.clone()));
             // A tunnel stuck reconnecting has already dropped its connections, and keeping it would fail every later
             // connect the same way for as long as anything holds the VPN.
@@ -431,9 +455,11 @@ impl VpnManager {
     pub async fn disconnect(&self, profile_id: &str) {
         let tunnel = self.existing_slot(profile_id).and_then(|slot| {
             slot.generation.fetch_add(1, Ordering::SeqCst);
+            slot.disconnects.fetch_add(1, Ordering::SeqCst);
             let tunnel = slot.tunnel.lock().ok().and_then(|mut current| current.take());
             if tunnel.is_some() {
                 slot.log.fran("Disconnected from the VPN panel");
+                slot.set_error(None);
             }
             tunnel
         });
@@ -459,6 +485,7 @@ impl VpnManager {
         if let Ok(mut with) = slot.turning_on_with.lock() {
             *with = Some(backend);
         }
+        let turn_offs = slot.turn_offs.load(Ordering::SeqCst);
         slot.turning_on.store(true, Ordering::SeqCst);
         slot.log.fran(match backend {
             SystemBackend::Fran => "Turning on for this computer with Fran's VPN service",
@@ -471,10 +498,17 @@ impl VpnManager {
                 ServiceVpn::start(start, self.change_hook(), slot.log.clone()).await.map(ComputerVpn::Fran).map_err(AppError::general)
             }
         };
-        slot.turning_on.store(false, Ordering::SeqCst);
+        let stopped = || slot.turn_offs.load(Ordering::SeqCst) != turn_offs;
+        // The start itself isn't cut short (it may be waiting on the admin prompt), so a stop meanwhile ends it right after.
         let system = match started {
             Ok(system) => system,
+            Err(_) if stopped() => {
+                slot.turning_on.store(false, Ordering::SeqCst);
+                self.notify();
+                return Err(vpn_stopped(&label));
+            }
             Err(error) => {
+                slot.turning_on.store(false, Ordering::SeqCst);
                 slot.log.fran_error(format!("Couldn't turn it on: {}", error.message));
                 slot.set_error(Some(error.message.clone()));
                 self.notify();
@@ -484,9 +518,25 @@ impl VpnManager {
         if let Ok(mut current) = slot.system.lock() {
             *current = Some(system.clone());
         }
+        slot.turning_on.store(false, Ordering::SeqCst);
+        // A turn off before the store found nothing to take, so it's stopped here.
+        if stopped() {
+            if let Ok(mut current) = slot.system.lock() {
+                if current.as_ref().is_some_and(|current| current.same(&system)) {
+                    *current = None;
+                }
+            }
+            system.stop().await;
+            self.notify();
+            return Err(vpn_stopped(&label));
+        }
         self.notify();
 
         if let Err(error) = system.wait_up_with_prompts(connect_timeout()).await {
+            if stopped() {
+                self.notify();
+                return Err(vpn_stopped(&label));
+            }
             slot.log.fran_error(format!("Not up in time: {error}. Turned it off again."));
             system.stop().await;
             if let Ok(mut current) = slot.system.lock() {
@@ -515,10 +565,18 @@ impl VpnManager {
         let Some(slot) = self.existing_slot(profile_id) else {
             return;
         };
+        slot.turn_offs.fetch_add(1, Ordering::SeqCst);
         let system = slot.system.lock().ok().and_then(|mut current| current.take());
         let Some(system) = system else {
+            if slot.turning_on.load(Ordering::SeqCst) {
+                slot.log.fran("Stopped while turning on. It turns off as soon as the start finishes.");
+                slot.set_error(None);
+            }
             return;
         };
+        if system.state().phase != Phase::Up {
+            slot.set_error(None);
+        }
         slot.log.fran("Turning off for this computer");
         system.stop().await;
         self.notify();

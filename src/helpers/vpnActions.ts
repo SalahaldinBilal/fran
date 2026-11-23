@@ -11,6 +11,7 @@ import useSshState from "@core/states/sshState";
 import { withDatabaseModule } from "@core/databases";
 import { safeInvoke } from "./safeInvoke";
 import { withConnectPrompts } from "./connectFlow";
+import { isAppError } from "./errors";
 import { plural } from "@core/helpers";
 import { ConnectionProfile, ForwardRule, SystemBackend, VpnProfile } from "@core/types";
 
@@ -158,7 +159,9 @@ async function serviceReady(profile: VpnProfile, backend: SystemBackend): Promis
 // and Linux. Either way it logs in again.
 export async function setVpnOnComputer(profile: VpnProfile, on: boolean, force = false) {
   const users = useVpnState.status(profile.id)?.users ?? 0;
-  if (!force && users > 0) {
+  // Nothing has moved over yet while it's turning on, so stopping it changes nothing for its users.
+  const stoppingTurnOn = !on && useVpnState.turningOn(profile.id);
+  if (!force && !stoppingTurnOn && users > 0) {
     const confirmed = await usePromptState.confirm(on
       ? {
         title: `Turn on ${profile.label} for this computer?`,
@@ -177,6 +180,7 @@ export async function setVpnOnComputer(profile: VpnProfile, on: boolean, force =
   try {
     if (!on) {
       await useVpnState.turnOffSystem(profile.id);
+      if (stoppingTurnOn) return;
       // A one-time code can't log in twice, so the own tunnel needs a new one before anything can move back.
       if (users > 0 && profile.challenge.kind === "static" && profile.needsSystem.length === 0) {
         await withConnectPrompts(
@@ -196,6 +200,7 @@ export async function setVpnOnComputer(profile: VpnProfile, on: boolean, force =
     }
     reconnectUsers(profile.id, open);
   } catch (error) {
+    if (isAppError(error) && error.detail.kind === "vpnStopped") return;
     useToastState.pushError(error);
   }
 }

@@ -35,6 +35,8 @@ pub enum ErrorDetail {
     SyncSignedOut,
     /// The cloud account has two-step sign-in on and wants a code.
     SyncCodeRequired,
+    /// The user stopped a VPN that was still connecting or turning on.
+    VpnStopped,
     #[serde(rename_all = "camelCase")]
     Database {
         code: Option<u16>,

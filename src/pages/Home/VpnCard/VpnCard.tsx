@@ -22,18 +22,19 @@ const AUTH_LABELS: Record<VpnAuth, string> = { cert: "Certificate", userPass: "P
 export function vpnMenuItems(profile: VpnProfile): MenuItem[] {
   const vpn = useVpnState;
   const onComputer = vpn.onComputer(profile.id);
-  const ownRunning = vpnRunning(vpn.status(profile.id)) && !onComputer;
+  const status = vpn.status(profile.id);
+  const ownRunning = vpnRunning(status) && !onComputer;
+  const ownLabel = status?.phase === "up" ? "Disconnect" : "Stop connecting";
   return [
     { label: "Edit", icon: Pencil, onSelect: () => useVpnEditorState.open(profile) },
     onComputer
-      ? { label: "Turn off for this computer", icon: Monitor, onSelect: (event: MouseEvent) => void setVpnOnComputer(profile, false, skipsConfirm(event)) }
-      : {
-        label: "Turn on for this computer",
+      ? {
+        label: vpn.turningOn(profile.id) ? "Stop turning on" : "Turn off for this computer",
         icon: Monitor,
-        disabled: vpn.turningOn(profile.id),
-        onSelect: (event: MouseEvent) => void setVpnOnComputer(profile, true, skipsConfirm(event)),
-      },
-    ...(ownRunning ? [{ label: "Disconnect", icon: Unplug, onSelect: (event: MouseEvent) => void disconnectVpn(profile, skipsConfirm(event)) }] : []),
+        onSelect: (event: MouseEvent) => void setVpnOnComputer(profile, false, skipsConfirm(event)),
+      }
+      : { label: "Turn on for this computer", icon: Monitor, onSelect: (event: MouseEvent) => void setVpnOnComputer(profile, true, skipsConfirm(event)) },
+    ...(ownRunning ? [{ label: ownLabel, icon: Unplug, onSelect: (event: MouseEvent) => void disconnectVpn(profile, skipsConfirm(event)) }] : []),
     { label: "Show log", icon: ScrollText, onSelect: () => vpn.showLog(profile.id) },
     ...syncMenu(itemKey("vpn", profile.id), profile.label, "vpnProfiles"),
   ];
@@ -47,6 +48,7 @@ export function useVpnView(profile: () => VpnProfile) {
   const turningOn = createMemo(() => vpn.turningOn(profile().id));
   const onComputer = createMemo(() => vpn.onComputer(profile().id));
   const ownRunning = createMemo(() => running() && !onComputer());
+  const ownStopLabel = createMemo(() => (status()?.phase === "up" ? "Disconnect" : "Stop connecting"));
   const stateLabel = createMemo(() => vpnStateLabel(status()));
   const live = createMemo(() => status()?.phase === "up");
   const failed = createMemo(() => (!running() && !turningOn() ? status()?.lastError ?? null : null));
@@ -54,11 +56,12 @@ export function useVpnView(profile: () => VpnProfile) {
   const filled = createMemo(() => useSettingsState.settings.colorFill && profile().color !== null);
   const systemOnly = createMemo(() => profile().needsSystem.length > 0 && !onComputer());
   const switchTooltip = createMemo(() => {
+    if (turningOn()) return "Turning on for this computer. Turn off to stop.";
     if (!onComputer()) return "Turn on for this computer";
     const backend = vpnBackendLabel(status());
     return backend ? `On for this computer ${backend}. Turn off.` : "On for this computer. Turn off.";
   });
-  return { status, running, turningOn, onComputer, ownRunning, stateLabel, live, failed, server, filled, systemOnly, switchTooltip };
+  return { status, running, turningOn, onComputer, ownRunning, ownStopLabel, stateLabel, live, failed, server, filled, systemOnly, switchTooltip };
 }
 
 export function VpnStateBadges(props: { view: ReturnType<typeof useVpnView>, profile: VpnProfile }) {
@@ -108,7 +111,6 @@ export function VpnComputerSwitch(props: { view: ReturnType<typeof useVpnView>, 
     >
       <Toggle
         checked={props.view.onComputer()}
-        disabled={props.view.turningOn()}
         label={props.label}
         onChange={(value, event) => void setVpnOnComputer(props.profile, value, skipsConfirm(event))}
       />
@@ -157,7 +159,7 @@ function VpnCard(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) =>
             )}
           </Show>
           <Show when={view.ownRunning()}>
-            <Button icon size="sm" tooltip="Disconnect" onClick={event => void disconnectVpn(props.profile, skipsConfirm(event))}>
+            <Button icon size="sm" tooltip={view.ownStopLabel()} onClick={event => void disconnectVpn(props.profile, skipsConfirm(event))}>
               <Unplug size={14} />
             </Button>
           </Show>

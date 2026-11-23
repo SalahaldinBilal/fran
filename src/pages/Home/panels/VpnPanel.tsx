@@ -64,7 +64,7 @@ function VpnRow(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) => 
           <Button
             icon
             size="sm"
-            tooltip="Disconnect"
+            tooltip={view.ownStopLabel()}
             onClick={event => {
               event.stopPropagation();
               void disconnectVpn(props.profile, skipsConfirm(event));
