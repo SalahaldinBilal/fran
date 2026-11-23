@@ -11,6 +11,7 @@ import useToastState from "@core/states/toastState";
 import { startReorder } from "@core/helpers/dragReorder";
 import { errorMessage } from "@core/helpers/errors";
 import { disconnectVpn } from "@core/helpers/vpnActions";
+import { skipsConfirm } from "@core/helpers/platform";
 import { VpnProfile } from "@core/types";
 import Button from "@core/components/Button/Button";
 import Input from "@core/components/Input/Input";
@@ -66,7 +67,7 @@ function VpnRow(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) => 
             tooltip="Disconnect"
             onClick={event => {
               event.stopPropagation();
-              void disconnectVpn(props.profile);
+              void disconnectVpn(props.profile, skipsConfirm(event));
             }}
           >
             <Unplug size={13} />

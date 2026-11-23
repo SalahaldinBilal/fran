@@ -4,6 +4,7 @@ import { Dynamic } from "solid-js/web";
 import { Copy, KeyRound, Laptop, Lock, LucideIcon, ShieldCheck, TriangleAlert } from "@core/icons";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage } from "@core/helpers/errors";
+import { skipsConfirm } from "@core/helpers/platform";
 import { copySensitive } from "@core/helpers/clipboard";
 import { formatAgo, formatBytes, plural } from "@core/helpers";
 import useSyncState from "@core/states/syncState";
@@ -209,8 +210,8 @@ function Account(props: { cloud: Cloud }) {
     }
   }
 
-  async function revoke(device: FranServerDevice) {
-    const confirmed = await usePromptState.confirm({
+  async function revoke(device: FranServerDevice, force: boolean) {
+    const confirmed = force || await usePromptState.confirm({
       title: `Sign out ${device.device.name}?`,
       message: "It stops syncing until someone signs in on it again. What it already has stays on it.",
       confirmLabel: "Sign out",
@@ -322,7 +323,7 @@ function Account(props: { cloud: Cloud }) {
                       </span>
                     </div>
                     <Show when={!device.current}>
-                      <Button variant="ghost" size="sm" onClick={() => void revoke(device)}>Sign out</Button>
+                      <Button variant="ghost" size="sm" onClick={event => void revoke(device, skipsConfirm(event))}>Sign out</Button>
                     </Show>
                   </div>
                 )}

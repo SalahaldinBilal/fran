@@ -67,7 +67,7 @@
 
 ## Tray
 
-- `tray.rs`: closing the main window hides it while `settings.keepInTray` is on (passed in with `set_tray_options`) and a tray exists. Otherwise, and for Quit in the tray menu, Rust emits `quit-requested` and the window confirms what stops before calling `quit_app`. Until the window has sent its settings, closing just closes.
+- `tray.rs`: closing the main window hides it while `settings.keepInTray` is on (passed in with `set_tray_options`) and a tray exists. Otherwise, and for Quit in the tray menu, Rust emits `quit-requested` and the window confirms what stops before calling `quit_app`. Quit with Ctrl held (Cmd on macOS) exits at once, read from the OS by `skip_confirm_held` since menu events carry no modifiers. Until the window has sent its settings, closing just closes.
 - The menu is built from items the frontend sends (`set_tray_menu`), since it knows what's running. Clicks that need the window emit events (`tray-vpn`, `tray-forward-stop`, `tray-lock`). The icon gets a green dot while a VPN is on for the computer. Linux needs libayatana-appindicator at runtime (the flake puts it on the library path).
 
 ## Files

@@ -12,6 +12,7 @@ import { databaseModule } from "@core/databases";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage, isAppError } from "@core/helpers/errors";
 import { formatDuration, plural } from "@core/helpers";
+import { skipsConfirm } from "@core/helpers/platform";
 import { buildCatalog, buildCompletionSchema } from "@core/helpers/catalog";
 import {
   EditCheck, EditTarget, RowEdits, createRowEdits, findEditTarget, previewRowChanges, runRowChanges,
@@ -330,11 +331,11 @@ function QueryTab(props: QueryTabProps) {
     return mode === "after" ? text.slice(ranges[index].start) : ranges[index].text;
   }
 
-  // `given` runs that SQL instead of the editor's, for Commit and Rollback.
-  async function run(mode: RunMode, given?: string) {
+  // `given` runs that SQL instead of the editor's, for Commit and Rollback. `force` drops unapplied grid changes without asking.
+  async function run(mode: RunMode, given?: string, force = false) {
     if (running()) return;
 
-    if (pendingChanges() > 0) {
+    if (!force && pendingChanges() > 0) {
       const discard = await confirm({
         title: "Discard changes?",
         message: `${plural(pendingChanges(), "unapplied change")} in the results will be lost.`,
@@ -524,15 +525,15 @@ function QueryTab(props: QueryTabProps) {
   return (
     <div class={styles.QueryTab}>
       <div class={styles.Toolbar}>
-        <Button variant="primary" size="sm" onClick={() => run("all")} disabled={running()} tooltip="Run everything, or the selection (Ctrl+Shift+Enter)">
+        <Button variant="primary" size="sm" onClick={event => run("all", undefined, skipsConfirm(event))} disabled={running()} tooltip="Run everything, or the selection (Ctrl+Shift+Enter)">
           <Play size={12} />
           Run all
         </Button>
-        <Button size="sm" onClick={() => run("current")} disabled={running()} tooltip="Run the highlighted statement, or the selection (Ctrl+Enter)">
+        <Button size="sm" onClick={event => run("current", undefined, skipsConfirm(event))} disabled={running()} tooltip="Run the highlighted statement, or the selection (Ctrl+Enter)">
           <StepForward size={14} />
           Run
         </Button>
-        <Button size="sm" onClick={() => run("after")} disabled={running()} tooltip="Run the highlighted statement and everything after it">
+        <Button size="sm" onClick={event => run("after", undefined, skipsConfirm(event))} disabled={running()} tooltip="Run the highlighted statement and everything after it">
           <ArrowDownToLine size={14} />
           Run all after
         </Button>
@@ -558,12 +559,12 @@ function QueryTab(props: QueryTabProps) {
               {transaction() === "failed" ? "Transaction failed" : "Transaction open"}
             </span>
             <Show when={transaction() === "open"}>
-              <Button size="sm" variant="subtle" disabled={running()} onClick={() => run("all", "COMMIT")} tooltip="Run COMMIT in this tab">
+              <Button size="sm" variant="subtle" disabled={running()} onClick={event => run("all", "COMMIT", skipsConfirm(event))} tooltip="Run COMMIT in this tab">
                 <Check size={13} />
                 Commit
               </Button>
             </Show>
-            <Button size="sm" variant="subtle" disabled={running()} onClick={() => run("all", "ROLLBACK")} tooltip="Run ROLLBACK in this tab">
+            <Button size="sm" variant="subtle" disabled={running()} onClick={event => run("all", "ROLLBACK", skipsConfirm(event))} tooltip="Run ROLLBACK in this tab">
               <Undo2 size={13} />
               Rollback
             </Button>

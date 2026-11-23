@@ -8,6 +8,7 @@ import useContextMenuState, { MenuItem } from "@core/states/contextMenuState";
 import useSettingsState from "@core/states/settingsState";
 import { vpnBackendLabel, vpnRunning, vpnServer, vpnStateLabel } from "@core/helpers/vpn";
 import { disconnectVpn, setVpnOnComputer } from "@core/helpers/vpnActions";
+import { skipsConfirm } from "@core/helpers/platform";
 import { syncMenu } from "@core/helpers/syncTargets";
 import { itemKey } from "@core/states/syncState";
 import { VpnAuth, VpnProfile } from "@core/types";
@@ -25,9 +26,14 @@ export function vpnMenuItems(profile: VpnProfile): MenuItem[] {
   return [
     { label: "Edit", icon: Pencil, onSelect: () => useVpnEditorState.open(profile) },
     onComputer
-      ? { label: "Turn off for this computer", icon: Monitor, onSelect: () => void setVpnOnComputer(profile, false) }
-      : { label: "Turn on for this computer", icon: Monitor, disabled: vpn.turningOn(profile.id), onSelect: () => void setVpnOnComputer(profile, true) },
-    ...(ownRunning ? [{ label: "Disconnect", icon: Unplug, onSelect: () => void disconnectVpn(profile) }] : []),
+      ? { label: "Turn off for this computer", icon: Monitor, onSelect: (event: MouseEvent) => void setVpnOnComputer(profile, false, skipsConfirm(event)) }
+      : {
+        label: "Turn on for this computer",
+        icon: Monitor,
+        disabled: vpn.turningOn(profile.id),
+        onSelect: (event: MouseEvent) => void setVpnOnComputer(profile, true, skipsConfirm(event)),
+      },
+    ...(ownRunning ? [{ label: "Disconnect", icon: Unplug, onSelect: (event: MouseEvent) => void disconnectVpn(profile, skipsConfirm(event)) }] : []),
     { label: "Show log", icon: ScrollText, onSelect: () => vpn.showLog(profile.id) },
     ...syncMenu(itemKey("vpn", profile.id), profile.label, "vpnProfiles"),
   ];
@@ -104,7 +110,7 @@ export function VpnComputerSwitch(props: { view: ReturnType<typeof useVpnView>, 
         checked={props.view.onComputer()}
         disabled={props.view.turningOn()}
         label={props.label}
-        onChange={value => void setVpnOnComputer(props.profile, value)}
+        onChange={(value, event) => void setVpnOnComputer(props.profile, value, skipsConfirm(event))}
       />
     </span>
   );
@@ -151,7 +157,7 @@ function VpnCard(props: { profile: VpnProfile, onGrab?: (event: PointerEvent) =>
             )}
           </Show>
           <Show when={view.ownRunning()}>
-            <Button icon size="sm" tooltip="Disconnect" onClick={() => void disconnectVpn(props.profile)}>
+            <Button icon size="sm" tooltip="Disconnect" onClick={event => void disconnectVpn(props.profile, skipsConfirm(event))}>
               <Unplug size={14} />
             </Button>
           </Show>

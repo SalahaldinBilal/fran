@@ -60,11 +60,39 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
+/// Menu events carry no modifier keys, so this asks the OS. Ctrl like the window's Ctrl+click, Cmd on macOS.
+#[cfg(windows)]
+fn skip_confirm_held() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL};
+    (unsafe { GetAsyncKeyState(VK_CONTROL.0 as i32) } as u16) & 0x8000 != 0
+}
+
+#[cfg(target_os = "macos")]
+fn skip_confirm_held() -> bool {
+    use objc2::{class, msg_send};
+    const COMMAND: usize = 1 << 20;
+    let flags: usize = unsafe { msg_send![class!(NSEvent), modifierFlags] };
+    flags & COMMAND != 0
+}
+
+#[cfg(target_os = "linux")]
+fn skip_confirm_held() -> bool {
+    use gtk::gdk::{Display, Keymap, ModifierType};
+    let Some(keymap) = Display::default().and_then(|display| Keymap::for_display(&display)) else {
+        return false;
+    };
+    keymap.modifier_state() & ModifierType::CONTROL_MASK.bits() != 0
+}
+
 fn menu_event(app: &AppHandle, id: &str) {
     match id {
         "open" => show_main(app),
         "lock" => {
             let _ = app.emit("tray-lock", ());
+        }
+        "quit" if skip_confirm_held() => {
+            app.state::<TrayState>().quitting.store(true, Ordering::SeqCst);
+            app.exit(0);
         }
         // These ask or confirm in the window, so it comes up first.
         "quit" => {

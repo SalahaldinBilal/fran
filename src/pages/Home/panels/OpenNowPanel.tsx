@@ -5,6 +5,7 @@ import useVpnState from "@core/states/vpnState";
 import useVpnEditorState from "@core/states/vpnEditorState";
 import { vpnBackendLabel, vpnRunning, vpnStateLabel } from "@core/helpers/vpn";
 import { disconnectVpn, setVpnOnComputer } from "@core/helpers/vpnActions";
+import { skipsConfirm } from "@core/helpers/platform";
 import useSftpState, { isFinished } from "@core/states/sftpState";
 import useWorkspaceState from "@core/states/workspaceState";
 import usePortForwardState from "@core/states/portForwardState";
@@ -212,7 +213,8 @@ function OpenNowPanel(props: PanelProps) {
                   class={shared.RowEnd}
                   onClick={event => {
                     event.stopPropagation();
-                    void (item.system ? setVpnOnComputer(item.profile, false) : disconnectVpn(item.profile));
+                    const force = skipsConfirm(event);
+                    void (item.system ? setVpnOnComputer(item.profile, false, force) : disconnectVpn(item.profile, force));
                   }}
                 >
                   {item.system ? "Turn off" : "Disconnect"}

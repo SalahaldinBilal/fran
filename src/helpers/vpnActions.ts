@@ -118,9 +118,9 @@ function reconnectUsers(profileId: string, users: Users) {
   });
 }
 
-export async function disconnectVpn(profile: VpnProfile) {
+export async function disconnectVpn(profile: VpnProfile, force = false) {
   const status = useVpnState.status(profile.id);
-  if (status && status.users > 0) {
+  if (!force && status && status.users > 0) {
     const confirmed = await usePromptState.confirm({
       title: `Disconnect ${profile.label}?`,
       message: `${usersText(profile.id, status.users)} They lose their connection and reconnect when you use them again.`,
@@ -156,9 +156,9 @@ async function serviceReady(profile: VpnProfile, backend: SystemBackend): Promis
 
 // On runs Fran's service, or the installed OpenVPN when picked or needed, which asks for the admin password on macOS
 // and Linux. Either way it logs in again.
-export async function setVpnOnComputer(profile: VpnProfile, on: boolean) {
+export async function setVpnOnComputer(profile: VpnProfile, on: boolean, force = false) {
   const users = useVpnState.status(profile.id)?.users ?? 0;
-  if (users > 0) {
+  if (!force && users > 0) {
     const confirmed = await usePromptState.confirm(on
       ? {
         title: `Turn on ${profile.label} for this computer?`,

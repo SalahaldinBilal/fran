@@ -76,7 +76,7 @@ function MenuList(props: MenuListProps) {
                       return;
                     }
                     closeContextMenu();
-                    entry().onSelect?.();
+                    entry().onSelect?.(event);
                   }}
                 >
                   <span class={styles.Icon}>

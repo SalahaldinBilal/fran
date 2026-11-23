@@ -8,7 +8,7 @@ export type MenuAction = {
   hint?: string,
   danger?: boolean,
   disabled?: boolean,
-  onSelect?: () => void,
+  onSelect?: (event: MouseEvent) => void,
   children?: MenuItem[],
 };
 

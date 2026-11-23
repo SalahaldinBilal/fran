@@ -1,6 +1,9 @@
 import styles from "./WindowControls.module.scss";
 import { Show, createSignal, onCleanup, onMount } from "solid-js";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import useToastState from "@core/states/toastState";
+import { skipsConfirm } from "@core/helpers/platform";
+import { quitApp } from "@core/helpers/tray";
 
 function WindowControls() {
   const appWindow = getCurrentWindow();
@@ -33,7 +36,14 @@ function WindowControls() {
           </Show>
         </svg>
       </button>
-      <button class={`${styles.Control} ${styles.Close}`} aria-label="Close" onClick={() => appWindow.close()}>
+      <button
+        class={`${styles.Control} ${styles.Close}`}
+        aria-label="Close"
+        onClick={event => {
+          if (skipsConfirm(event)) void quitApp(true).catch(useToastState.pushError);
+          else void appWindow.close();
+        }}
+      >
         <svg viewBox="0 0 10 10" aria-hidden="true">
           <path d="M.5.5l9 9M9.5.5l-9 9" />
         </svg>

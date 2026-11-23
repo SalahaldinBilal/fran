@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Delete table in a table's menu in the schema browser. It shows the DROP statement to review first, and closes the table's structure and designer tabs once it's gone.
+- Ctrl+click (Cmd+click on macOS) skips the confirm for things that don't delete anything: closing tabs, Close others, quitting from the close button or the tray, disconnecting or turning a VPN on or off, signing out a device or a user, and running a query over unapplied grid changes. A middle click on a tab closes it without asking too.
 
 ### Changed
 

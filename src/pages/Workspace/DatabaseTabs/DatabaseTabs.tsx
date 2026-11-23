@@ -12,6 +12,7 @@ import EmptyState from "@core/components/EmptyState/EmptyState";
 import { tooltip } from "@core/components/Tooltip/Tooltip";
 import { keepOrder } from "@core/helpers";
 import { transactionFlag } from "@core/helpers/transactions";
+import { skipsConfirm } from "@core/helpers/platform";
 import QueryTab from "../../tabs/QueryTab/QueryTab";
 import StructureTab from "../../tabs/StructureTab/StructureTab";
 import TableDesignerTab from "../../tabs/TableDesignerTab/TableDesignerTab";
@@ -68,22 +69,22 @@ function DatabaseTabs(props: DatabaseTabsProps) {
     return scope()?.tabs.find(tab => tab.id === id);
   }
 
-  async function closeOthers(keepId: string) {
+  async function closeOthers(keepId: string, force: boolean) {
     const others = (scope()?.tabs ?? []).filter(tab => tab.id !== keepId).map(tab => tab.id);
-    if (!(await workspace.confirmRollback(props.sessionId, others, "Closing them", "Close and roll back"))) return;
+    if (!force && !(await workspace.confirmRollback(props.sessionId, others, "Closing them", "Close and roll back"))) return;
     workspace.closeOtherTabs(props.sessionId, props.database, keepId);
   }
 
-  async function closeTab(id: string) {
+  async function closeTab(id: string, force: boolean) {
     const tab = findTab(id);
     if (transactions()[id]) {
-      if (!(await workspace.confirmRollback(props.sessionId, [id], "Closing it", "Close and roll back"))) return;
+      if (!force && !(await workspace.confirmRollback(props.sessionId, [id], "Closing it", "Close and roll back"))) return;
       workspace.closeTab(props.sessionId, props.database, id);
       return;
     }
     const text = tab?.kind === "query" ? workspace.queryText(tab) : "";
     const kept = savedQueries.queries.some(query => query.sql === text);
-    if (text.trim() !== "" && !kept) {
+    if (!force && text.trim() !== "" && !kept) {
       const confirmed = await confirm({
         title: `Close ${tab?.title}?`,
         message: "Its text isn't in any saved query and will be lost. Press Ctrl+S in the tab to save it as a query first.",
@@ -117,8 +118,8 @@ function DatabaseTabs(props: DatabaseTabsProps) {
           onContextMenu={(event, id) => openContextMenu(event, [
             { label: "Rename", hint: "F2", onSelect: () => strip?.startRename(id) },
             { separator: true },
-            { label: "Close", icon: X, onSelect: () => closeTab(id) },
-            { label: "Close others", onSelect: () => void closeOthers(id) },
+            { label: "Close", icon: X, onSelect: event => void closeTab(id, skipsConfirm(event)) },
+            { label: "Close others", onSelect: event => void closeOthers(id, skipsConfirm(event)) },
           ])}
           trailing={
             <Button icon size="sm" tooltip="New query" onClick={newQuery}>

@@ -59,7 +59,7 @@ import useToastState from "./states/toastState";
 import useModalState from "./states/modalState";
 import WindowControls from "./components/WindowControls/WindowControls";
 import { installGlobalContextMenu } from "./helpers/globalContextMenu";
-import { IS_MAC } from "./helpers/platform";
+import { IS_MAC, skipsConfirm } from "./helpers/platform";
 import { safeInvoke } from "./helpers/safeInvoke";
 import { keepOrder, plural } from "./helpers";
 
@@ -106,7 +106,7 @@ function App() {
           icon: on ? ShieldCheck : Shield,
           hint: turning ? "Turning on" : on ? (backend ? `On ${backend}` : "On for this computer") : "Off",
           disabled: turning,
-          onSelect: () => void setVpnOnComputer(profile, !on),
+          onSelect: event => void setVpnOnComputer(profile, !on, skipsConfirm(event)),
         };
       }));
   }
@@ -238,7 +238,7 @@ function App() {
             {
               label: kind === "session" || kind === "terminal" || kind === "sftp" ? "Disconnect" : "Close",
               icon: X,
-              onSelect: () => workspace.closeGlobalTab(id),
+              onSelect: event => void workspace.closeGlobalTab(id, skipsConfirm(event)),
             },
           ]);
         }}

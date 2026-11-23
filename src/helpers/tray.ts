@@ -37,12 +37,12 @@ function runningParts(): string[] {
   ];
 }
 
-// Asks first when something is running. Behind the lock screen there's nothing to confirm with, so it just quits.
-export async function quitApp() {
+// Asks first when something is running, unless `force`. Behind the lock screen there's nothing to confirm with, so it just quits.
+export async function quitApp(force = false) {
   const parts = runningParts();
   const transactions = Object.values(useWorkspaceState.store.sessions)
     .reduce((sum, session) => sum + Object.keys(session.transactions).length, 0);
-  if (parts.length > 0 && !useLockState.locked()) {
+  if (!force && parts.length > 0 && !useLockState.locked()) {
     const rolledBack = transactions === 0
       ? ""
       : ` ${transactions === 1 ? "A query tab has a transaction open, and it" : `${plural(transactions, "query tab")} have a transaction open, and they`} will be rolled back.`;

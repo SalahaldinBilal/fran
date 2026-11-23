@@ -3,6 +3,7 @@ import { For, JSX, Show, createEffect, createMemo, createSignal, on, onCleanup }
 import { Dynamic } from "solid-js/web";
 import { LucideIcon, X } from "@core/icons";
 import { tooltip } from "../Tooltip/Tooltip";
+import { skipsConfirm } from "@core/helpers/platform";
 
 export type TabStripItem = {
   id: string,
@@ -30,7 +31,8 @@ export type TabStripProps = {
   items: TabStripItem[],
   activeId: string | null,
   onSelect: (id: string) => void,
-  onClose?: (id: string) => void,
+  // `force` is set by a middle click or a Ctrl+click on the close button, which skip the tab's confirm.
+  onClose?: (id: string, force: boolean) => void,
   onRename?: (id: string, label: string) => void,
   onContextMenu?: (event: MouseEvent, id: string) => void,
   onReorder?: (id: string, toIndex: number) => void,
@@ -265,7 +267,7 @@ function TabStrip(props: TabStripProps) {
                 if (event.button === 1 && item.closable) event.preventDefault();
               }}
               onAuxClick={event => {
-                if (event.button === 1 && item.closable) props.onClose?.(item.id);
+                if (event.button === 1 && item.closable) props.onClose?.(item.id, true);
               }}
               onContextMenu={event => props.onContextMenu?.(event, item.id)}
             >
@@ -326,7 +328,7 @@ function TabStrip(props: TabStripProps) {
                   aria-label={`Close ${item.label}`}
                   onClick={event => {
                     event.stopPropagation();
-                    props.onClose?.(item.id);
+                    props.onClose?.(item.id, skipsConfirm(event));
                   }}
                 >
                   <X size={14} />

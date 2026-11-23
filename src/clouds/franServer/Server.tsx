@@ -4,6 +4,7 @@ import { Dynamic } from "solid-js/web";
 import { Copy, Crown, KeyRound, Laptop, ShieldCheck, TriangleAlert, User as UserIcon } from "@core/icons";
 import { safeInvoke } from "@core/helpers/safeInvoke";
 import { errorMessage } from "@core/helpers/errors";
+import { skipsConfirm } from "@core/helpers/platform";
 import { copyText } from "@core/helpers/clipboard";
 import { formatAgo, formatBytes, plural } from "@core/helpers";
 import useToastState from "@core/states/toastState";
@@ -203,8 +204,8 @@ function UserRow(props: { cloud: Cloud, me: FranServerAccount, user: AdminUser, 
     void act(() => safeInvoke("fran_server_admin_set_quota", { cloudId: props.cloud.id, userId: props.user.id, quotaBytes: bytes }), "Limit saved");
   }
 
-  async function signOut() {
-    const confirmed = await usePromptState.confirm({
+  async function signOut(force: boolean) {
+    const confirmed = force || await usePromptState.confirm({
       title: `Sign ${props.user.email} out everywhere?`,
       message: "Every device of theirs stops syncing until they sign in again. Nothing is deleted.",
       confirmLabel: "Sign out",
@@ -275,7 +276,7 @@ function UserRow(props: { cloud: Cloud, me: FranServerAccount, user: AdminUser, 
 
           <div class={styles.Actions}>
             <Show when={canSignOut() && !isMe()}>
-              <Button variant="subtle" size="sm" disabled={busy()} onClick={() => void signOut()}>Sign out everywhere</Button>
+              <Button variant="subtle" size="sm" disabled={busy()} onClick={event => void signOut(skipsConfirm(event))}>Sign out everywhere</Button>
             </Show>
             <Show when={iOwn() && !isMe()}>
               <Button
