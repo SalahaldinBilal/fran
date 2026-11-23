@@ -28,7 +28,8 @@ export type ReviewSqlModalProps = {
 
 export type SafetyNote = { safe: boolean, text: string };
 
-export function safetyNote(safety: ApplySafety, count: number): SafetyNote {
+export function safetyNote(safety: ApplySafety, count: number): SafetyNote | null {
+  if (safety.kind === "transaction" && count <= 1) return null;
   if (safety.kind === "transaction") {
     return { safe: true, text: "Runs in a single transaction. If any statement fails, everything is rolled back and nothing changes." };
   }
@@ -38,9 +39,7 @@ export function safetyNote(safety: ApplySafety, count: number): SafetyNote {
       text: "Runs inside the transaction open in this tab. Other connections don't see it until you commit, and Rollback undoes it.",
     };
   }
-  if (safety.atomic && count <= 1) {
-    return { safe: true, text: "Table changes can't run in a transaction, but this is one statement and this server applies it completely or not at all." };
-  }
+  if (safety.atomic && count <= 1) return null;
   if (safety.atomic) {
     return {
       safe: false,
@@ -99,10 +98,14 @@ function ReviewSqlModal(props: ReviewSqlModalProps) {
             <SqlEditor initialValue={script()} dialect={props.dialect} readOnly wrap />
           </div>
         </Show>
-        <div class={styles.Safety} classList={{ [styles.Unsafe]: !note().safe }}>
-          {note().safe ? <ShieldCheck size={14} /> : <TriangleAlert size={14} />}
-          <span>{note().text}</span>
-        </div>
+        <Show when={note()}>
+          {shown => (
+            <div class={styles.Safety} classList={{ [styles.Unsafe]: !shown().safe }}>
+              {shown().safe ? <ShieldCheck size={14} /> : <TriangleAlert size={14} />}
+              <span>{shown().text}</span>
+            </div>
+          )}
+        </Show>
         <Show when={error()}>
           <div class={styles.Error}>
             <CircleAlert size={14} />

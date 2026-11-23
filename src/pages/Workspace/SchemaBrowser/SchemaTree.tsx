@@ -8,14 +8,20 @@ import { OBJECT_KINDS, objectKindInfo } from "@core/constants/objectKinds";
 import { databaseModule } from "@core/databases";
 import { errorMessage } from "@core/helpers/errors";
 import { formatBytes, formatCount } from "@core/helpers";
-import { DatabaseInfo, ObjectInfo } from "@core/types";
+import { BatchOutcome, DatabaseInfo, ObjectInfo } from "@core/types";
+import { safeInvoke } from "@core/helpers/safeInvoke";
+import { batchFailureMessage } from "@core/helpers/batch";
+import useToastState from "@core/states/toastState";
 import Input from "@core/components/Input/Input";
+import ReviewSqlModal, { ApplySafety } from "@core/components/ReviewSqlModal/ReviewSqlModal";
 import Spinner from "@core/components/Spinner/Spinner";
 import { tooltip } from "@core/components/Tooltip/Tooltip";
 import { databaseMenu, folderMenu, objectMenu } from "./menus";
 
 // Workbench-style: these folders always show, the rest only when they have something in them.
 const ALWAYS_SHOWN = new Set(["table", "view", "procedure", "function"]);
+
+type PendingDelete = { database: string, table: string, statements: string[] };
 
 function SchemaTree(props: { sessionId: string }) {
   const workspace = useWorkspaceState;
@@ -29,6 +35,15 @@ function SchemaTree(props: { sessionId: string }) {
   const databaseKind = untrack(() => workspace.store.sessions[props.sessionId].info.kind);
   const namespace = databaseModule(databaseKind).namespace;
   const needle = createMemo(() => filter().trim().toLowerCase());
+  const server = untrack(() => workspace.store.sessions[props.sessionId].info.server);
+  const transactionalDdl = server.transactionalDdl;
+  const deleteSafety: ApplySafety = transactionalDdl ? { kind: "transaction" } : { kind: "schema", atomic: server.atomicDdl };
+  const [pendingDelete, setPendingDelete] = createSignal<PendingDelete | null>(null);
+  const deleteStatements = createMemo(() => pendingDelete()?.statements ?? null);
+  const deleteDescription = createMemo(() => {
+    const pending = pendingDelete();
+    return pending ? `Deletes ${pending.database}.${pending.table} and all its rows` : "";
+  });
 
   const visibleDatabases = createMemo(() => {
     const databases = session()?.databases.items ?? [];
@@ -59,6 +74,45 @@ function SchemaTree(props: { sessionId: string }) {
     } else {
       workspace.openStructure(props.sessionId, database, object);
     }
+  }
+
+  async function startDeleteTable(database: string, table: ObjectInfo) {
+    try {
+      const sql = await safeInvoke("get_object_sql", {
+        sessionId: props.sessionId,
+        database,
+        name: table.name,
+        kind: table.kind,
+        signature: table.signature,
+        template: "drop",
+      });
+      setPendingDelete({ database, table: table.name, statements: [sql.trim().replace(/;+$/, "")] });
+    } catch (error) {
+      useToastState.pushError(error);
+    }
+  }
+
+  async function deleteTable(): Promise<string | null> {
+    const pending = pendingDelete();
+    if (!pending) return null;
+
+    let outcome: BatchOutcome;
+    try {
+      outcome = await safeInvoke("execute_batch", {
+        sessionId: props.sessionId,
+        database: pending.database,
+        statements: pending.statements,
+        transactional: transactionalDdl,
+      });
+    } catch (error) {
+      return errorMessage(error);
+    }
+    if (outcome.error) return batchFailureMessage(outcome);
+
+    useToastState.pushToast(`Deleted ${pending.table}`, "success", 2500);
+    workspace.closeTableTabs(props.sessionId, pending.database, pending.table);
+    workspace.refreshCatalog(props.sessionId, pending.database);
+    return null;
   }
 
   function DatabaseNode(nodeProps: { database: DatabaseInfo }) {
@@ -151,7 +205,7 @@ function SchemaTree(props: { sessionId: string }) {
                               onDblClick={() => openObject(name(), object)}
                               onContextMenu={event => openContextMenu(
                                 event,
-                                objectMenu(props.sessionId, name(), object),
+                                objectMenu(props.sessionId, name(), object, () => startDeleteTable(name(), object)),
                               )}
                             >
                               <span class={`${styles.Chevron} ${styles.Hidden}`} />
@@ -238,6 +292,17 @@ function SchemaTree(props: { sessionId: string }) {
           </Match>
         </Switch>
       </div>
+
+      <ReviewSqlModal
+        statements={deleteStatements()}
+        title="Delete table"
+        description={deleteDescription()}
+        dialect={databaseModule(databaseKind).sqlDialect}
+        safety={deleteSafety}
+        applyLabel="Delete"
+        onApply={deleteTable}
+        onClose={() => setPendingDelete(null)}
+      />
     </>
   );
 }

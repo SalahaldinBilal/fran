@@ -1,4 +1,4 @@
-import { ClipboardCopy, Copy, FileCode, PencilRuler, RefreshCw, SquarePen, TableProperties } from "@core/icons";
+import { ClipboardCopy, Copy, FileCode, PencilRuler, RefreshCw, SquarePen, TableProperties, Trash2 } from "@core/icons";
 import { MenuItem } from "@core/states/contextMenuState";
 import useWorkspaceState from "@core/states/workspaceState";
 import useToastState from "@core/states/toastState";
@@ -67,7 +67,7 @@ export function folderMenu(sessionId: string, database: string, tables: boolean)
   return items;
 }
 
-export function objectMenu(sessionId: string, database: string, object: ObjectInfo): MenuItem[] {
+export function objectMenu(sessionId: string, database: string, object: ObjectInfo, onDeleteTable: () => void): MenuItem[] {
   const workspace = useWorkspaceState;
   const info = objectKindInfo(object.kind);
   const items: MenuItem[] = [];
@@ -113,6 +113,10 @@ export function objectMenu(sessionId: string, database: string, object: ObjectIn
     },
     { label: "Copy name", icon: Copy, onSelect: () => copyText(object.name, "name") },
   );
+
+  if (object.kind === "table") {
+    items.push({ separator: true }, { label: "Delete table", icon: Trash2, danger: true, onSelect: onDeleteTable });
+  }
 
   return items;
 }

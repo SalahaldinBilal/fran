@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Delete table in a table's menu in the schema browser. It shows the DROP statement to review first, and closes the table's structure and designer tabs once it's gone.
+
+### Changed
+
+- The review dialog for SQL changes only explains how a failure is handled when one could leave things half done, or when the change joins a transaction open in the tab. A single statement that applies fully or not at all gets no note.
+
 ## [0.3.1] - 2026-11-19
 
 ### Added

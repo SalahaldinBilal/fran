@@ -812,6 +812,12 @@ function useWorkspaceStateInner() {
     schedulePersist(sessionId);
   }
 
+  function closeTableTabs(sessionId: string, database: string, table: string) {
+    const closing = store.sessions[sessionId]?.scopes[database]?.tabs.filter(tab => (tab.kind === "design" && tab.table === table)
+      || (tab.kind === "structure" && tab.objectKind === "table" && tab.objectName === table)) ?? [];
+    for (const tab of closing) closeTab(sessionId, database, tab.id);
+  }
+
   function closeOtherTabs(sessionId: string, database: string, keepId: string) {
     const closing = store.sessions[sessionId]?.scopes[database]?.tabs.filter(tab => tab.id !== keepId) ?? [];
     for (const tab of closing) setTabTransaction(sessionId, tab.id, "none");
@@ -870,6 +876,7 @@ function useWorkspaceStateInner() {
     activateTab,
     closeTab,
     closeOtherTabs,
+    closeTableTabs,
     moveGlobalTab,
     moveTab,
   };

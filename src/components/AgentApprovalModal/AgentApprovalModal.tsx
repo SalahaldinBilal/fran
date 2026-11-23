@@ -191,10 +191,14 @@ function ReviewDialog(props: { approval: AgentApproval }) {
           </Match>
         </Switch>
 
-        <div class={styles.Safety} classList={{ [styles.Unsafe]: !note().safe }}>
-          {note().safe ? <ShieldCheck size={14} /> : <TriangleAlert size={14} />}
-          <span>{note().text}</span>
-        </div>
+        <Show when={note()}>
+          {shown => (
+            <div class={styles.Safety} classList={{ [styles.Unsafe]: !shown().safe }}>
+              {shown().safe ? <ShieldCheck size={14} /> : <TriangleAlert size={14} />}
+              <span>{shown().text}</span>
+            </div>
+          )}
+        </Show>
         <Show when={error()}>
           <div class={styles.Error}>
             <CircleAlert size={14} />
